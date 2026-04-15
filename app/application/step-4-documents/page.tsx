@@ -1,4 +1,3 @@
-// app/application/step-4-documents/page.tsx
 "use client"
 
 import { useEffect, useState, useCallback, useMemo } from "react"
@@ -7,6 +6,7 @@ import Image from "next/image"
 import { FileText, Trash2 } from "lucide-react"
 import { supabaseBrowser as supabase } from "@/lib/supabase-browser"
 import { WORKER_REQUIRED_FILES_BUCKET } from "@/lib/supabase-storage-buckets"
+import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
 
 const DISCLAIMER =
@@ -118,6 +118,7 @@ export default function DocumentsPage() {
       } | null
     }
     if (!res.ok) {
+      console.error("[step-4-documents] worker-documents api", json)
       return
     }
     const docs = json.documents ?? null
@@ -353,7 +354,12 @@ export default function DocumentsPage() {
   if (!mounted) return null
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-teal-400 to-emerald-500 flex items-center justify-center p-6">
+    <OnboardingLayout
+      cardClassName="md:h-auto md:min-h-[700px]"
+      rightPanelImageSrc="/images/n1.jpg"
+      rightPanelImageClassName="opacity-50 object-top"
+      rightPanelOverlayClassName="bg-white/50"
+    >
       {showAuthPdf && (
         <div
           className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
@@ -385,187 +391,161 @@ export default function DocumentsPage() {
           </div>
         </div>
       )}
-      <div className="w-full max-w-5xl bg-white rounded-2xl shadow-2xl overflow-hidden">
-        <div className="px-8 py-6 border-b bg-gray-50">
-          <div className="flex justify-end mb-2">
+      <div className="flex h-full flex-col px-10 pb-10 pt-8">
+        <OnboardingStepper currentStep={4} completedThrough={3} />
+
+        <div className="flex flex-1 flex-col pt-8">
+          <div className="flex items-center justify-between gap-4 mb-4">
+            <h1 className="text-3xl font-semibold text-slate-900 leading-[1.1]">
+              Authorizations &amp; Documents
+            </h1>
             <button
               type="button"
               onClick={handleSkipForNow}
-              className="text-sm font-medium text-teal-700 hover:text-teal-900"
+              className="text-[12px] font-medium leading-5 text-[#0D9488]"
             >
-              Skip for Now &gt;
+              Skip for Now →
             </button>
           </div>
-          <OnboardingStepper currentStep={4} />
-        </div>
 
-        <div className="flex flex-col lg:flex-row">
-          <div className="flex-1 p-8 lg:p-12">
-            <h1 className="text-3xl font-bold text-gray-900 mb-4">Authorizations &amp; Documents</h1>
-
-            <p className="text-gray-700 mb-6 leading-relaxed">{DISCLAIMER}</p>
-
-            <label className="flex items-start gap-3 mb-10 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={agreed}
-                onChange={(e) => setAgreed(e.target.checked)}
-                className="mt-1 w-5 h-5 accent-teal-600"
-              />
-              <span className="text-gray-800 font-medium">I Agree to the Authorization</span>
-            </label>
-
-            <h2 className="text-lg font-semibold text-gray-900 mb-3">Signed Documents</h2>
-            <div className="mb-10 p-5 bg-gray-50 rounded-xl border border-gray-200">
-              <div className="flex items-center justify-between gap-4 flex-wrap">
-                <div className="flex items-center gap-4 min-w-0">
-                  <div className="w-12 h-12 bg-teal-100 rounded-lg flex items-center justify-center shrink-0">
-                    <svg className="w-6 h-6 text-teal-600" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" />
-                    </svg>
-                  </div>
-                  <div className="min-w-0">
-                    <p className="font-medium text-gray-900 truncate">Auth Release form.pdf</p>
-                    <p className="text-sm text-gray-500">Mandatory</p>
-                  </div>
-                </div>
-
-                {!signingUrl && !isSigned && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      // If Zoho signing isn’t configured (common in local/dev), fall back to showing the PDF.
-                      // On live, Zoho env vars will be present and this will launch embedded signing.
-                      if (!signerEmail || !signerName || !applicantId) {
-                        setShowAuthPdf(true)
-                        return
-                      }
-                      void startSigning()
-                    }}
-                    disabled={signingLoading || !agreed}
-                    className={`px-5 py-2 rounded-lg text-white transition shrink-0 ${
-                      signingLoading || !agreed ? "bg-gray-400 cursor-not-allowed" : "bg-teal-600 hover:bg-teal-700"
-                    }`}
-                  >
-                    Sign documents
-                  </button>
-                )}
-
-                {isSigned && (
-                  <span className="px-5 py-2 bg-teal-600 text-white rounded-lg shrink-0 font-medium">Signed</span>
-                )}
-              </div>
-
-              {envelopeId && (
-                <p className="mt-3 text-xs text-gray-400 truncate">Request ID: {envelopeId}</p>
-              )}
-
-              {signingUrl && (
-                <div className="mt-6">
-                  <div className="border border-gray-300 rounded-lg overflow-hidden">
-                    <iframe
-                      title="Sign document"
-                      src={signingUrl}
-                      width="100%"
-                      height="640"
-                      allow="clipboard-write"
-                      className="min-h-[640px] w-full"
-                    />
-                  </div>
-                  {signingCompleteManual && !isSigned && (
-                    <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-                      <p className="mb-3">
-                        If you are not redirected automatically after signing (for example on local{" "}
-                        <code className="text-xs">http://</code>), confirm here when you are done.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsSigned(true)
-                          setSigningUrl(null)
-                          setSigningCompleteManual(false)
-                        }}
-                        className="rounded-lg bg-teal-600 px-4 py-2 font-medium text-white hover:bg-teal-700"
-                      >
-                        I&apos;ve finished signing
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div className="mb-10">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
-                <h2 className="text-xl font-semibold text-gray-900">Add Documents</h2>
-                <button
-                  type="button"
-                  onClick={() => router.push("/application/step-4-identity")}
-                  className="text-sm font-medium text-teal-700 hover:text-teal-900 w-fit"
-                >
-                  Edit uploads
-                </button>
-              </div>
-
-              <div className="space-y-8">
-                <div>
-                  <p className="text-sm font-semibold text-gray-900 mb-3">SSN card</p>
-                  <div className="grid sm:grid-cols-2 gap-4">
-                    <IdentityFileCard path={identityPaths.ssnFront} subtitle="Front" />
-                  </div>
-                </div>
-
-                <div>
-                  <p className="text-sm font-semibold text-gray-900 mb-3">Driver&apos;s license</p>
-                  <div className="grid sm:grid-cols-2 gap-4">
-                    <IdentityFileCard path={identityPaths.dlFront} subtitle="Front" />
-                  </div>
-                </div>
-              </div>
-
-              <p className="text-xs text-gray-500 mt-4">Only PNG, JPG, or PDF • Max 10 MB per file</p>
-            </div>
-
-            {error && <p className="mb-4 text-red-600 text-sm">{error}</p>}
-            {zohoNote && <p className="mb-4 text-teal-800 text-sm">{zohoNote}</p>}
-
-            <div className="flex gap-4 justify-end">
-              <button
-                type="button"
-                onClick={() => router.back()}
-                className="px-8 py-3 border border-teal-600 text-teal-700 rounded-xl hover:bg-teal-50 transition"
-              >
-                Back
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleSaveAndContinue()}
-                disabled={saving || !agreed || !identityDocsComplete}
-                className={`px-8 py-3 rounded-xl text-white font-medium min-w-[160px] transition ${
-                  saving || !agreed || !identityDocsComplete
-                    ? "bg-gray-400 cursor-not-allowed"
-                    : "bg-teal-600 hover:bg-teal-700"
-                }`}
-              >
-                {saving ? "Saving…" : "Save &amp; Continue"}
-              </button>
-            </div>
+          <div className="text-[13px] leading-6 text-slate-600 space-y-3 mb-8">
+            <p>
+              By selecting <span className="font-semibold text-slate-900">“I Agree,”</span> I authorize the Company to conduct a background check and, if required, a drug screening as part of my application or continued engagement.
+            </p>
+            <p>
+              I understand this may include verification of my identity, employment history, education, and criminal records as permitted by law.
+            </p>
+            <p>
+              I consent to the lawful collection, use, and disclosure of this information and release the Company from liability related to these authorized checks.
+            </p>
           </div>
 
-          <div className="w-full lg:w-96 bg-gray-50 p-8 lg:p-12 flex flex-col items-center justify-center border-t lg:border-l">
-            <Image
-              src="/images/nexus-logo.png"
-              alt="Nexus MedPro Logo"
-              width={192}
-              height={72}
-              className="w-48 h-auto mb-8"
+          <label className="flex items-start gap-3 mb-8 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={agreed}
+              onChange={(e) => setAgreed(e.target.checked)}
+              className="mt-1 w-5 h-5 accent-[#0D9488]"
             />
-            <p className="text-center text-gray-700 text-sm leading-relaxed">
-              Nexus MedPro Staffing – Connecting Healthcare professionals with service providers
-            </p>
+            <span className="text-slate-800 font-medium">I Agree to the Authorization</span>
+          </label>
+
+          <div className="rounded-3xl border border-[#0D9488] bg-[#f0fffe] p-6 shadow-sm mb-8">
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-4 min-w-0">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#d3f7f0] text-[#0D9488]">
+                  <FileText className="h-6 w-6" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-slate-900 truncate">Authorization_agreement.pdf</p>
+                  <p className="text-xs text-slate-500">Mandatory</p>
+                </div>
+              </div>
+
+              {!signingUrl && !isSigned && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    // If Zoho signing isn't configured (common in local/dev), fall back to showing the PDF.
+                    // On live, Zoho env vars will be present and this will launch embedded signing.
+                    if (!signerEmail || !signerName || !applicantId) {
+                      setShowAuthPdf(true)
+                      return
+                    }
+                    void startSigning()
+                  }}
+                  disabled={signingLoading || !agreed}
+                  className={`rounded-xl px-5 py-2 text-[12px] font-semibold text-white transition ${
+                    signingLoading || !agreed ? "bg-gray-400 cursor-not-allowed" : "bg-[#0D9488] hover:bg-[#0b7a70]"
+                  }`}
+                >
+                  {signingLoading ? "Preparing..." : "Click and Sign"}
+                </button>
+              )}
+
+              {isSigned && (
+                <span className="rounded-xl bg-[#0D9488] px-5 py-2 text-[12px] font-semibold text-white">Signed</span>
+              )}
+            </div>
+
+            {envelopeId && (
+              <p className="mt-4 text-xs text-slate-500 truncate">Request ID: {envelopeId}</p>
+            )}
+
+            {signingUrl && (
+              <div className="mt-5 border border-slate-200 rounded-3xl overflow-hidden">
+                <iframe
+                  title="Sign document"
+                  src={signingUrl}
+                  width="100%"
+                  height="520"
+                  allow="clipboard-write"
+                  className="min-h-[520px] w-full"
+                />
+              </div>
+            )}
+          </div>
+
+          <div className="mb-8">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+              <p className="text-[15px] font-semibold text-slate-900">Add Documents</p>
+              <button
+                type="button"
+                onClick={() => router.push("/application/step-4-identity")}
+                className="text-[12px] font-medium text-[#0D9488]"
+              >
+                Edit uploads
+              </button>
+            </div>
+
+            <div className="space-y-6">
+              <div>
+                <p className="text-[13px] font-semibold text-slate-900 mb-3">SSN Card</p>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <IdentityFileCard path={identityPaths.ssnFront} subtitle="Front" />
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-[13px] font-semibold text-slate-900">Driver&apos;s License</p>
+                  <p className="text-[11px] text-slate-500">front only</p>
+                </div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <IdentityFileCard path={identityPaths.dlFront} subtitle="Front" />
+                </div>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-slate-500 mt-4">Only PNG, JPG, or PDF • Max 10 MB per file</p>
+          </div>
+
+          {error && <p className="mb-4 text-red-600 text-sm">{error}</p>}
+          {zohoNote && <p className="mb-4 text-[#0D9488] text-sm">{zohoNote}</p>}
+
+          <div className="mt-auto flex flex-wrap items-center justify-end gap-3 pt-2">
+            <button
+              type="button"
+              onClick={() => router.back()}
+              className="rounded-xl border border-[#0D9488] bg-white px-6 py-2 text-[12px] font-medium text-[#0D9488] transition hover:bg-[#f0fffe]"
+            >
+              Back
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleSaveAndContinue()}
+              disabled={saving || !agreed || !identityDocsComplete}
+              className={`rounded-xl px-6 py-2 text-[12px] font-medium text-white transition ${
+                saving || !agreed || !identityDocsComplete
+                  ? "bg-gray-400 cursor-not-allowed"
+                  : "bg-[#0D9488] hover:bg-[#0b7a70]"
+              }`}
+            >
+              {saving ? "Saving..." : "Save & Continue"}
+            </button>
           </div>
         </div>
       </div>
-    </div>
+    </OnboardingLayout>
   )
 }

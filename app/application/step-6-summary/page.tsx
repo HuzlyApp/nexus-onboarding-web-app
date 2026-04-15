@@ -98,9 +98,9 @@ export default function SummaryPage() {
   return (
     <OnboardingLayout
       cardClassName="md:h-auto md:min-h-[700px]"
-      rightPanelImageSrc="/images/nurse.jpg"
+      rightPanelImageSrc="/images/main-doctor.jpg"
       rightPanelImageClassName="opacity-50 object-top"
-      rightPanelOverlayClassName="bg-white/0"
+      rightPanelOverlayClassName="bg-white/50"
     >
       <div className="flex h-full flex-col px-10 pb-10 pt-8">
         <OnboardingStepper currentStep={6} completedThrough={6} />

@@ -39,7 +39,7 @@ export default function SkillAssessmentIntro() {
             cardClassName="md:h-auto md:min-h-[700px]"
             rightPanelImageSrc="/images/skill-bg.jpg"
             rightPanelImageClassName="opacity-50 object-top"
-            rightPanelOverlayClassName="bg-white/0"
+            rightPanelOverlayClassName="bg-white/50"
         >
             <div className="flex h-full flex-col px-10 pb-10 pt-8">
                 <OnboardingStepper currentStep={3} completedThrough={2} />

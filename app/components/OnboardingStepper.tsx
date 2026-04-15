@@ -27,17 +27,22 @@ export default function OnboardingStepper({
     "Summary"
   ]
 
+  const progress =
+    currentStep === steps.length
+      ? ((steps.length - 2) / (steps.length - 1)) * 100
+      : ((currentStep - 1) / (steps.length - 1)) * 100
+
   return (
     <>
       <div className="w-full border-b border-slate-200 pb-6">
         <div className="relative mx-auto mt-2 w-full max-w-3xl px-2">
+          {/* Background line */}
           <div className="absolute left-10 right-10 top-3 h-[2px] bg-[#f1f5f9]" />
 
+          {/* Progress line */}
           <div
             className="absolute left-10 top-3 h-[2px] bg-[#1db4a3] transition-all"
-            style={{
-              width: `${((currentStep - 1) / (steps.length - 1)) * 100}%`
-            }}
+            style={{ width: `${progress}%` }}
           />
 
           <div className="relative flex justify-between">
@@ -75,7 +80,11 @@ export default function OnboardingStepper({
 
                   <span
                     className={`mt-3 whitespace-pre-line text-[12px] leading-tight
-                      ${active || completed ? "text-[#1db4a3] font-medium" : "text-gray-400"}
+                      ${
+                        active || completed
+                          ? "text-[#1db4a3] font-medium"
+                          : "text-gray-400"
+                      }
                     `}
                   >
                     {step}

@@ -1,58 +1,43 @@
-// app/application/step-4-identity/page.tsx
 "use client"
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import Image from "next/image"
+import { ChevronRight } from "lucide-react"
 import { supabaseBrowser as supabase } from "@/lib/supabase-browser"
 import { WORKER_REQUIRED_FILES_BUCKET } from "@/lib/supabase-storage-buckets"
+import OnboardingLayout from "@/app/components/OnboardingLayout"
+import OnboardingStepper from "@/app/components/OnboardingStepper"
 
-import OnboardingLayout from "../../components/OnboardingLayout"
-import StepProgress from "../../components/StepProgress"
-import FileUploadBox from "../../components/FileUploadBox"
-
-const MAX_BYTES = 10 * 1024 * 1024
+type UploadSlot = { file: File | null }
 
 export default function Step4Identity() {
   const router = useRouter()
 
-  const [ssnFront, setSsnFront] = useState<File | null>(null)
-  const [dlFront, setDlFront] = useState<File | null>(null)
+  const [ssnFile, setSsnFile] = useState<UploadSlot>({ file: null })
+  const [licenseFile, setLicenseFile] = useState<UploadSlot>({ file: null })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const uploadFile = async (
-    file: File,
-    applicantId: string,
-    segment: "ssn_front" | "dl_front"
-  ): Promise<string> => {
-    if (file.size > MAX_BYTES) {
-      throw new Error("Each file must be 10 MB or smaller.")
-    }
+  const uploadFile = async (file: File, folder: string): Promise<string> => {
     const sanitizedName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_")
-    const folder = segment === "ssn_front" ? "ssn" : "drivers_license"
-    const storagePath = `${folder}/${applicantId}/${segment}-${Date.now()}-${sanitizedName}`
-
-    const { error: uploadError } = await supabase.storage.from(WORKER_REQUIRED_FILES_BUCKET).upload(storagePath, file, {
-      cacheControl: "3600",
-      upsert: true,
-      contentType: file.type || "application/octet-stream",
-    })
-
+    const path = `${folder}/${Date.now()}-${sanitizedName}`
+    const { error: uploadError } = await supabase.storage
+      .from(WORKER_REQUIRED_FILES_BUCKET)
+      .upload(path, file, { cacheControl: "3600", upsert: false })
     if (uploadError) throw new Error(uploadError.message || "File upload failed")
-
-    return storagePath
+    const { data: urlData } = supabase.storage.from(WORKER_REQUIRED_FILES_BUCKET).getPublicUrl(path)
+    if (!urlData.publicUrl) throw new Error("Could not generate public URL")
+    return urlData.publicUrl
   }
 
   const handleNext = async () => {
     setError(null)
-
-    if (!ssnFront || !dlFront) {
-      setError("Please upload both files: SSN (front) and driver's license (front).")
+    if (!ssnFile.file || !licenseFile.file) {
+      setError("Please upload both SSN Card and Driver's License")
       return
     }
-
     setLoading(true)
-
     try {
       const { data: userData, error: authErr } = await supabase.auth.getUser()
       const user = userData?.user
@@ -63,42 +48,30 @@ export default function Step4Identity() {
       const applicantId = user.id
       localStorage.setItem("applicantId", applicantId)
 
-      const [pSsnF, pDlF] = await Promise.all([
-        uploadFile(ssnFront, applicantId, "ssn_front"),
-        uploadFile(dlFront, applicantId, "dl_front"),
-      ])
+      const ssnUrl = await uploadFile(ssnFile.file, "ssn")
+      const licenseUrl = await uploadFile(licenseFile.file, "license")
 
-      const res = await fetch("/api/onboarding/worker-documents", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          applicantId,
-          ssn_url: supabase.storage.from(WORKER_REQUIRED_FILES_BUCKET).getPublicUrl(pSsnF).data.publicUrl,
-          drivers_license_url: supabase.storage.from(WORKER_REQUIRED_FILES_BUCKET).getPublicUrl(pDlF).data.publicUrl,
-        }),
+      const { error: dbError } = await supabase.from("worker_documents").insert({
+        applicant_id: applicantId,
+        ssn_url: ssnUrl,
+        drivers_license_url: licenseUrl,
+        uploaded_at: new Date().toISOString(),
       })
-      const json = (await res.json()) as { error?: string }
-      if (!res.ok) throw new Error(json.error || "Could not save to worker documents")
-
-      const url = (path: string) => supabase.storage.from(WORKER_REQUIRED_FILES_BUCKET).getPublicUrl(path).data.publicUrl
+      if (dbError) throw dbError
 
       localStorage.setItem(
         "identityDocuments",
         JSON.stringify({
-          ssnFront: { name: ssnFront.name, path: pSsnF, url: url(pSsnF) },
-          dlFront: { name: dlFront.name, path: pDlF, url: url(pDlF) },
+          ssn: { name: ssnFile.file.name, url: ssnUrl },
+          license: { name: licenseFile.file.name, url: licenseUrl },
           uploadedAt: new Date().toISOString(),
         })
       )
-
-      setSsnFront(null)
-      setDlFront(null)
-
+      setSsnFile({ file: null })
+      setLicenseFile({ file: null })
       router.push("/application/step-4-documents")
     } catch (err: unknown) {
-      console.error("Upload/save error:", err)
-      const message = err instanceof Error ? err.message : "Something went wrong"
-      setError(message)
+      setError(err instanceof Error ? err.message : "Something went wrong")
     } finally {
       setLoading(false)
     }
@@ -108,74 +81,126 @@ export default function Step4Identity() {
     router.push("/application/step-4-documents")
   }
 
-  const canSubmit = Boolean(ssnFront && dlFront) && !loading
+  const UploadBox = ({
+    id,
+    slot,
+    setSlot,
+  }: {
+    id: string
+    slot: UploadSlot
+    setSlot: (s: UploadSlot) => void
+  }) => (
+    <label
+      htmlFor={id}
+      className="block cursor-pointer rounded-xl border border-dashed border-[#0D9488] bg-white px-6 py-8 text-center transition hover:bg-[#f0fffe]"
+    >
+      <input
+        id={id}
+        type="file"
+        className="hidden"
+        accept="image/png,image/jpeg,image/jpg,application/pdf"
+        onChange={(e) => {
+          if (e.target.files?.[0]) setSlot({ file: e.target.files[0] })
+        }}
+      />
+      {slot.file ? (
+        <div className="space-y-1">
+          <p className="text-[13px] font-semibold text-[#0D9488]">{slot.file.name}</p>
+          <p className="text-[11px] text-slate-400">
+            {(slot.file.size / 1024 / 1024).toFixed(2)} MB
+          </p>
+        </div>
+      ) : (
+        <div className="flex flex-col items-center gap-2">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#e6faf8]">
+            <Image src="/images/upload.svg" alt="" width={22} height={22} />
+          </div>
+          <p className="text-[13px] text-slate-600">Drag your file(s) to start uploading</p>
+          <p className="text-[11px] text-slate-400">OR</p>
+          <span className="rounded-md border border-[#0D9488] px-4 py-1 text-[12px] font-medium text-[#0D9488] hover:bg-[#f0fffe]">
+            Browse files
+          </span>
+          <p className="text-[10px] text-slate-400">Max 10 MB files are allowed</p>
+        </div>
+      )}
+    </label>
+  )
 
   return (
-    <OnboardingLayout>
-      <div className="max-w-2xl mx-auto px-4 sm:px-6 w-full">
-        <div className="flex justify-end mb-2">
-          <button
-            type="button"
-            onClick={handleSkip}
-            className="text-sm font-medium text-teal-700 hover:text-teal-900"
-          >
-            Skip for Now &gt;
-          </button>
-        </div>
+    <OnboardingLayout
+      cardClassName="md:h-auto md:min-h-[700px]"
+      rightPanelImageSrc="/images/n1.jpg"
+      rightPanelImageClassName="opacity-50 object-top"
+      rightPanelOverlayClassName="bg-white/50"
+    >
+      <div className="flex h-full flex-col px-10 pb-10 pt-8">
+        <OnboardingStepper currentStep={4} completedThrough={3} />
 
-        <StepProgress />
-
-        <h2 className="text-xl sm:text-2xl font-semibold text-black mb-6">SSN &amp; Driver&apos;s License</h2>
-
-        {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">{error}</div>
-        )}
-
-        <div className="space-y-8">
-          <div>
-            <p className="text-sm font-semibold text-gray-900 mb-3">SSN card</p>
-            <div className="grid sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-2">Front *</label>
-                <FileUploadBox
-                  inputId="identity-ssn-front"
-                  file={ssnFront}
-                  setFile={setSsnFront}
-                  accept="image/png,image/jpeg,image/jpg,application/pdf"
-                />
-              </div>
-            </div>
+        <div className="flex flex-1 flex-col pt-8">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-[24px] font-semibold leading-8 text-slate-800">
+              SSN &amp; Driver&apos;s License
+            </h2>
+            <button
+              type="button"
+              onClick={handleSkip}
+              className="cursor-pointer text-[12px] font-medium leading-5 text-[#0D9488]"
+            >
+              Skip for Now →
+            </button>
           </div>
 
-          <div>
-            <p className="text-sm font-semibold text-gray-900 mb-3">Driver&apos;s license</p>
-            <div className="grid sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-2">Front *</label>
-                <FileUploadBox
-                  inputId="identity-dl-front"
-                  file={dlFront}
-                  setFile={setDlFront}
-                  accept="image/png,image/jpeg,image/jpg,application/pdf"
-                />
+          {error && (
+            <p className="mb-4 rounded-lg bg-red-50 px-4 py-2 text-[12px] text-red-600">
+              {error}
+            </p>
+          )}
+
+          <div className="space-y-6">
+            {/* SSN Card */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[14px] font-semibold text-slate-800">SSN Card</p>
+                <p className="text-[11px] text-slate-400">front/back</p>
               </div>
+              <UploadBox id="ssn-upload" slot={ssnFile} setSlot={setSsnFile} />
             </div>
+
+            {/* Driver's License */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[14px] font-semibold text-slate-800">Driver&apos;s License</p>
+                <p className="text-[11px] text-slate-400">front/back</p>
+              </div>
+              <UploadBox id="license-upload" slot={licenseFile} setSlot={setLicenseFile} />
+            </div>
+
+            <p className="text-[11px] text-slate-400">Only support png, jpg or pdf files</p>
           </div>
 
-          <p className="text-xs text-gray-500">Only PNG, JPG, or PDF • Max 10 MB per file</p>
-        </div>
-
-        <div className="flex justify-end gap-4 mt-10">
-          <button
-            type="button"
-            onClick={() => void handleNext()}
-            disabled={!canSubmit}
-            className={`px-6 py-2.5 min-w-[160px] rounded-lg text-white font-medium transition ${
-              !canSubmit ? "bg-gray-400 cursor-not-allowed" : "bg-teal-600 hover:bg-teal-700 shadow-sm"
-            }`}
-          >
-            {loading ? "Saving…" : "Save & Continue"}
-          </button>
+          {/* Buttons */}
+          <div className="mt-auto flex items-center justify-end gap-3 pt-8">
+            <button
+              type="button"
+              onClick={() => router.back()}
+              disabled={loading}
+              className="cursor-pointer rounded-md border border-[#0D9488] bg-white px-5 py-2 text-[12px] font-medium leading-5 text-[#0D9488] transition hover:bg-[#f0fffe] disabled:opacity-50"
+            >
+              Back
+            </button>
+            <button
+              type="button"
+              onClick={handleNext}
+              disabled={loading}
+              className={`group inline-flex cursor-pointer items-center gap-2 rounded-md px-6 py-2 text-[12px] font-medium leading-5 text-white transition ${
+                loading ? "bg-gray-400 cursor-not-allowed" : "bg-[#0D9488] hover:bg-[#0b7a70]"
+              }`}
+            >
+              {loading ? "Uploading..." : "Next"}
+              {!loading && <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />}
+            </button>
+          </div>
         </div>
       </div>
     </OnboardingLayout>

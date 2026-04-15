@@ -43,15 +43,19 @@ export default function ReferencesPage() {
       refs.map((r) => ({ first_name: r.first, last_name: r.last, phone: r.phone, email: r.email }))
     )
     if (error) { setError(error.message); return }
-    router.push("/application/step-6-summary")
+    // router.push("/application/step-6-summary")
+     localStorage.setItem("referenceData", JSON.stringify(refs))
+    localStorage.setItem("referencesCount", String(refs.length))
+
+    router.push("/application/step-5-reference-review")
   }
 
   return (
     <OnboardingLayout
       cardClassName="md:h-auto md:min-h-[700px]"
-      rightPanelImageSrc="/images/skill-bg.jpg"
-      rightPanelImageClassName="opacity-50 object-top"
-      rightPanelOverlayClassName="bg-white/0"
+      rightPanelImageSrc="/images/main-doctor.jpg"
+       rightPanelImageClassName="opacity-50 object-top"
+      rightPanelOverlayClassName="bg-white/50"
     >
       <div className="flex h-full flex-col px-10 pb-10 pt-8">
         <OnboardingStepper currentStep={5} completedThrough={4} />
@@ -62,7 +66,7 @@ export default function ReferencesPage() {
             <h2 className="text-[24px] font-semibold leading-8 text-slate-800">Add References</h2>
             <button
               type="button"
-              onClick={() => router.push("/application/step-6-summary")}
+              onClick={() => router.push("/application/step-5-reference-review")}
               className="cursor-pointer text-[12px] font-medium leading-5 text-[#0D9488] mt-1"
             >
               Skip for Now →

@@ -194,7 +194,7 @@ export default function Step1Upload() {
 
             {file ? (
               <div className="text-teal-700 font-semibold">
-                ✅ {file.name}
+                 {file.name}
               </div>
             ) : (
               <>
