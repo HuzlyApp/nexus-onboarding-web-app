@@ -1,0 +1,162 @@
+"use client"
+
+import { useState } from "react"
+import Image from "next/image"
+import { useRouter } from "next/navigation"
+import OnboardingLayout from "@/app/components/OnboardingLayout"
+import OnboardingStepper from "@/app/components/OnboardingStepper"
+
+export default function Step1Success() {
+  const router = useRouter()
+
+  const [fileName] = useState<string>(() => {
+    if (typeof window === "undefined") return "resume.pdf"
+    return localStorage.getItem("resumeName") || "resume.pdf"
+  })
+  const [fileSizeBytes] = useState<number | null>(() => {
+    if (typeof window === "undefined") return null
+    const sizeRaw = localStorage.getItem("resumeSizeBytes")
+    const sizeNum = sizeRaw ? Number(sizeRaw) : null
+    return sizeNum != null && Number.isFinite(sizeNum) ? sizeNum : null
+  })
+  const [agree, setAgree] = useState<boolean>(false)
+  const [termsRequiredError, setTermsRequiredError] = useState<string | null>(null)
+  function formatBytes(bytes: number | null) {
+    if (!bytes && bytes !== 0) return "—"
+    const mb = bytes / (1024 * 1024)
+    if (mb >= 1) return `${mb.toFixed(1)} MB`
+    const kb = bytes / 1024
+    if (kb >= 1) return `${kb.toFixed(0)} KB`
+    return `${bytes} B`
+  }
+
+  // ✅ REMOVE FILE
+  const removeFile = () => {
+    localStorage.removeItem("resumeName")
+    localStorage.removeItem("resumeFile")
+    localStorage.removeItem("parsedResume")
+    localStorage.removeItem("resumeStoragePath")
+    localStorage.removeItem("resumeSizeBytes")
+
+    router.push("/application/step-1-upload")
+  }
+
+  function handleContinue() {
+    if (!agree) {
+      setTermsRequiredError("Please accept Terms & Conditions *")
+      return
+    }
+    router.push("/application/step-1-review")
+  }
+
+  return (
+    <OnboardingLayout>
+      <div className="flex h-full flex-col">
+        <div className="px-6 pt-6 sm:px-8 sm:pt-8 md:px-10 md:pt-8">
+          <OnboardingStepper
+            currentStep={1}
+            title="Resume Uploaded"
+            // titleIconSrc="/icons/yes-sign-icon.svg"
+            titleIconAlt="Resume uploaded"
+          />
+        </div>
+
+        <div className="flex flex-1 flex-col px-6 pb-8 pt-2 sm:px-8 md:px-10">
+          <div className="mt-6 flex items-start gap-3 rounded-lg border border-[#1db4a3] bg-[#ecfbf9] px-4 py-4 text-[#0f766e]">
+            <div className="mt-0.5 flex h-6 w-6 flex-none items-center justify-center rounded-full  text-white">
+              <Image
+                src="/icons/yes-sign-icon.svg"
+                alt="Success"
+                width={24}
+                height={24}
+                className="h-6 w-6"
+              />
+            </div>
+            <p className="text-[14px] leading-6">
+              Resume parsed successfully. Carefully review your information before
+              submitting the application.
+            </p>
+          </div>
+
+          <div className="mt-6 flex items-center justify-between rounded-lg border border-[#1db4a3] bg-[#f3fffd] px-5 py-4">
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-md bg-[#dff7f3]">
+                <Image
+                  src="/icons/pdf-icon.svg"
+                  alt="PDF"
+                  width={24}
+                  height={24}
+                  className="h-6 w-6"
+                />
+              </div>
+
+              <div>
+                <p className="text-[14px] font-semibold text-[#0f766e]">
+                  {fileName}
+                </p>
+                <p className="text-xs text-gray-400">{formatBytes(fileSizeBytes)}</p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={removeFile}
+              className="cursor-pointer inline-flex h-10 w-10 items-center justify-center rounded-md text-[#0f766e] transition hover:bg-teal-50"
+              aria-label="Remove file"
+            >
+              <Image
+                src="/icons/delete-icon.svg"
+                alt="Delete"
+                width={24}
+                height={24}
+                className="h-6 w-6"
+              />
+            </button>
+          </div>
+
+          <label className="mt-6 flex items-start gap-3 text-sm text-slate-600">
+            <input
+              type="checkbox"
+              checked={agree}
+              onChange={() => {
+                setAgree(!agree)
+                setTermsRequiredError(null)
+              }}
+              className="cursor-pointer mt-0.5 h-5 w-5 rounded border-slate-300 accent-teal-600"
+            />
+            <span className="text-[14px] leading-6">
+              By checking this box you agree to our{" "}
+              <span className="cursor-pointer font-semibold text-teal-600 underline">
+                Terms & Conditions
+              </span>
+            </span>
+          </label>
+
+          {termsRequiredError ? (
+            <div className="mt-2 text-sm text-rose-600" aria-live="polite">
+              {termsRequiredError}
+            </div>
+          ) : null}
+
+          <div className="mt-auto flex justify-end gap-4 pt-10">
+            <button
+              type="button"
+              onClick={() => router.back()}
+              className="cursor-pointer inline-flex h-11 items-center justify-center rounded-lg border border-slate-300 px-8 text-[16px] font-medium text-slate-700 transition hover:bg-slate-50"
+            >
+              Cancel
+            </button>
+
+            <button
+              type="button"
+              onClick={handleContinue}
+              className="cursor-pointer inline-flex h-11 items-center justify-center rounded-lg bg-[#1db4a3] px-10 text-[16px] font-semibold text-white transition hover:bg-[#169b8c]"
+            >
+              Continue
+            </button>
+          </div>
+        </div>
+      </div>
+    </OnboardingLayout>
+  )
+}
