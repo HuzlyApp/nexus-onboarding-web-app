@@ -1,46 +1,40 @@
+
 "use client"
 
 import Image from "next/image"
-import Link from "next/link"
 import { Check } from "lucide-react"
 
-export default function SuccessPage() {
+export default function DocumentReceivedPage() {
   return (
     <div className="min-h-screen bg-[linear-gradient(135deg,#27c8c0_0%,#16a79a_100%)] flex items-center justify-center p-6 md:p-12">
-      <div className="w-full max-w-[840px] min-h-[500px] h-[500px] overflow-hidden rounded-2xl bg-white shadow-[0_30px_80px_rgba(0,0,0,0.18)]">
-        <div className="flex h-full">
-          <div className="w-full md:w-[510px] flex flex-col items-center justify-center px-10 pb-10 pt-[56px] text-center">
-            <div className=" flex h-[72px] w-[72px] mb-6 items-center justify-center rounded-full bg-[#28c7bf] text-white shadow-sm flex-none">
-              <Check className="h-8 w-8" strokeWidth={2.5} />
-            </div>
-            <div className="space-y-6 max-w-[420px] mx-auto">
-
+      <div className="w-full max-w-[840px] w-[840px] h-[500px] overflow-hidden rounded-2xl bg-white shadow-[0_30px_80px_rgba(0,0,0,0.18)]">
+        <div className="flex h-full w-full">
+          {/* Left side layout */}
+          <div className="w-[510px] h-[500px] flex flex-col items-center justify-center pt-[56px] pr-[40px] pb-[40px] pl-[40px] text-center">
+            <div className="flex flex-col items-center gap-[36px] mt-auto mb-auto">
+              <div className="flex h-[72px] w-[72px] items-center justify-center rounded-full bg-[#28c7bf] text-white shadow-sm flex-none">
+                <Check className="h-8 w-8" strokeWidth={2.5} />
+              </div>
               <div>
                 <h1 className="text-[32px] font-semibold text-slate-900 tracking-[-0.03em]">
-                  Application Received
+                  Document Received
                 </h1>
-                <p className="mt-4 text-[15px] leading-7 text-slate-600">
-                  We’ll contact you within 1–3 business days.
-                  <br />
-                  Please check your email for the latest update.
+                <p className="mt-4 text-[16px] leading-[26px] text-slate-600 max-w-[340px] mx-auto">
+                  We’ll contact you within 1–3 business days
+                  and please check your email for the
+                  latest update.
                 </p>
               </div>
             </div>
-
-            <Link
-              href="/application/application-status"
-              className="mt-10 inline-flex items-center justify-center rounded-xl bg-[#0D9488] px-8 py-3 text-[14px] font-semibold text-white transition hover:bg-[#0b7a70]"
-            >
-              Check Status
-            </Link>
           </div>
 
+          {/* Right side layout */}
           <div className="relative hidden md:flex w-[330px] h-[500px] p-[20px] flex flex-col gap-[24px] items-center justify-center overflow-hidden bg-white">
             <Image
-              src="/images/nurse.jpg"
+              src="/images/verification-status.jpg"
               alt="Nurse background"
               fill
-              className="object-cover object-center opacity-50"
+              className="object-cover opacity-50"
               priority
             />
             <div className="absolute inset-0 bg-white/70" />
@@ -77,5 +71,10 @@ export default function SuccessPage() {
     </div>
   )
 }
+
+
+
+
+
 
 

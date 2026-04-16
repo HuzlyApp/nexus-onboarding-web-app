@@ -1,4 +1,3 @@
-// app/application/step-1-review/page.tsx
 "use client"
 
 import { useEffect, useState } from "react"
@@ -6,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 import Image from "next/image"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
+import { Check } from "lucide-react"
 
 export default function Step1Review() {
   const router = useRouter()
@@ -241,7 +241,7 @@ export default function Step1Review() {
       // Auto go to next page after showing popup
       setTimeout(() => {
         router.push("/application/step-2-license")
-      }, 1200)
+      }, 3000)
 
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Failed to save data"
@@ -254,18 +254,11 @@ export default function Step1Review() {
 
   return (
     <div className="min-h-screen bg-[#1db4a3] flex items-center justify-center p-4">
-      <div 
-        className="bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row relative mx-auto"
-        style={{
-          width: '1060px',
-          height: '944px',
-          minWidth: '1060px',
-          maxWidth: '1060px',
-          minHeight: '650px',
-        }}
+      <div
+        className="bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row relative mx-auto w-full md:w-[1060px] md:max-w-[1060px] md:h-[944px] min-h-[600px] md:min-h-[650px]"
       >
         {/* LEFT - Form */}
-        <div className="w-full md:w-[65%] p-10 flex flex-col justify-between">
+        <div className="w-full md:w-[65%] p-6 md:p-10 flex flex-col justify-between">
           <div>
             <OnboardingStepper currentStep={1} />
 
@@ -451,11 +444,11 @@ export default function Step1Review() {
         <div className="hidden md:block w-[35%] relative bg-gray-50">
           <div className="absolute inset-0 z-0">
             {/* You'll need to make sure the image path matches what you have or I can generate a placeholder */}
-            <Image 
-              src="/images/nurse.jpg" 
-              alt="Healthcare professional smiling" 
-              fill 
-              className="object-cover object-top opacity-50 grayscale" 
+            <Image
+              src="/images/nurse.jpg"
+              alt="Healthcare professional smiling"
+              fill
+              className="object-cover object-top opacity-50 grayscale"
               priority
             />
             {/* Gradient overlay to match the original soft fade */}
@@ -477,16 +470,16 @@ export default function Step1Review() {
               <div className="w-full h-[1px] bg-gray-300 relative mb-6">
                 <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-full p-1 flex items-center justify-center]">
                   {/* <div className="w-[10px] h-[10px] bg-[#1cb5a3] rounded-full"></div> */}
-               <Image
-                  src="/icons/circle-star-icon.svg"
-                  alt=""
-                  width={24}
-                  height={24}
-                  className="h-6 w-6 flex-none"
-                />
+                  <Image
+                    src="/icons/circle-star-icon.svg"
+                    alt=""
+                    width={24}
+                    height={24}
+                    className="h-6 w-6 flex-none"
+                  />
                 </div>
               </div>
-              <p 
+              <p
                 className="text-[#1e293b]"
                 style={{
                   fontFamily: 'Inter, sans-serif',
@@ -505,16 +498,32 @@ export default function Step1Review() {
 
       {/* SUCCESS POPUP */}
       {success && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-xs text-center">
-            <div className="mx-auto w-16 h-16 bg-green-100 text-green-600 rounded-2xl flex items-center justify-center text-4xl mb-4">
-              ✅
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] animate-in fade-in duration-300">
+          <div
+            className="bg-white rounded-[20px] shadow-[0_20px_60px_rgba(0,0,0,0.2)] flex flex-col items-center justify-center text-center p-6 md:p-10 transform animate-in zoom-in-95 duration-300 w-[95%] max-w-[520px] min-h-[380px] md:h-[400px] mx-4"
+          >
+            <div className="flex h-[72px] w-[72px] mb-6 items-center justify-center rounded-full bg-[#28c7bf] text-white shadow-sm flex-none">
+              <Check className="h-8 w-8" strokeWidth={2.5} />
             </div>
-            <h3 className="text-2xl font-semibold text-gray-900 mb-2">Saved Successfully!</h3>
-            <p className="text-gray-600 mb-6">Your information has been saved.</p>
+            {/* <div className="mb-8">
+              <div className="w-[84px] h-[84px] bg-[#00C440] rounded-xl flex items-center justify-center shadow-[0_8px_16px_rgba(0,196,64,0.25)]">
+                <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+              </div>
+            </div> */}
+
+            <h3 className="text-[28px] md:text-[32px] font-bold text-slate-900 mb-3 tracking-tight">
+              Saved Successfully!
+            </h3>
+
+            <p className="text-[16px] md:text-[18px] text-slate-600 mb-8 md:mb-10 max-w-[340px] leading-relaxed">
+              Your information has been saved.
+            </p>
+
             <button
               onClick={() => router.push("/application/step-2-license")}
-              className="cursor-pointer w-full py-3 bg-[#1db4a3] text-white font-medium rounded-xl hover:bg-teal-600"
+              className="cursor-pointer w-full max-w-[360px] h-14 bg-[#28C7BF] hover:bg-[#23B5AD] text-white text-[18px] font-bold rounded-xl transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 active:translate-y-0"
             >
               Continue to Next Step
             </button>
@@ -524,3 +533,4 @@ export default function Step1Review() {
     </div>
   )
 }
+

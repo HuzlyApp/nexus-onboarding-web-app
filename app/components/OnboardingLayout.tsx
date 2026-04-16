@@ -1,3 +1,4 @@
+
 "use client"
 
 import Image from "next/image"
@@ -8,7 +9,9 @@ type Props = {
   cardClassName?: string
   rightPanelClassName?: string
   rightPanelContentClassName?: string
+  rightPanelInnerClassName?: string
   logoClassName?: string
+  taglineClassName?: string
   rightPanelImageSrc?: string
   rightPanelImageAlt?: string
   rightPanelImageClassName?: string
@@ -20,7 +23,9 @@ export default function OnboardingLayout({
   cardClassName,
   rightPanelClassName,
   rightPanelContentClassName,
+  rightPanelInnerClassName,
   logoClassName,
+  taglineClassName,
   rightPanelImageSrc,
   rightPanelImageAlt,
   rightPanelImageClassName,
@@ -59,7 +64,12 @@ export default function OnboardingLayout({
               rightPanelContentClassName
             )}
           >
-            <div className="flex w-full max-w-[270px] flex-col items-center gap-6 text-center">
+            <div
+              className={cn(
+                "flex w-full max-w-[270px] flex-col items-center gap-6 text-center",
+                rightPanelInnerClassName
+              )}
+            >
               <div
                 className={cn(
                   "relative h-[60px] w-[204px] max-w-full ",
@@ -87,7 +97,12 @@ export default function OnboardingLayout({
                 <div className="h-px flex-1 bg-slate-400/55" />
               </div>
 
-              <p className="text-center text-[16px] font-normal leading-6 tracking-normal text-black">
+              <p
+                className={cn(
+                  "text-center text-[16px] font-normal leading-6 tracking-normal text-black",
+                  taglineClassName
+                )}
+              >
                 Nexus MedPro Staffing {"\u2013"} Connecting Healthcare
                 professionals with service providers
               </p>
@@ -98,4 +113,3 @@ export default function OnboardingLayout({
     </div>
   )
 }
-
