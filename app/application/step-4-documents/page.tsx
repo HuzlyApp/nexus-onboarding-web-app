@@ -17,9 +17,6 @@ import {
   type ZohoSignDbStatus,
 } from "@/lib/zoho-sign-status"
 
-const DISCLAIMER =
-  "By selecting “I Agree,” I authorize the Company to conduct a background check and, if required, a drug screening as part of my application or continued engagement. I understand this may include verification of my identity, employment history, education, and criminal records as permitted by law. I consent to the lawful collection, use, and disclosure of this information and release the Company from liability related to these authorized checks."
-
 type IdentityPaths = {
   ssnFront: string | null
   ssnBack: string | null
@@ -64,6 +61,8 @@ export default function DocumentsPage() {
   const [isSigned, setIsSigned] = useState(false)
   const [signingCompleteManual, setSigningCompleteManual] = useState(false)
   const [signingStatus, setSigningStatus] = useState<ZohoSignDbStatus>("sent")
+  /** Email already has a non-declined onboarding Zoho row — do not call send-agreement again. */
+  const [onboardingAgreementLocked, setOnboardingAgreementLocked] = useState(false)
 
   const signedFromStatus = signingStatus === "signed" || signingStatus === "completed"
   const effectiveSigned = isSigned || signedFromStatus
@@ -71,6 +70,10 @@ export default function DocumentsPage() {
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  useEffect(() => {
+    if (signedFromStatus) setAgreed(true)
+  }, [signedFromStatus])
 
   const identityDocsComplete = useMemo(() => {
     const { ssnFront, dlFront } = identityPaths
@@ -94,7 +97,7 @@ export default function DocumentsPage() {
       const em = (p.email || "").trim()
       const fn = (p.firstName || p.first_name || "").trim()
       const ln = (p.lastName || p.last_name || "").trim()
-      if (em) setSignerEmail(em)
+      if (em) setSignerEmail(em.toLowerCase())
       if (fn || ln) setSignerName(`${fn} ${ln}`.trim())
     } catch {
       /* ignore */
@@ -106,7 +109,22 @@ export default function DocumentsPage() {
     if (existingRequestId) {
       setEnvelopeId(existingRequestId)
     }
+    const cachedStatus = (localStorage.getItem("signingStatus") || "").trim().toLowerCase()
+    if (
+      cachedStatus === "sent" ||
+      cachedStatus === "viewed" ||
+      cachedStatus === "signed" ||
+      cachedStatus === "completed" ||
+      cachedStatus === "declined"
+    ) {
+      setSigningStatus(cachedStatus as ZohoSignDbStatus)
+    }
   }, [])
+
+  useEffect(() => {
+    if (envelopeId) localStorage.setItem("signingRequestId", envelopeId)
+    localStorage.setItem("signingStatus", signingStatus)
+  }, [envelopeId, signingStatus])
 
   useEffect(() => {
     if (!applicantId) return
@@ -116,7 +134,7 @@ export default function DocumentsPage() {
       .eq("user_id", applicantId)
       .maybeSingle()
       .then(({ data }) => {
-        if (data?.email?.trim()) setSignerEmail(data.email.trim())
+        if (data?.email?.trim()) setSignerEmail(data.email.trim().toLowerCase())
         const fn = (data?.first_name || "").trim()
         const ln = (data?.last_name || "").trim()
         if (fn || ln) setSignerName(`${fn} ${ln}`.trim())
@@ -174,6 +192,10 @@ export default function DocumentsPage() {
       setError("Please agree to the authorization first.")
       return
     }
+    if (onboardingAgreementLocked && !effectiveSigned) {
+      setError("This email already has an onboarding agreement. Use Preview below or check your inbox for Zoho’s sign link.")
+      return
+    }
     if (!signerEmail || !signerName) {
       setError("Missing your name or email. Complete Step 1 (review your profile) first.")
       return
@@ -187,7 +209,7 @@ export default function DocumentsPage() {
     try {
       const data = await sendAgreement({
         name: signerName,
-        email: signerEmail,
+        email: signerEmail.trim().toLowerCase(),
         user_id: applicantId,
         project_id: "onboarding",
       })
@@ -197,44 +219,85 @@ export default function DocumentsPage() {
       setSigningStatus(data.status || "sent")
       setSigningCompleteManual(true)
       localStorage.setItem("signingRequestId", data.request_id)
+      setOnboardingAgreementLocked(true)
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Signing setup failed"
       setError(message)
     } finally {
       setSigningLoading(false)
     }
-  }, [agreed, applicantId, signerEmail, signerName])
+  }, [agreed, applicantId, effectiveSigned, onboardingAgreementLocked, signerEmail, signerName])
+
+  const refreshSigningStatus = useCallback(async () => {
+    const email = signerEmail.trim().toLowerCase()
+    try {
+      if (email) {
+        const rowByEmail = await fetchZohoSignStatus({ email, reconcile: true })
+        if (rowByEmail?.request_id) {
+          setEnvelopeId(rowByEmail.request_id)
+          setSigningStatus(rowByEmail.status || "sent")
+          localStorage.setItem("signingRequestId", rowByEmail.request_id)
+          setOnboardingAgreementLocked(rowByEmail.status !== "declined")
+          if (rowByEmail.status === "signed" || rowByEmail.status === "completed") {
+            setAgreed(true)
+          }
+          return
+        }
+        setOnboardingAgreementLocked(false)
+      }
+      if (envelopeId) {
+        const rowById = await fetchZohoSignStatus({ requestId: envelopeId, reconcile: true })
+        if (rowById?.request_id) {
+          setEnvelopeId(rowById.request_id)
+          if (rowById.status) setSigningStatus(rowById.status)
+          localStorage.setItem("signingRequestId", rowById.request_id)
+          setOnboardingAgreementLocked(rowById.status !== "declined")
+          if (rowById.status === "signed" || rowById.status === "completed") {
+            setAgreed(true)
+          }
+          return
+        }
+        // Stored request_id is stale/missing in DB; clear and let email lookup recover.
+        localStorage.removeItem("signingRequestId")
+        setEnvelopeId(null)
+        setOnboardingAgreementLocked(false)
+      }
+    } catch {
+      // ignore
+    }
+  }, [signerEmail, envelopeId])
 
   useEffect(() => {
     if (!envelopeId) return
 
     let cancelled = false
-    const loadInitialStatus = async () => {
+    void (async () => {
       try {
-        const row = await fetchZohoSignStatus({ requestId: envelopeId })
+        const row = await fetchZohoSignStatus({ requestId: envelopeId, reconcile: true })
         if (!cancelled && row?.status) {
           setSigningStatus(row.status)
+          setOnboardingAgreementLocked(row.status !== "declined")
+          if (row.status === "signed" || row.status === "completed") setAgreed(true)
         }
       } catch {
-        // Keep UI resilient even if initial status lookup fails.
+        // ignore
       }
-    }
-    void loadInitialStatus()
+    })()
 
     const unsubscribe = subscribeToZohoSignStatus({
       requestId: envelopeId,
-      onStatusChange: (next) => setSigningStatus(next.status),
+      onStatusChange: (next) => {
+        setSigningStatus(next.status)
+        if (next.status === "signed" || next.status === "completed") {
+          setAgreed(true)
+          setOnboardingAgreementLocked(true)
+        }
+        if (next.status === "declined") setOnboardingAgreementLocked(false)
+      },
     })
 
-    const pollingInterval = window.setInterval(async () => {
-      try {
-        const row = await fetchZohoSignStatus({ requestId: envelopeId })
-        if (!cancelled && row?.status) {
-          setSigningStatus(row.status)
-        }
-      } catch {
-        // Ignore transient polling errors.
-      }
+    const pollingInterval = window.setInterval(() => {
+      void refreshSigningStatus()
     }, 5000)
 
     return () => {
@@ -242,7 +305,51 @@ export default function DocumentsPage() {
       unsubscribe()
       window.clearInterval(pollingInterval)
     }
-  }, [envelopeId])
+  }, [envelopeId, refreshSigningStatus])
+
+  // After refresh, localStorage request_id can be stale. Latest row for this email is source of truth.
+  useEffect(() => {
+    const email = signerEmail.trim()
+    if (!email) return
+
+    let cancelled = false
+    void (async () => {
+      try {
+        const row = await fetchZohoSignStatus({ email: email.toLowerCase(), reconcile: true })
+        if (cancelled) return
+        if (!row?.request_id) {
+          setOnboardingAgreementLocked(false)
+          return
+        }
+        setEnvelopeId(row.request_id)
+        setSigningStatus(row.status || "sent")
+        localStorage.setItem("signingRequestId", row.request_id)
+        setOnboardingAgreementLocked(row.status !== "declined")
+        if (row.status === "signed" || row.status === "completed") setAgreed(true)
+      } catch {
+        if (!cancelled) setOnboardingAgreementLocked(false)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [signerEmail])
+
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void refreshSigningStatus()
+    }
+    const onPageShow = () => {
+      void refreshSigningStatus()
+    }
+    document.addEventListener("visibilitychange", onVisible)
+    window.addEventListener("pageshow", onPageShow)
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible)
+      window.removeEventListener("pageshow", onPageShow)
+    }
+  }, [refreshSigningStatus])
 
   useEffect(() => {
     const handler = (event: MessageEvent) => {
@@ -350,6 +457,19 @@ export default function DocumentsPage() {
     localStorage.setItem("step4Skipped", "1")
     router.push("/application/step-5-add-references")
   }
+
+  const openZohoDocument = useCallback(
+    (mode: "preview" | "download") => {
+      if (!envelopeId) return
+      const url = `/api/zoho-sign/document?request_id=${encodeURIComponent(envelopeId)}&mode=${mode}`
+      if (mode === "download") {
+        window.location.href = url
+        return
+      }
+      window.open(url, "_blank", "noopener,noreferrer")
+    },
+    [envelopeId]
+  )
 
   function IdentityFileCard({
     path,
@@ -464,15 +584,26 @@ export default function DocumentsPage() {
             </p>
           </div>
 
-          <label className="flex items-start gap-3 mb-8 cursor-pointer">
+          <label
+            className={`flex items-start gap-3 mb-8 ${signedFromStatus ? "cursor-default" : "cursor-pointer"}`}
+          >
             <input
               type="checkbox"
               checked={agreed}
+              disabled={signedFromStatus}
               onChange={(e) => setAgreed(e.target.checked)}
-              className="mt-1 w-5 h-5 accent-[#0D9488]"
+              className="mt-1 w-5 h-5 accent-[#0D9488] disabled:opacity-70"
             />
             <span className="text-slate-800 font-medium">I Agree to the Authorization</span>
           </label>
+
+          {onboardingAgreementLocked && !effectiveSigned && (
+            <p className="mb-4 text-sm text-slate-600 -mt-4">
+              An onboarding agreement is already on file for this email. You cannot send another until the prior
+              request is declined. Use <span className="font-medium">Preview document</span> below or check your inbox
+              for Zoho&apos;s sign link.
+            </p>
+          )}
 
           <div className="rounded-3xl border border-[#0D9488] bg-[#f0fffe] p-6 shadow-sm mb-8">
             <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
@@ -498,9 +629,11 @@ export default function DocumentsPage() {
                     }
                     void startSigning()
                   }}
-                  disabled={signingLoading || !agreed}
+                  disabled={signingLoading || !agreed || (onboardingAgreementLocked && !effectiveSigned)}
                   className={`rounded-xl px-5 py-2 text-[12px] font-semibold text-white transition ${
-                    signingLoading || !agreed ? "bg-gray-400 cursor-not-allowed" : "bg-[#0D9488] hover:bg-[#0b7a70]"
+                    signingLoading || !agreed || (onboardingAgreementLocked && !effectiveSigned)
+                      ? "bg-gray-400 cursor-not-allowed"
+                      : "bg-[#0D9488] hover:bg-[#0b7a70]"
                   }`}
                 >
                   {signingLoading ? "Preparing..." : "Click and Sign"}
@@ -520,9 +653,28 @@ export default function DocumentsPage() {
               Status: <span className="font-semibold">{mapZohoStatusToLabel(signingStatus)}</span>
             </p>
 
+            {envelopeId && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => openZohoDocument("preview")}
+                  className="rounded-lg border border-[#0D9488] px-3 py-1.5 text-xs font-semibold text-[#0D9488] hover:bg-[#eafffd]"
+                >
+                  Preview document
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openZohoDocument("download")}
+                  className="rounded-lg border border-[#0D9488] px-3 py-1.5 text-xs font-semibold text-[#0D9488] hover:bg-[#eafffd]"
+                >
+                  Download PDF
+                </button>
+              </div>
+            )}
+
             {signingCompleteManual && (
               <p className="mt-1 text-xs text-slate-500">
-                Check your email and click Zoho&apos;s official "Click to Sign" button.
+                Check your email and click Zoho&apos;s official &ldquo;Click to Sign&rdquo; button.
               </p>
             )}
 

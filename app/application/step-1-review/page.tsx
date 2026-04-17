@@ -4,9 +4,12 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 import Image from "next/image"
+import { AlertTriangle, X, XCircle } from "lucide-react"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
 import OnboardingLoader from "@/app/components/OnboardingLoader"
 import OnboardingSuccessPopup from "@/app/components/OnboardingSuccessPopup"
+
+type ContactConflictKind = "email" | "phone"
 
 export default function Step1Review() {
   const router = useRouter()
@@ -26,7 +29,12 @@ export default function Step1Review() {
   })
 
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  /** Duplicate contact conflict: banner + field highlight (matches design mock). */
+  const [fieldConflict, setFieldConflict] = useState<{
+    kind: ContactConflictKind
+    bannerVisible: boolean
+  } | null>(null)
+  const [genericError, setGenericError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)   // ← for popup
 
   // Load parsed resume data from PDF
@@ -65,6 +73,8 @@ export default function Step1Review() {
   }, [])
 
   const handleChange = (key: string, value: string | boolean) => {
+    if (key === "email" && fieldConflict?.kind === "email") setFieldConflict(null)
+    if (key === "phone" && fieldConflict?.kind === "phone") setFieldConflict(null)
     setForm((prev) => ({ ...prev, [key]: value }))
   }
 
@@ -80,7 +90,8 @@ export default function Step1Review() {
   }
 
   const handleSaveAndContinue = async () => {
-    setError(null)
+    setFieldConflict(null)
+    setGenericError(null)
     setLoading(true)
 
     try {
@@ -144,17 +155,38 @@ export default function Step1Review() {
         body: JSON.stringify(payload),
       })
 
-      let saveJson: { error?: string; hint?: string } = {}
+      let saveJson: { error?: string; hint?: string; code?: string } = {}
       try {
-        saveJson = (await saveRes.json()) as { error?: string; hint?: string }
+        saveJson = (await saveRes.json()) as { error?: string; hint?: string; code?: string }
       } catch {
         /* non-JSON error body */
+      }
+
+      if (saveRes.status === 409 && saveJson.code === "DUPLICATE_EMAIL") {
+        setFieldConflict({ kind: "email", bannerVisible: true })
+        return
       }
 
       if (
         saveRes.status === 503 &&
         (saveJson.error === "MISSING_SERVICE_ROLE_KEY" || saveJson.error === "MISSING_SUPABASE_URL")
       ) {
+        const emailCheck = await fetch("/api/onboarding/check-email-free", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ applicantId, email: form.email.trim() }),
+        })
+        let emailCheckJson: { error?: string; code?: string } = {}
+        try {
+          emailCheckJson = (await emailCheck.json()) as { error?: string; code?: string }
+        } catch {
+          /* ignore */
+        }
+        if (emailCheck.status === 409 && emailCheckJson.code === "DUPLICATE_EMAIL") {
+          setFieldConflict({ kind: "email", bannerVisible: true })
+          return
+        }
+
         const { supabaseBrowser: supabase } = await import("@/lib/supabase-browser")
         // Avoid upsert(..., onConflict: "user_id") in the browser — it requires a UNIQUE constraint on worker.user_id.
         // If the DB isn't migrated, upsert will either error or insert duplicates.
@@ -247,37 +279,52 @@ export default function Step1Review() {
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Failed to save data"
       console.error(message, err)
-      // setError(message)
+      setGenericError(message)
     } finally {
       setLoading(false)
     }
   }
 
+  const emailConflict = fieldConflict?.kind === "email"
+  const phoneConflict = fieldConflict?.kind === "phone"
+  const conflictBannerText =
+    fieldConflict?.kind === "email"
+      ? "Email was already used. Click to login using Email"
+      : fieldConflict?.kind === "phone"
+        ? "Phone was already used. Click to login using phone"
+        : ""
+
   return (
-    <div className="relative min-h-screen bg-[#1db4a3] flex items-center justify-center p-4">
+    <div className="relative min-h-screen bg-[#1db4a3] flex items-stretch sm:items-center justify-center p-3 sm:p-4 py-6 sm:py-8">
       <div
-        className={`bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row relative mx-auto w-full md:w-[1060px] md:max-w-[1060px] md:h-[944px] min-h-[600px] md:min-h-[650px] transition-opacity ${loading ? "opacity-50" : "opacity-100"}`}
+        className={`bg-white rounded-xl sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row relative mx-auto w-full max-w-[1060px] md:min-h-[640px] min-h-0 transition-opacity ${loading ? "opacity-50" : "opacity-100"}`}
       >
         {/* LEFT - Form */}
-        <div className="w-full md:w-[65%] p-6 md:p-10 flex flex-col justify-between">
-          <div>
-            <OnboardingStepper currentStep={1} />
+        <div className="w-full md:w-[65%] p-4 sm:p-6 md:p-10 flex flex-col justify-between min-w-0">
+          <div className="min-w-0">
+            <div className="overflow-x-auto -mx-1 px-1 pb-1">
+              <div className="min-w-[520px] sm:min-w-0">
+                <OnboardingStepper currentStep={1} />
+              </div>
+            </div>
 
-            <h2 className="text-[22px] font-bold text-[#1e293b] mb-8 mt-6">
+            <h2 className="text-xl sm:text-[22px] font-bold text-[#1e293b] mb-4 sm:mb-8 mt-4 sm:mt-6">
               Review resume details
             </h2>
 
-            {error && (
-              <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl">
-                {error}
+            {genericError && (
+              <div className="mb-5 p-4 bg-red-50 border border-red-200 text-red-800 text-sm rounded-lg">
+                {genericError}
               </div>
             )}
 
-            <div className="space-y-5">
+            <div className="space-y-4 sm:space-y-5">
               {/* Name */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
                 <div>
-                  <label className="block text-[13px] font-medium text-gray-600 mb-1.5">First Name</label>
+                  <label className="block text-[13px] font-medium text-gray-600 mb-1.5">
+                    First Name<span className="text-red-500 ml-0.5">*</span>
+                  </label>
                   <div className="relative">
                     <input
                       value={form.firstName}
@@ -291,7 +338,9 @@ export default function Step1Review() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-[13px] font-medium text-gray-600 mb-1.5">Last Name</label>
+                  <label className="block text-[13px] font-medium text-gray-600 mb-1.5">
+                    Last Name<span className="text-red-500 ml-0.5">*</span>
+                  </label>
                   <input
                     value={form.lastName}
                     onChange={(e) => handleChange("lastName", e.target.value)}
@@ -303,8 +352,10 @@ export default function Step1Review() {
 
               {/* Address 1 */}
               <div>
-                <div className="flex justify-between">
-                  <label className="block text-[13px] font-medium text-gray-600 mb-1.5">Address 1</label>
+                <div className="flex justify-between flex-wrap gap-1">
+                  <label className="block text-[13px] font-medium text-gray-600 mb-1.5">
+                    Address 1<span className="text-red-500 ml-0.5">*</span>
+                  </label>
                   <span className="text-[11px] text-gray-400 mt-0.5">Street Address, P.O Box</span>
                 </div>
                 <input
@@ -332,9 +383,11 @@ export default function Step1Review() {
               </div>
 
               {/* City, State */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
                 <div>
-                  <label className="block text-[13px] font-medium text-gray-600 mb-1.5">City</label>
+                  <label className="block text-[13px] font-medium text-gray-600 mb-1.5">
+                    City<span className="text-red-500 ml-0.5">*</span>
+                  </label>
                   <div className="relative">
                     <select
                       value={form.city}
@@ -350,7 +403,9 @@ export default function Step1Review() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-[13px] font-medium text-gray-600 mb-1.5">State</label>
+                  <label className="block text-[13px] font-medium text-gray-600 mb-1.5">
+                    State<span className="text-red-500 ml-0.5">*</span>
+                  </label>
                   <div className="relative">
                     <select
                       value={form.state}
@@ -367,32 +422,105 @@ export default function Step1Review() {
                 </div>
               </div>
 
-              {/* Phone & Email */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <div>
-                  <label className="block text-[13px] font-medium text-gray-600 mb-1.5">Phone</label>
-                  <input
-                    value={form.phone}
-                    onChange={(e) => handleChange("phone", e.target.value)}
-                    className="w-full px-4 h-[56px] border border-gray-200 rounded-md focus:border-[#1db4a3] focus:outline-none text-[#1e293b] text-sm bg-white"
-                    placeholder="+1-800-512-2366"
-                  />
+              {fieldConflict?.bannerVisible ? (
+                <div
+                  role="alert"
+                  className="flex flex-col gap-3 rounded-lg border border-red-200 bg-red-50 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-4"
+                >
+                  <div className="flex min-w-0 flex-1 items-start gap-2">
+                    <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-red-600" aria-hidden />
+                    <p className="text-sm font-medium leading-snug text-red-800">{conflictBannerText}</p>
+                  </div>
+                  <div className="flex shrink-0 items-center justify-end gap-2 sm:justify-start">
+                    <button
+                      type="button"
+                      onClick={() => router.push("/login")}
+                      className="rounded-md border border-red-600 bg-white px-4 py-1.5 text-sm font-semibold text-red-600 hover:bg-red-50"
+                    >
+                      Login
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Dismiss"
+                      onClick={() =>
+                        setFieldConflict((prev) =>
+                          prev ? { ...prev, bannerVisible: false } : null,
+                        )
+                      }
+                      className="rounded p-1.5 text-red-500 hover:bg-red-100"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
                 </div>
+              ) : null}
+
+              {/* Phone & Email */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
                 <div>
-                  <label className="block text-[13px] font-medium text-gray-600 mb-1.5">Email</label>
-                  <input
-                    value={form.email}
-                    onChange={(e) => handleChange("email", e.target.value)}
-                    className="w-full px-4 h-[56px] border border-gray-200 rounded-md focus:border-[#1db4a3] focus:outline-none text-[#1e293b] text-sm bg-white"
-                    placeholder="rickashton@gmail.com"
-                  />
+                  <div className="mb-1.5 flex items-start justify-between gap-2">
+                    <label className="block text-[13px] font-medium text-gray-600">
+                      Phone<span className="text-red-500 ml-0.5">*</span>
+                    </label>
+                    {phoneConflict ? (
+                      <span className="text-[11px] font-medium text-red-600">Phone was already used</span>
+                    ) : null}
+                  </div>
+                  <div className="relative">
+                    <input
+                      value={form.phone}
+                      onChange={(e) => handleChange("phone", e.target.value)}
+                      className={`w-full px-4 pr-11 h-[52px] sm:h-[56px] border rounded-md focus:outline-none text-[#1e293b] text-sm bg-white ${
+                        phoneConflict
+                          ? "border-red-500 focus:border-red-500"
+                          : "border-gray-200 focus:border-[#1db4a3]"
+                      }`}
+                      placeholder="+1-800-512-2366"
+                    />
+                    {phoneConflict ? (
+                      <XCircle
+                        className="pointer-events-none absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-red-500"
+                        aria-hidden
+                      />
+                    ) : null}
+                  </div>
+                </div>
+                <div className="relative">
+                  <div className="mb-1.5 flex items-start justify-between gap-2">
+                    <label className="block text-[13px] font-medium text-gray-600">
+                      Email<span className="text-red-500 ml-0.5">*</span>
+                    </label>
+                    {emailConflict ? (
+                      <span className="text-[11px] font-medium text-red-600">Email was already used</span>
+                    ) : null}
+                  </div>
+                  <div className="relative">
+                    <input
+                      value={form.email}
+                      onChange={(e) => handleChange("email", e.target.value)}
+                      className={`w-full px-4 pr-11 h-[52px] sm:h-[56px] border rounded-md focus:outline-none text-[#1e293b] text-sm bg-white ${
+                        emailConflict
+                          ? "border-red-500 focus:border-red-500"
+                          : "border-gray-200 focus:border-[#1db4a3]"
+                      }`}
+                      placeholder="rickashton@gmail.com"
+                    />
+                    {emailConflict ? (
+                      <XCircle
+                        className="pointer-events-none absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-red-500"
+                        aria-hidden
+                      />
+                    ) : null}
+                  </div>
                 </div>
               </div>
 
               {/* Zip & Job Role */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
                 <div>
-                  <label className="block text-[13px] font-medium text-gray-600 mb-1.5">Zip Code</label>
+                  <label className="block text-[13px] font-medium text-gray-600 mb-1.5">
+                    Zip Code<span className="text-red-500 ml-0.5">*</span>
+                  </label>
                   <input
                     value={form.zipCode}
                     onChange={(e) => handleChange("zipCode", e.target.value)}
@@ -401,14 +529,16 @@ export default function Step1Review() {
                   />
                 </div>
                 <div>
-                  <label className="block text-[13px] font-medium text-gray-600 mb-1.5">Job Role</label>
+                  <label className="block text-[13px] font-medium text-gray-600 mb-1.5">
+                    Job Role<span className="text-red-500 ml-0.5">*</span>
+                  </label>
                   <div className="relative">
                     <select
                       value={form.jobRole}
                       onChange={(e) => handleChange("jobRole", e.target.value)}
                       className="w-full px-4 h-[56px] border border-gray-200 rounded-md focus:border-[#1db4a3] focus:outline-none text-[#1e293b] text-sm appearance-none bg-white font-medium"
                     >
-                      <option value="">CNA</option>
+                      <option value="CNA">CNA</option>
                       <option value="RN">RN</option>
                       <option value="LVN">LVN</option>
                       <option value="Medical Assistant">Medical Assistant</option>
@@ -423,18 +553,37 @@ export default function Step1Review() {
             </div>
           </div>
 
+          <div className="mt-8 border-t border-slate-100 pt-6 md:hidden">
+            <div className="flex flex-col items-center gap-3 text-center">
+              <Image
+                src="/images/new-logo-nexus.svg"
+                alt="Nexus MedPro Logo"
+                width={160}
+                height={48}
+                className="h-10 w-auto"
+                priority
+              />
+              <p className="max-w-xs text-sm leading-snug text-slate-600">
+                Nexus MedPro Staffing <span className="mx-0.5">–</span> Connecting Healthcare professionals with
+                service providers
+              </p>
+            </div>
+          </div>
+
           {/* Buttons */}
-          <div className="flex justify-end gap-3 mt-10">
+          <div className="mt-8 flex flex-col-reverse gap-3 sm:mt-10 sm:flex-row sm:justify-end">
             <button
+              type="button"
               onClick={() => router.back()}
-              className="cursor-pointer px-6 py-2.5 border border-[#1db4a3] text-[#1db4a3] text-sm font-medium rounded-lg hover:bg-teal-50 transition"
+              className="cursor-pointer w-full sm:w-auto px-6 py-2.5 border border-[#1db4a3] text-[#1db4a3] text-sm font-medium rounded-lg hover:bg-teal-50 transition"
             >
               Back
             </button>
             <button
+              type="button"
               onClick={handleSaveAndContinue}
               disabled={loading}
-              className="cursor-pointer px-6 py-2.5 bg-[#1db4a3] hover:bg-teal-600 text-white text-sm font-medium rounded-lg transition disabled:bg-gray-400 disabled:cursor-not-allowed"
+              className="cursor-pointer w-full sm:w-auto px-6 py-2.5 bg-[#1db4a3] hover:bg-teal-600 text-white text-sm font-medium rounded-lg transition disabled:bg-gray-400 disabled:cursor-not-allowed"
             >
               {loading ? "Saving..." : "Save & continue"}
             </button>
@@ -442,7 +591,7 @@ export default function Step1Review() {
         </div>
 
         {/* RIGHT - Branding and Image */}
-        <div className="hidden md:block w-[35%] relative bg-gray-50">
+        <div className="relative hidden min-h-[320px] shrink-0 bg-gray-50 md:block md:min-h-0 md:w-[35%]">
           <div className="absolute inset-0 z-0">
             {/* You'll need to make sure the image path matches what you have or I can generate a placeholder */}
             <Image

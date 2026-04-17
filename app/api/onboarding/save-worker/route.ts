@@ -45,6 +45,8 @@ export async function POST(req: NextRequest) {
     const supabase = createClient(url, key)
 
     // `user_id` is the stable onboarding key (matches localStorage applicantId, must be a UUID).
+    const emailRaw = String(body.email ?? "").trim()
+    const emailNorm = emailRaw.toLowerCase()
     const baseRow = {
       user_id: applicantId,
       first_name: String(body.firstName ?? "").trim(),
@@ -55,9 +57,29 @@ export async function POST(req: NextRequest) {
       state: String(body.state ?? "").trim(),
       zip: String(body.zipCode ?? "").trim(),
       phone: String(body.phone ?? "").trim(),
-      email: String(body.email ?? "").trim(),
+      email: emailNorm,
       job_role: String(body.jobRole ?? "").trim(),
       updated_at: new Date().toISOString(),
+    }
+
+    if (emailNorm) {
+      const { data: dupRows, error: dupErr } = await supabase
+        .from("worker")
+        .select("id")
+        .eq("email", emailNorm)
+        .neq("user_id", applicantId)
+        .limit(1)
+
+      if (dupErr) throw dupErr
+      if (dupRows && dupRows.length > 0) {
+        return NextResponse.json(
+          {
+            error: "This email is already used by another application. Sign in or use a different email.",
+            code: "DUPLICATE_EMAIL",
+          },
+          { status: 409 },
+        )
+      }
     }
 
     // Some DBs use `status` while others use `worker_status` (enum, constrained by worker_status_chk).
@@ -93,8 +115,17 @@ export async function POST(req: NextRequest) {
         if (!isMissingColumnErr(upErr)) break
       }
       if (lastErr) {
-        const upErr = lastErr as { message?: string; details?: string; hint?: string }
+        const upErr = lastErr as { message?: string; details?: string; hint?: string; code?: string }
         console.error("[onboarding/save-worker] update", upErr)
+        if (upErr.code === "23505" && /email|worker/i.test(String(upErr.message))) {
+          return NextResponse.json(
+            {
+              error: "This email is already used by another application. Sign in or use a different email.",
+              code: "DUPLICATE_EMAIL",
+            },
+            { status: 409 },
+          )
+        }
         const msg = [upErr.message, upErr.details, upErr.hint].filter(Boolean).join(" — ")
         return NextResponse.json({ error: msg || "Database error" }, { status: 500 })
       }
@@ -110,8 +141,17 @@ export async function POST(req: NextRequest) {
         if (!isMissingColumnErr(insErr)) break
       }
       if (lastErr) {
-        const insErr = lastErr as { message?: string; details?: string; hint?: string }
+        const insErr = lastErr as { message?: string; details?: string; hint?: string; code?: string }
         console.error("[onboarding/save-worker] insert", insErr)
+        if (insErr.code === "23505" && /email|worker/i.test(String(insErr.message))) {
+          return NextResponse.json(
+            {
+              error: "This email is already used by another application. Sign in or use a different email.",
+              code: "DUPLICATE_EMAIL",
+            },
+            { status: 409 },
+          )
+        }
         const msg = [insErr.message, insErr.details, insErr.hint].filter(Boolean).join(" — ")
         return NextResponse.json({ error: msg || "Database error" }, { status: 500 })
       }

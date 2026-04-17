@@ -32,10 +32,12 @@ type ZohoTemplateDetailsResponse = {
 
 type ZohoCreateFromTemplateResponse = {
   status?: string;
+  code?: unknown;
   message?: string;
   requests?: {
     request_id?: string;
     document_ids?: Array<{ document_id?: string }>;
+    document_id?: string;
     actions?: Array<{
       recipient_email?: string;
       action_url?: string;
@@ -48,6 +50,7 @@ type ErrorStage =
   | "cors"
   | "request_validation"
   | "env_validation"
+  | "duplicate_email"
   | "zoho_token"
   | "zoho_send"
   | "zoho_parse"
@@ -250,6 +253,35 @@ serve(async (req) => {
     return fail("request_validation", "email format is invalid", 400);
   }
 
+  const supabase = createClient(getEnv("SUPABASE_URL"), getEnv("SUPABASE_SERVICE_ROLE_KEY"));
+
+  const { data: existingRows, error: dupLookupError } = await supabase
+    .from("zoho_sign_requests")
+    .select("request_id,status,recipient_name,created_at")
+    .eq("source", "onboarding")
+    .eq("email", email)
+    .neq("status", "declined");
+
+  if (dupLookupError) {
+    console.error("[send-agreement] duplicate email lookup failed", dupLookupError);
+    return fail("request_validation", "Could not verify whether this email is eligible for a new agreement", 500, {
+      message: dupLookupError.message,
+    });
+  }
+
+  if (existingRows && existingRows.length > 0) {
+    const first = existingRows[0];
+    return fail(
+      "duplicate_email",
+      "This email already has an onboarding agreement on file. Each address can only be used once unless the prior request was declined.",
+      409,
+      {
+        existing_request_id: first?.request_id,
+        status: first?.status,
+      },
+    );
+  }
+
   const templateName = "Onboarding Agreement";
   const templateId = getEnv("ZOHO_SIGN_TEMPLATE_ID");
   const zohoApiBases = getZohoApiBaseCandidates();
@@ -418,6 +450,9 @@ serve(async (req) => {
     if (!zohoRes.ok || zohoJson.status !== "success") {
       return fail("zoho_send", "Zoho template send failed", 502, {
         status: zohoRes.status,
+        zoho_status: zohoJson.status,
+        zoho_code: zohoJson.code,
+        zoho_message: zohoJson.message,
       });
     }
   } catch (error) {
@@ -430,10 +465,18 @@ serve(async (req) => {
     return fail("zoho_parse", "Zoho response missing request_id", 502);
   }
 
-  const supabase = createClient(
-    getEnv("SUPABASE_URL"),
-    getEnv("SUPABASE_SERVICE_ROLE_KEY"),
-  );
+  const reqBlock = zohoJson.requests || {};
+  const docIds = Array.isArray(reqBlock.document_ids) ? reqBlock.document_ids : [];
+  const zohoDocumentId =
+    (typeof reqBlock.document_id === "string" && reqBlock.document_id.trim()) ||
+    (typeof docIds[0]?.document_id === "string" && docIds[0].document_id.trim()) ||
+    null;
+  const actions = Array.isArray(reqBlock.actions) ? reqBlock.actions : [];
+  const firstAction = actions[0] || {};
+  const signingUrl =
+    (typeof firstAction.sign_url === "string" && firstAction.sign_url.trim()) ||
+    (typeof firstAction.action_url === "string" && firstAction.action_url.trim()) ||
+    null;
 
   try {
     const nowIso = new Date().toISOString();
@@ -447,6 +490,8 @@ serve(async (req) => {
         template_name: templateName,
         status: "sent",
         source: "onboarding",
+        zoho_document_id: zohoDocumentId,
+        signing_url: signingUrl,
         raw_send_response: zohoJson,
         created_at: nowIso,
         updated_at: nowIso,
@@ -456,6 +501,16 @@ serve(async (req) => {
 
     if (insertError) {
       console.error("[send-agreement] supabase insert error", insertError);
+      const msg = insertError.message || "";
+      const code = (insertError as { code?: string }).code;
+      if (code === "23505" || /duplicate key|unique constraint/i.test(msg)) {
+        return fail(
+          "duplicate_email",
+          "This email already has an onboarding agreement on file. Each address can only be used once unless the prior request was declined.",
+          409,
+          { message: msg },
+        );
+      }
       return fail("db_insert", "Failed to save record in zoho_sign_requests", 500, {
         message: insertError.message,
       });
