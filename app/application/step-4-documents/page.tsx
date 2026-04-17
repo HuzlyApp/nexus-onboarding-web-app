@@ -9,6 +9,13 @@ import { WORKER_REQUIRED_FILES_BUCKET } from "@/lib/supabase-storage-buckets"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
 import OnboardingSuccessPopup from "@/app/components/OnboardingSuccessPopup"
+import {
+  fetchZohoSignStatus,
+  mapZohoStatusToLabel,
+  sendAgreement,
+  subscribeToZohoSignStatus,
+  type ZohoSignDbStatus,
+} from "@/lib/zoho-sign-status"
 
 const DISCLAIMER =
   "By selecting “I Agree,” I authorize the Company to conduct a background check and, if required, a drug screening as part of my application or continued engagement. I understand this may include verification of my identity, employment history, education, and criminal records as permitted by law. I consent to the lawful collection, use, and disclosure of this information and release the Company from liability related to these authorized checks."
@@ -56,6 +63,10 @@ export default function DocumentsPage() {
   const [envelopeId, setEnvelopeId] = useState<string | null>(null)
   const [isSigned, setIsSigned] = useState(false)
   const [signingCompleteManual, setSigningCompleteManual] = useState(false)
+  const [signingStatus, setSigningStatus] = useState<ZohoSignDbStatus>("sent")
+
+  const signedFromStatus = signingStatus === "signed" || signingStatus === "completed"
+  const effectiveSigned = isSigned || signedFromStatus
 
   useEffect(() => {
     setMounted(true)
@@ -87,6 +98,13 @@ export default function DocumentsPage() {
       if (fn || ln) setSignerName(`${fn} ${ln}`.trim())
     } catch {
       /* ignore */
+    }
+  }, [])
+
+  useEffect(() => {
+    const existingRequestId = localStorage.getItem("signingRequestId")?.trim()
+    if (existingRequestId) {
+      setEnvelopeId(existingRequestId)
     }
   }, [])
 
@@ -167,42 +185,64 @@ export default function DocumentsPage() {
     setSigningCompleteManual(false)
 
     try {
-      const res = await fetch("/api/zoho-sign/create-embedded-sign", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          applicantId,
-          email: signerEmail,
-          name: signerName,
-          origin: typeof window !== "undefined" ? window.location.origin : undefined,
-        }),
+      const data = await sendAgreement({
+        name: signerName,
+        email: signerEmail,
+        user_id: applicantId,
+        project_id: "onboarding",
       })
 
-      if (!res.ok) {
-        const err = await res.json()
-        throw new Error(err.error || "Failed to prepare signing session")
-      }
-
-      const data = (await res.json()) as {
-        signingUrl?: string
-        requestId?: string
-        actionId?: string
-        signingCompleteManual?: boolean
-      }
-
-      setSigningUrl(data.signingUrl ?? null)
-      setEnvelopeId(data.requestId ?? null)
-      setSigningCompleteManual(Boolean(data.signingCompleteManual))
-      if (data.requestId) localStorage.setItem("signingRequestId", data.requestId)
+      setSigningUrl(null)
+      setEnvelopeId(data.request_id)
+      setSigningStatus(data.status || "sent")
+      setSigningCompleteManual(true)
+      localStorage.setItem("signingRequestId", data.request_id)
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Signing setup failed"
       setError(message)
-      // Temporary fallback: if Zoho signing fails, show the PDF so the user can continue.
-      setShowAuthPdf(true)
     } finally {
       setSigningLoading(false)
     }
   }, [agreed, applicantId, signerEmail, signerName])
+
+  useEffect(() => {
+    if (!envelopeId) return
+
+    let cancelled = false
+    const loadInitialStatus = async () => {
+      try {
+        const row = await fetchZohoSignStatus({ requestId: envelopeId })
+        if (!cancelled && row?.status) {
+          setSigningStatus(row.status)
+        }
+      } catch {
+        // Keep UI resilient even if initial status lookup fails.
+      }
+    }
+    void loadInitialStatus()
+
+    const unsubscribe = subscribeToZohoSignStatus({
+      requestId: envelopeId,
+      onStatusChange: (next) => setSigningStatus(next.status),
+    })
+
+    const pollingInterval = window.setInterval(async () => {
+      try {
+        const row = await fetchZohoSignStatus({ requestId: envelopeId })
+        if (!cancelled && row?.status) {
+          setSigningStatus(row.status)
+        }
+      } catch {
+        // Ignore transient polling errors.
+      }
+    }, 5000)
+
+    return () => {
+      cancelled = true
+      unsubscribe()
+      window.clearInterval(pollingInterval)
+    }
+  }, [envelopeId])
 
   useEffect(() => {
     const handler = (event: MessageEvent) => {
@@ -253,7 +293,7 @@ export default function DocumentsPage() {
       return
     }
 
-    if (!isSigned) {
+    if (!effectiveSigned) {
       setError("Please sign the authorization document first.")
       return
     }
@@ -441,12 +481,12 @@ export default function DocumentsPage() {
                   <FileText className="h-6 w-6" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-slate-900 truncate">Authorization_agreement.pdf</p>
+                  <p className="text-sm font-semibold text-slate-900 truncate">Onboarding Agreement</p>
                   <p className="text-xs text-slate-500">Mandatory</p>
                 </div>
               </div>
 
-              {!signingUrl && !isSigned && (
+              {!signingUrl && !effectiveSigned && (
                 <button
                   type="button"
                   onClick={() => {
@@ -467,13 +507,23 @@ export default function DocumentsPage() {
                 </button>
               )}
 
-              {isSigned && (
+              {effectiveSigned && (
                 <span className="rounded-xl bg-[#0D9488] px-5 py-2 text-[12px] font-semibold text-white">Signed</span>
               )}
             </div>
 
             {envelopeId && (
               <p className="mt-4 text-xs text-slate-500 truncate">Request ID: {envelopeId}</p>
+            )}
+
+            <p className="mt-2 text-sm text-slate-700">
+              Status: <span className="font-semibold">{mapZohoStatusToLabel(signingStatus)}</span>
+            </p>
+
+            {signingCompleteManual && (
+              <p className="mt-1 text-xs text-slate-500">
+                Check your email and click Zoho&apos;s official "Click to Sign" button.
+              </p>
             )}
 
             {signingUrl && (
