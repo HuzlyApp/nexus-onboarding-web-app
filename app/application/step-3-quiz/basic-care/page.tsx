@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import { supabaseBrowser as supabase } from "@/lib/supabase-browser"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
+import OnboardingLoader from "@/app/components/OnboardingLoader"
 import {
   BASIC_PATIENT_CARE_CATEGORY_ID,
   BASIC_PATIENT_CARE_QUESTION_LIMIT,
@@ -14,6 +15,59 @@ import { ChevronRight } from "lucide-react"
 
 const CATEGORY_SLUG = "basic-care"
 const PAGE_SIZE = 5
+const BASIC_CARE_QUESTION_CONTENT = [
+  {
+    quiz_number: 1,
+    question: "Activities of daily living",
+    description:
+      "(e.g., bathing: sitz, tub, bed, shower; mouth care; nail care; elimination needs)",
+  },
+  {
+    quiz_number: 2,
+    question: "Body alignment and positioning",
+    description: "(includes range of motion)",
+  },
+  {
+    quiz_number: 3,
+    question: "Skin care",
+    description: "(includes decubitus care)",
+  },
+  {
+    quiz_number: 4,
+    question: "Nutritional check and support",
+    description: null,
+  },
+  {
+    quiz_number: 5,
+    question: "Provide comfort, safety, and privacy",
+    description: null,
+  },
+  {
+    quiz_number: 6,
+    question: "Hand hygiene",
+    description: null,
+  },
+  {
+    quiz_number: 7,
+    question: "Restraints",
+    description: "(use and monitoring)",
+  },
+  {
+    quiz_number: 8,
+    question: "Enemas and suppositories.",
+    description: "(cleansing, retention, Harris flush)",
+  },
+  {
+    quiz_number: 9,
+    question: "Ear drops and topical medication application",
+    description: null,
+  },
+  {
+    quiz_number: 10,
+    question: "Binders",
+    description: null,
+  },
+] as const
 
 type QuestionRow = {
   id: string
@@ -58,6 +112,27 @@ function normalizeAnswers(
     return out
   }
   return out
+}
+
+function completeBasicCareQuestions(rows: QuestionRow[]): QuestionRow[] {
+  const byQuizNumber = new Map<number, QuestionRow>()
+  for (const row of rows) {
+    if (row.quiz_number != null) {
+      byQuizNumber.set(row.quiz_number, row)
+    }
+  }
+
+  return BASIC_CARE_QUESTION_CONTENT.map((item) => {
+    const existing = byQuizNumber.get(item.quiz_number)
+    return {
+      id:
+        existing?.id ??
+        `10000000-0000-4000-8000-${item.quiz_number.toString(16).padStart(12, "0")}`,
+      quiz_number: item.quiz_number,
+      question: item.question,
+      description: item.description,
+    }
+  })
 }
 
 export default function BasicCareQuiz() {
@@ -113,7 +188,8 @@ export default function BasicCareQuiz() {
 
       if (qErr) throw qErr
       const ordered = (qs ?? []) as QuestionRow[]
-      setQuestions(ordered)
+      const displayQuestions = completeBasicCareQuestions(ordered)
+      setQuestions(displayQuestions)
 
       const { data: userData } = await supabase.auth.getUser()
       const user = userData?.user
@@ -141,7 +217,7 @@ export default function BasicCareQuiz() {
         if (rowLegacy?.answers) raw = rowLegacy.answers
       }
 
-      setAnswers(normalizeAnswers(raw, ordered))
+      setAnswers(normalizeAnswers(raw, displayQuestions))
     } catch (e: unknown) {
       const msg =
         e instanceof Error
@@ -171,6 +247,25 @@ export default function BasicCareQuiz() {
     setAnswers((prev) => ({ ...prev, [questionId]: value }))
   }
 
+  const splitQuestionDetail = (question: string, description?: string | null) => {
+    if (description) {
+      const clean = description.trim()
+      const withBrackets =
+        clean.startsWith("(") && clean.endsWith(")") ? clean : `(${clean.replace(/^\(+|\)+$/g, "")})`
+      return { title: question, detail: withBrackets }
+    }
+
+    const match = question.match(/^(.*?)(\s*\(.*\))$/)
+    if (!match) {
+      return { title: question, detail: null as string | null }
+    }
+
+    return {
+      title: match[1].trim(),
+      detail: match[2].trim(),
+    }
+  }
+
   const pageComplete = () => {
     for (let i = start; i < end; i++) {
       const q = questions[i]
@@ -182,8 +277,8 @@ export default function BasicCareQuiz() {
   async function persist(completed: boolean) {
     const { data: userData, error: userError } = await supabase.auth.getUser()
     if (userError || !userData?.user) {
-      alert("Please sign in to save your assessment.")
-      return false
+      if (completed) localStorage.setItem("basic_care_done", "true")
+      return true
     }
     const user = userData.user
     const cleanAnswers = JSON.parse(JSON.stringify(answers)) as Record<string, number>
@@ -277,11 +372,7 @@ export default function BasicCareQuiz() {
   }
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-teal-600 text-white text-sm">
-        Loading quiz…
-      </div>
-    )
+    return <OnboardingLoader label="Loading your skill quiz..." />
   }
 
   if (loadError) {
@@ -370,7 +461,7 @@ export default function BasicCareQuiz() {
             </button>
           </div>
 
-          <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-1">
+          <div className="mt-4 flex items-center justify-between border-b border-slate-200 pb-2 mb-1">
             <p className="text-[13px] font-bold text-slate-800 w-full">Skills</p>
             <div className="flex gap-6 shrink-0 pr-1">
               {[1, 2, 3, 4].map((n) => (
@@ -384,6 +475,7 @@ export default function BasicCareQuiz() {
           <div className="divide-y divide-slate-100">
             {pageQuestions.map((q, i) => {
               const index = start + i
+              const display = splitQuestionDetail(q.question, q.description)
               return (
                 <div key={q.id} className="flex items-center justify-between py-4">
                   <div className="flex items-start gap-3 flex-1 min-w-0 pr-6">
@@ -391,9 +483,9 @@ export default function BasicCareQuiz() {
                       {index + 1}
                     </div>
                     <div>
-                      <p className="text-[13px] font-medium text-slate-800">{q.question}</p>
-                      {q.description ? (
-                        <p className="text-[11px] text-slate-400">{q.description}</p>
+                      <p className="text-[13px] font-medium text-slate-800">{display.title}</p>
+                      {display.detail ? (
+                        <p className="text-[11px] text-slate-400">{display.detail}</p>
                       ) : null}
                     </div>
                   </div>
@@ -403,7 +495,7 @@ export default function BasicCareQuiz() {
                         key={n}
                         type="button"
                         onClick={() => selectAnswer(q.id, n)}
-                        className={`h-5 w-5 rounded-full border-2 transition flex items-center justify-center ${
+                        className={`h-5 w-5 cursor-pointer rounded-full border-2 transition flex items-center justify-center ${
                           answers[q.id] === n
                             ? "border-[#0D9488] bg-[#0D9488]"
                             : "border-slate-300 bg-white hover:border-[#0D9488]"

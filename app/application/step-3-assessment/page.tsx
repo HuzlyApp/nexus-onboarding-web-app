@@ -8,6 +8,7 @@ import { Check, ChevronRight } from "lucide-react"
 import { supabaseBrowser as supabase } from "@/lib/supabase-browser"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
+import OnboardingLoader from "@/app/components/OnboardingLoader"
 
 type Category = {
   id: string
@@ -15,6 +16,17 @@ type Category = {
   description: string | null
   order_number: number | null
   slug: string | null
+}
+
+function localCompletedCategories(): Set<string> {
+  if (typeof window === "undefined") return new Set()
+  const done = new Set<string>()
+  if (localStorage.getItem("basic_care_done") === "true") done.add("basic-care")
+  if (localStorage.getItem("mobility_done") === "true") done.add("mobility")
+  if (localStorage.getItem("clinical_done") === "true") done.add("clinical")
+  if (localStorage.getItem("monitoring_done") === "true") done.add("monitoring")
+  if (localStorage.getItem("documentation_done") === "true") done.add("documentation")
+  return done
 }
 
 /** If `slug` is null, map legacy `order_number` to existing static quiz routes. */
@@ -75,8 +87,9 @@ export default function AssessmentPage() {
       setCategories((data ?? []) as Category[])
       const { data: userData } = await supabase.auth.getUser()
       const user = userData?.user
+      const localDone = localCompletedCategories()
       if (!user) {
-        setCompletedSlugs(new Set())
+        setCompletedSlugs(localDone)
       } else {
         const { data: worker } = await supabase
           .from("worker")
@@ -94,9 +107,11 @@ export default function AssessmentPage() {
 
         if (aErr) {
           console.error("[step-3-assessment] skill_assessments", aErr)
-          setCompletedSlugs(new Set())
+          setCompletedSlugs(localDone)
         } else {
-          setCompletedSlugs(recordCompletedCategories(doneRows ?? []))
+          const combined = recordCompletedCategories(doneRows ?? [])
+          for (const slug of localDone) combined.add(slug)
+          setCompletedSlugs(combined)
         }
       }
     }
@@ -113,11 +128,7 @@ export default function AssessmentPage() {
   }
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-teal-600 text-white">
-        <p className="text-sm">Loading categories…</p>
-      </div>
-    )
+    return <OnboardingLoader label="Loading skill categories..." />
   }
 
   return (
@@ -149,26 +160,27 @@ export default function AssessmentPage() {
           {/* Category list */}
           <div className="space-y-3">
             {categories.map((cat, index) => {
-              const isFirst = index === 0
+              const slug = categoryQuizSlug(cat)
+              const isCompleted = Boolean(slug && completedSlugs.has(slug))
               return (
                 <div
                   key={cat.id}
-                   onClick={() => goToCategory(cat)}
+                  onClick={() => goToCategory(cat)}
                   className={`flex items-center justify-between rounded-xl border px-4 py-4 cursor-pointer transition ${
-                    isFirst
-                      ? "border-[#0D9488] bg-[#f0fffe]"
+                    isCompleted
+                      ? "border-[#0D9488] bg-[#ecfffd]"
                       : "border-[#0D9488] bg-white hover:bg-[#f0fffe]"
                   }`}
                 >
                   <div className="flex items-center gap-4">
                     <div
                       className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-[13px] font-semibold ${
-                        isFirst
+                        isCompleted
                           ? "border-[#0D9488] bg-[#0D9488] text-white"
                           : "border-[#0D9488] text-[#0D9488]"
                       }`}
                     >
-                      {index + 1}
+                      {isCompleted ? <Check className="h-4 w-4" /> : index + 1}
                     </div>
                     <div>
                       <p className="text-[14px] font-semibold text-slate-800">{cat.title}</p>

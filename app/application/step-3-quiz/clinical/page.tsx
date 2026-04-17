@@ -2,9 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import Image from "next/image"
 import { supabaseBrowser as supabase } from "@/lib/supabase-browser"
 import { CLINICAL_CATEGORY_ID } from "@/lib/clinical-category"
+import OnboardingLayout from "@/app/components/OnboardingLayout"
+import OnboardingStepper from "@/app/components/OnboardingStepper"
+import OnboardingLoader from "@/app/components/OnboardingLoader"
+import { ChevronRight } from "lucide-react"
 
 /** `skill_assessments.worker_id` = auth user id; `category` matches `skill_categories.slug` */
 const CATEGORY_SLUG = "clinical"
@@ -154,6 +157,27 @@ export default function ClinicalQuiz() {
     setAnswers((prev) => ({ ...prev, [questionId]: value }))
   }
 
+  const splitQuestionDetail = (question: string, description?: string | null) => {
+    if (description) {
+      const clean = description.trim()
+      const withBrackets =
+        clean.startsWith("(") && clean.endsWith(")")
+          ? clean
+          : `(${clean.replace(/^\(+|\)+$/g, "")})`
+      return { title: question, detail: withBrackets }
+    }
+
+    const match = question.match(/^(.*?)(\s*\(.*\))$/)
+    if (!match) {
+      return { title: question, detail: null as string | null }
+    }
+
+    return {
+      title: match[1].trim(),
+      detail: match[2].trim(),
+    }
+  }
+
   const pageComplete = () => {
     for (let i = start; i < end; i++) {
       const q = questions[i]
@@ -165,8 +189,8 @@ export default function ClinicalQuiz() {
   async function persist(completed: boolean) {
     const { data: userData, error: userError } = await supabase.auth.getUser()
     if (userError || !userData?.user) {
-      alert("Please sign in to save your assessment.")
-      return false
+      if (completed) localStorage.setItem("clinical_done", "true")
+      return true
     }
     const user = userData.user
     const { data: worker, error: wErr } = await supabase
@@ -175,11 +199,11 @@ export default function ClinicalQuiz() {
       .eq("user_id", user.id)
       .maybeSingle()
 
-    if (wErr || !worker?.id) {
-      alert("Worker profile not found. Please complete Step 1 first.")
+    if (wErr) {
+      alert("Could not load worker profile.")
       return false
     }
-    const workerId = String(worker.id)
+    const workerId = worker?.id ? String(worker.id) : user.id
     const cleanAnswers = JSON.parse(JSON.stringify(answers)) as Record<string, number>
 
     const { data: existing, error: findErr } = await supabase
@@ -278,11 +302,7 @@ export default function ClinicalQuiz() {
   }
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-teal-600 text-white text-sm">
-        Loading quiz…
-      </div>
-    )
+    return <OnboardingLoader label="Loading your skill quiz..." />
   }
 
   if (loadError) {
@@ -321,104 +341,125 @@ export default function ClinicalQuiz() {
   }
 
   return (
-    <div className="min-h-screen bg-teal-600 flex items-center justify-center p-4 md:p-8">
-      <div className="w-full max-w-[1100px] bg-white rounded-2xl shadow-2xl flex flex-col md:flex-row overflow-hidden">
-        <div className="flex-1 p-6 md:p-10 min-w-0">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">{category.title}</h2>
+    <OnboardingLayout
+      cardClassName="md:h-auto md:min-h-[700px]"
+      rightPanelImageSrc="/images/skill-bg.jpg"
+      rightPanelImageClassName="opacity-50 object-top"
+      rightPanelOverlayClassName="bg-white/0"
+    >
+      <div className="flex h-full flex-col px-10 pb-10 pt-8">
+        <OnboardingStepper currentStep={3} completedThrough={2} />
 
-          {category.description ? (
-            <p className="text-gray-600 text-sm mb-2">{category.description}</p>
-          ) : null}
+        <div className="flex flex-1 flex-col pt-8">
+          <div className="mb-1 flex items-start justify-between">
+            <div>
+              <h2 className="text-[24px] font-semibold leading-8 text-slate-800">
+                {category.title}
+              </h2>
+              {category.description ? (
+                <p className="mt-2 text-[13px] text-slate-500">
+                  {category.description}
+                </p>
+              ) : null}
+            </div>
+            <button
+              type="button"
+              onClick={() => router.push("/application/step-4-documents")}
+              className="mt-1 cursor-pointer text-[12px] font-medium leading-5 text-[#0D9488]"
+            >
+              Skip for Now →
+            </button>
+          </div>
 
-          <p className="text-gray-800 mb-6">Answer the following questions</p>
+          <div className="mt-4 mb-1 flex items-center justify-between border-b border-slate-200 pb-2">
+            <p className="w-full text-[13px] font-bold text-slate-800">Skills</p>
+            <div className="shrink-0 pr-1 flex gap-6">
+              {[1, 2, 3, 4].map((n) => (
+                <span
+                  key={n}
+                  className="w-5 text-center text-[13px] font-semibold text-slate-600"
+                >
+                  {n}
+                </span>
+              ))}
+            </div>
+          </div>
 
-          {questions.length === 0 ? (
-            <p className="text-sm text-gray-600 mb-8">
-              No questions in <code className="bg-gray-100 px-1 rounded">skill_questions</code> for this
-              category. Add rows linked to this category&apos;s id.
-            </p>
-          ) : (
-            <div className="space-y-6">
-              {pageQuestions.map((q, i) => {
-                const globalIndex = start + i
-                return (
-                  <div
-                    key={q.id}
-                    className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 border-b border-gray-100 pb-4"
-                  >
-                    <div className="text-gray-900 min-w-0">
-                      <span className="font-medium">{globalIndex + 1}.</span> {q.question}
-                      {q.description ? (
-                        <p className="text-sm text-gray-500 mt-1">{q.description}</p>
+          <div className="divide-y divide-slate-100">
+            {pageQuestions.map((q, i) => {
+              const index = start + i
+              const display = splitQuestionDetail(q.question, q.description)
+              return (
+                <div key={q.id} className="flex items-center justify-between py-4">
+                  <div className="flex flex-1 min-w-0 items-start gap-3 pr-6">
+                    <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#0D9488] text-[11px] font-semibold text-[#0D9488]">
+                      {index + 1}
+                    </div>
+                    <div>
+                      <p className="text-[13px] font-medium text-slate-800">
+                        {display.title}
+                      </p>
+                      {display.detail ? (
+                        <p className="text-[11px] text-slate-400">{display.detail}</p>
                       ) : null}
                     </div>
-
-                    <div className="flex gap-6 shrink-0 justify-end">
-                      {[1, 2, 3, 4].map((n) => (
-                        <button
-                          key={n}
-                          type="button"
-                          aria-label={`Rating ${n}`}
-                          onClick={() => selectAnswer(q.id, n)}
-                          className={`w-5 h-5 rounded-full border cursor-pointer transition-colors ${
-                            answers[q.id] === n
-                              ? "bg-teal-600 border-teal-600"
-                              : "border-gray-400 hover:border-teal-400"
-                          }`}
-                        />
-                      ))}
-                    </div>
                   </div>
-                )
-              })}
-            </div>
-          )}
+                  <div className="shrink-0 pr-1 flex gap-6">
+                    {[1, 2, 3, 4].map((n) => (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => selectAnswer(q.id, n)}
+                        className={`flex h-5 w-5 cursor-pointer items-center justify-center rounded-full border-2 transition ${
+                          answers[q.id] === n
+                            ? "border-[#0D9488] bg-[#0D9488]"
+                            : "border-slate-300 bg-white hover:border-[#0D9488]"
+                        }`}
+                      >
+                        {answers[q.id] === n && (
+                          <span className="h-2 w-2 rounded-full bg-white" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
 
-          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mt-10">
-            <span className="text-gray-700 text-sm">
+          <div className="mt-auto flex items-center justify-between pt-6">
+            <span className="text-[13px] font-medium text-slate-600">
               {questions.length === 0 ? "—" : `${page} of ${totalPages}`}
             </span>
-
-            <div className="flex gap-3 justify-end">
+            <div className="flex items-center gap-3">
               <button
                 type="button"
                 onClick={back}
-                className="px-5 py-2 border-2 border-gray-300 rounded-md text-gray-800 hover:bg-gray-50"
+                className="cursor-pointer rounded-md border border-[#0D9488] bg-white px-5 py-2 text-[12px] font-medium leading-5 text-[#0D9488] transition hover:bg-[#f0fffe]"
               >
                 Back
               </button>
-
               <button
                 type="button"
                 onClick={() => void next()}
                 disabled={saving || questions.length === 0}
-                className="px-6 py-2 bg-teal-600 text-white rounded-md disabled:opacity-50 hover:bg-teal-700"
+                className="group inline-flex cursor-pointer items-center gap-2 rounded-md bg-[#0D9488] px-6 py-2 text-[12px] font-medium leading-5 text-white transition hover:bg-[#0b7a70] disabled:opacity-50"
               >
                 {saving
-                  ? "Saving…"
+                  ? "Saving..."
                   : questions.length === 0
                     ? "Continue"
                     : page >= totalPages
-                      ? "Submit"
-                      : "Next"}
+                      ? "Save & Next"
+                      : "Save & Next"}
+                {!saving && (
+                  <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                )}
               </button>
             </div>
           </div>
         </div>
-
-        <div className="w-full md:w-[350px] bg-gray-100 flex flex-col items-center justify-center p-8 md:min-h-[420px] relative">
-          <Image
-            src="/images/nexus-logo.png"
-            alt="Nexus MedPro Staffing"
-            width={160}
-            height={56}
-            className="mb-4 h-auto w-40"
-          />
-          <p className="text-gray-800 text-center text-sm px-4">
-            Nexus MedPro Staffing – Connecting Healthcare professionals with service providers
-          </p>
-        </div>
       </div>
-    </div>
+    </OnboardingLayout>
   )
 }
