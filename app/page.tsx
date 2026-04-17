@@ -22,7 +22,7 @@ export default function Home() {
 
           <button
             onClick={() => router.push("/application/step-1-upload")}
-            className="inline-flex min-h-14 min-w-[210px] cursor-pointer items-center justify-center rounded-xl bg-teal-600 px-8 py-4 text-[22px] font-semibold leading-[22px] text-white shadow-[0_10px_20px_rgba(13,148,136,0.22)] transition hover:bg-teal-700 focus:outline-none focus:ring-4"
+            className="inline-flex min-h-14 min-w-[210px] cursor-pointer items-center justify-center rounded-xl bg-teal-600 px-8 py-4 text-[22px] font-semibold leading-[22px] text-white shadow-[0_10px_20px_rgba(13,148,136,0.22)] transition hover:bg-teal-700 focus:outline-none"
           >
             Start Application
           </button>

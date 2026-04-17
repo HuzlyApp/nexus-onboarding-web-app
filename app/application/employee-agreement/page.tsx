@@ -193,9 +193,9 @@ export default function EmployeeAgreementPage() {
                       <Image
                         src="/icons/delete-icon.svg"
                         alt="Delete file"
-                        width={18}
-                        height={18}
-                        className="h-[18px] w-[18px]"
+                        width={24}
+                        height={24}
+                        className="h-[24px] w-[24px]"
                       />
                     </button>
                   }

@@ -100,7 +100,15 @@ export default function Step2License() {
               className="cursor-pointer rounded-md p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
               aria-label={`Remove ${label}`}
             >
-              <Trash2 size={18} />
+
+              {/* <Trash2 size={18} /> */}
+              <Image
+                        src="/icons/delete-icon.svg"
+                        alt="Delete"
+                        width={24}
+                        height={24}
+                        className="h-6 w-6"
+                      />
             </button>
           </div>
         ) : (
