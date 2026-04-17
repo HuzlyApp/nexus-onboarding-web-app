@@ -5,12 +5,15 @@ import { supabase } from "@/lib/supabase"
 import { useRouter } from "next/navigation"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
+import OnboardingSuccessPopup from "@/app/components/OnboardingSuccessPopup"
 
 export default function ReferencesPage() {
   const router = useRouter()
 
   const [refs, setRefs] = useState([{ first: "", last: "", phone: "", email: "" }])
   const [error, setError] = useState("")
+  const [saving, setSaving] = useState(false)
+  const [success, setSuccess] = useState(false)
 
   function update(index: number, field: string, value: string) {
     const updated = [...refs]
@@ -32,22 +35,27 @@ export default function ReferencesPage() {
 
   async function saveReferences() {
     setError("")
-    if (hasDuplicateNames()) { setError("Duplicate reference names are not allowed."); return }
+    setSaving(true)
+    if (hasDuplicateNames()) { setError("Duplicate reference names are not allowed."); setSaving(false); return }
     for (const r of refs) {
       if (!r.first || !r.last || !r.phone || !r.email) {
         setError("Please fill all required fields.")
+        setSaving(false)
         return
       }
     }
     const { error } = await supabase.from("worker_references").insert(
       refs.map((r) => ({ first_name: r.first, last_name: r.last, phone: r.phone, email: r.email }))
     )
-    if (error) { setError(error.message); return }
+    if (error) { setError(error.message); setSaving(false); return }
     // router.push("/application/step-6-summary")
-     localStorage.setItem("referenceData", JSON.stringify(refs))
+    localStorage.setItem("referenceData", JSON.stringify(refs))
     localStorage.setItem("referencesCount", String(refs.length))
-
-    router.push("/application/step-5-reference-review")
+    setSuccess(true)
+    setTimeout(() => {
+      router.push("/application/step-5-reference-review")
+    }, 3000)
+    setSaving(false)
   }
 
   return (
@@ -152,13 +160,18 @@ export default function ReferencesPage() {
             <button
               type="button"
               onClick={saveReferences}
-              className="cursor-pointer rounded-md bg-[#0D9488] px-6 py-2 text-[12px] font-medium leading-5 text-white transition hover:bg-[#0b7a70]"
+              disabled={saving}
+              className="cursor-pointer rounded-md bg-[#0D9488] px-6 py-2 text-[12px] font-medium leading-5 text-white transition hover:bg-[#0b7a70] disabled:cursor-not-allowed disabled:opacity-70"
             >
               Save &amp; continue
             </button>
           </div>
         </div>
       </div>
+      <OnboardingSuccessPopup
+        open={success}
+        onContinue={() => router.push("/application/step-5-reference-review")}
+      />
     </OnboardingLayout>
   )
 }

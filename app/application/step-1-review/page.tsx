@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 import Image from "next/image"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
-import { Check } from "lucide-react"
+import OnboardingLoader from "@/app/components/OnboardingLoader"
+import OnboardingSuccessPopup from "@/app/components/OnboardingSuccessPopup"
 
 export default function Step1Review() {
   const router = useRouter()
@@ -253,9 +254,9 @@ export default function Step1Review() {
   }
 
   return (
-    <div className="min-h-screen bg-[#1db4a3] flex items-center justify-center p-4">
+    <div className="relative min-h-screen bg-[#1db4a3] flex items-center justify-center p-4">
       <div
-        className="bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row relative mx-auto w-full md:w-[1060px] md:max-w-[1060px] md:h-[944px] min-h-[600px] md:min-h-[650px]"
+        className={`bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row relative mx-auto w-full md:w-[1060px] md:max-w-[1060px] md:h-[944px] min-h-[600px] md:min-h-[650px] transition-opacity ${loading ? "opacity-50" : "opacity-100"}`}
       >
         {/* LEFT - Form */}
         <div className="w-full md:w-[65%] p-6 md:p-10 flex flex-col justify-between">
@@ -496,40 +497,18 @@ export default function Step1Review() {
         </div>
       </div>
 
-      {/* SUCCESS POPUP */}
-      {success && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] animate-in fade-in duration-300">
-          <div
-            className="bg-white rounded-[20px] shadow-[0_20px_60px_rgba(0,0,0,0.2)] flex flex-col items-center justify-center text-center p-6 md:p-10 transform animate-in zoom-in-95 duration-300 w-[95%] max-w-[520px] min-h-[380px] md:h-[400px] mx-4"
-          >
-            <div className="flex h-[72px] w-[72px] mb-6 items-center justify-center rounded-full bg-[#28c7bf] text-white shadow-sm flex-none">
-              <Check className="h-8 w-8" strokeWidth={2.5} />
-            </div>
-            {/* <div className="mb-8">
-              <div className="w-[84px] h-[84px] bg-[#00C440] rounded-xl flex items-center justify-center shadow-[0_8px_16px_rgba(0,196,64,0.25)]">
-                <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="20 6 9 17 4 12"></polyline>
-                </svg>
-              </div>
-            </div> */}
+      {loading ? (
+        <OnboardingLoader
+          overlay
+          label="Saving your details..."
+          backgroundClassName="bg-[#1db4a3]"
+        />
+      ) : null}
 
-            <h3 className="text-[28px] md:text-[32px] font-bold text-slate-900 mb-3 tracking-tight">
-              Saved Successfully!
-            </h3>
-
-            <p className="text-[16px] md:text-[18px] text-slate-600 mb-8 md:mb-10 max-w-[340px] leading-relaxed">
-              Your information has been saved.
-            </p>
-
-            <button
-              onClick={() => router.push("/application/step-2-license")}
-              className="cursor-pointer w-full max-w-[360px] h-14 bg-[#28C7BF] hover:bg-[#23B5AD] text-white text-[18px] font-bold rounded-xl transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 active:translate-y-0"
-            >
-              Continue to Next Step
-            </button>
-          </div>
-        </div>
-      )}
+      <OnboardingSuccessPopup
+        open={success}
+        onContinue={() => router.push("/application/step-2-license")}
+      />
     </div>
   )
 }

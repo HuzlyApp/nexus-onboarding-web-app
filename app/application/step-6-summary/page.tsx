@@ -6,6 +6,7 @@ import Image from "next/image"
 import { CheckCircle2, Pencil } from "lucide-react"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
+import OnboardingSuccessPopup from "@/app/components/OnboardingSuccessPopup"
 
 interface IdentityDoc { name: string; url: string }
 interface IdentityDocs { ssn?: IdentityDoc; license?: IdentityDoc; uploadedAt?: string }
@@ -42,6 +43,7 @@ export default function SummaryPage() {
   const [skillStatus, setSkillStatus] = useState<string>("3 of 3 Completed")
   const [referencesCount, setReferencesCount] = useState<number>(3)
   const [loading, setLoading] = useState(false)
+  const [success, setSuccess] = useState(false)
 
   useEffect(() => {
     let isMounted = true
@@ -77,11 +79,14 @@ export default function SummaryPage() {
 
   const handleFinalSubmit = () => {
     setLoading(true)
-    localStorage.removeItem("parsedResume")
-    localStorage.removeItem("identityDocuments")
-    localStorage.removeItem("skillStatus")
-    localStorage.removeItem("referencesCount")
-    router.push("/application/success")
+    setSuccess(true)
+    setTimeout(() => {
+      localStorage.removeItem("parsedResume")
+      localStorage.removeItem("identityDocuments")
+      localStorage.removeItem("skillStatus")
+      localStorage.removeItem("referencesCount")
+      router.push("/application/success")
+    }, 3000)
   }
 
   const resumeFileName = resumeData?.fileName ||
@@ -184,6 +189,16 @@ export default function SummaryPage() {
           </div>
         </div>
       </div>
+      <OnboardingSuccessPopup
+        open={success}
+        onContinue={() => {
+          localStorage.removeItem("parsedResume")
+          localStorage.removeItem("identityDocuments")
+          localStorage.removeItem("skillStatus")
+          localStorage.removeItem("referencesCount")
+          router.push("/application/success")
+        }}
+      />
     </OnboardingLayout>
   )
 }

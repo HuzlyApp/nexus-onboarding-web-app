@@ -8,6 +8,7 @@ import { supabaseBrowser as supabase } from "@/lib/supabase-browser"
 import { WORKER_REQUIRED_FILES_BUCKET } from "@/lib/supabase-storage-buckets"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
+import OnboardingSuccessPopup from "@/app/components/OnboardingSuccessPopup"
 
 const DISCLAIMER =
   "By selecting “I Agree,” I authorize the Company to conduct a background check and, if required, a drug screening as part of my application or continued engagement. I understand this may include verification of my identity, employment history, education, and criminal records as permitted by law. I consent to the lawful collection, use, and disclosure of this information and release the Company from liability related to these authorized checks."
@@ -45,6 +46,7 @@ export default function DocumentsPage() {
   const [error, setError] = useState<string | null>(null)
   const [zohoNote, setZohoNote] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [success, setSuccess] = useState(false)
 
   const [signerEmail, setSignerEmail] = useState("")
   const [signerName, setSignerName] = useState("")
@@ -292,8 +294,10 @@ export default function DocumentsPage() {
       }
 
       await syncZoho()
-
-      router.push("/application/step-5-add-references")
+      setSuccess(true)
+      setTimeout(() => {
+        router.push("/application/step-5-add-references")
+      }, 3000)
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : "Save failed"
       setError(message)
@@ -546,6 +550,10 @@ export default function DocumentsPage() {
           </div>
         </div>
       </div>
+      <OnboardingSuccessPopup
+        open={success}
+        onContinue={() => router.push("/application/step-5-add-references")}
+      />
     </OnboardingLayout>
   )
 }

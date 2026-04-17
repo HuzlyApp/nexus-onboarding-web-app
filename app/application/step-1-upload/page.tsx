@@ -4,6 +4,7 @@ import { useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
+import OnboardingLoader from "@/app/components/OnboardingLoader"
 import Link from "next/link"
 
 
@@ -169,9 +170,11 @@ export default function Step1Upload() {
   }
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(135deg,#19c7c0_0%,#10a58f_100%)] flex items-center justify-center p-4 md:p-8">
+    <div className="relative min-h-screen bg-[linear-gradient(135deg,#19c7c0_0%,#10a58f_100%)] flex items-center justify-center p-4 md:p-8">
 
-      <div className="bg-white w-full max-w-5xl rounded-2xl shadow-2xl flex overflow-hidden min-h-[540px]">
+      <div
+        className={`bg-white w-full max-w-5xl rounded-2xl shadow-2xl flex overflow-hidden min-h-[540px] transition-opacity ${parsing ? "opacity-50" : "opacity-100"}`}
+      >
 
         <div className="w-full md:w-2/3 p-8 md:p-10">
 
@@ -327,6 +330,14 @@ export default function Step1Upload() {
         </div>
 
       </div>
+
+      {parsing ? (
+        <OnboardingLoader
+          overlay
+          label="Resume parsing..."
+          backgroundClassName="bg-[linear-gradient(135deg,#19c7c0_0%,#10a58f_100%)]"
+        />
+      ) : null}
     </div>
   )
 }

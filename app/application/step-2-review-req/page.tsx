@@ -8,6 +8,8 @@ import { supabase } from "@/lib/supabase"
 import toast, { Toaster } from "react-hot-toast"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
+import OnboardingLoader from "@/app/components/OnboardingLoader"
+import OnboardingSuccessPopup from "@/app/components/OnboardingSuccessPopup"
 
 interface FileInfo {
   name: string
@@ -72,6 +74,8 @@ const FileRow = ({ file, type, removeFile }: FileRowProps) => {
 
 export default function Step2ReviewReq() {
   const router = useRouter()
+  const [isSavingRequirements, setIsSavingRequirements] = useState(false)
+  const [success, setSuccess] = useState(false)
 
   const fileInput = useRef<HTMLInputElement>(null)
 
@@ -216,19 +220,17 @@ export default function Step2ReviewReq() {
   }
 
   async function saveRequirements() {
-    const toastId = toast.loading("Saving requirements...")
+    setIsSavingRequirements(true)
 
     try {
       const {
         data: { user }
       } = await supabase.auth.getUser()
 
-      if (!user) {
-        toast.error("User not logged in", { id: toastId })
-        return
+      const workerId = user?.id || localStorage.getItem("applicantId") || ""
+      if (!workerId) {
+        throw new Error("Missing applicant ID")
       }
-
-      const workerId = user.id
 
       for (const [type, file] of Object.entries(files)) {
         if (!file || !file.file) continue
@@ -240,7 +242,7 @@ export default function Step2ReviewReq() {
           .upload(path, file.file)
 
         if (uploadError) {
-          toast.error(uploadError.message, { id: toastId })
+          toast.error(uploadError.message)
           return
         }
 
@@ -253,18 +255,20 @@ export default function Step2ReviewReq() {
           })
 
         if (insertError) {
-          toast.error(insertError.message, { id: toastId })
+          toast.error(insertError.message)
           return
         }
       }
 
-      toast.success("Requirements saved", { id: toastId })
-
+      setSuccess(true)
       setTimeout(() => {
         router.push("/application/step-3-skills")
-      }, 1200)
-    } catch {
-      toast.error("Unexpected error", { id: toastId })
+      }, 3000)
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Unexpected error"
+      toast.error(message)
+    } finally {
+      setIsSavingRequirements(false)
     }
   }
 
@@ -342,9 +346,10 @@ export default function Step2ReviewReq() {
               <button
                 type="button"
                 onClick={saveRequirements}
-                className="cursor-pointer inline-flex h-11 w-[92px] p-4 items-center justify-between rounded-lg bg-[#1db4a3] text-sm font-semibold leading-5 text-white transition hover:bg-[#189d8e]"
+                disabled={isSavingRequirements}
+                className="cursor-pointer inline-flex h-11 min-w-[165px] p-4 items-center justify-between rounded-lg bg-[#1db4a3] text-sm font-semibold leading-5 text-white transition hover:bg-[#189d8e] disabled:cursor-not-allowed disabled:opacity-70"
               >
-                Next
+                Save & continue
                 <ChevronRight className="h-4 w-4 font-semibold" />
 
               </button>
@@ -352,6 +357,19 @@ export default function Step2ReviewReq() {
           </div>
         </div>
       </OnboardingLayout>
+
+      {isSavingRequirements ? (
+        <OnboardingLoader
+          overlay
+          label="Saving your details..."
+          backgroundClassName="bg-[linear-gradient(135deg,#19c7c0_0%,#10a58f_100%)]"
+        />
+      ) : null}
+
+      <OnboardingSuccessPopup
+        open={success}
+        onContinue={() => router.push("/application/step-3-skills")}
+      />
     </>
   )
 }
