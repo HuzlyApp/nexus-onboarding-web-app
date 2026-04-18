@@ -57,23 +57,32 @@ export default function Step4Identity() {
     }
     setLoading(true)
     try {
-      const { data: userData } = await supabase.auth.getUser()
-      const applicantId = userData?.user?.id || localStorage.getItem("applicantId") || ""
+      let applicantId = localStorage.getItem("applicantId")?.trim() || ""
       if (!applicantId) {
-        throw new Error("Missing applicant ID")
+        const { data: userData } = await supabase.auth.getUser()
+        applicantId = userData?.user?.id?.trim() || ""
+      }
+      if (!applicantId) {
+        throw new Error("Missing applicant ID — complete Step 1 (review profile) first.")
       }
       localStorage.setItem("applicantId", applicantId)
 
       const ssnUrl = await uploadFile(ssnFile.file, "ssn", applicantId)
       const licenseUrl = await uploadFile(licenseFile.file, "license", applicantId)
 
-      const { error: dbError } = await supabase.from("worker_documents").insert({
-        applicant_id: applicantId,
-        ssn_url: ssnUrl,
-        drivers_license_url: licenseUrl,
-        uploaded_at: new Date().toISOString(),
+      const docRes = await fetch("/api/onboarding/worker-documents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          applicantId,
+          ssn_url: ssnUrl,
+          drivers_license_url: licenseUrl,
+        }),
       })
-      if (dbError) throw dbError
+      const docJson = (await docRes.json().catch(() => ({}))) as { error?: string }
+      if (!docRes.ok) {
+        throw new Error(docJson.error || `Could not save document URLs (${docRes.status})`)
+      }
 
       localStorage.setItem(
         "identityDocuments",

@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import { supabase } from "@/lib/supabase"
 import { useRouter } from "next/navigation"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
@@ -44,10 +43,41 @@ export default function ReferencesPage() {
         return
       }
     }
-    const { error } = await supabase.from("worker_references").insert(
-      refs.map((r) => ({ first_name: r.first, last_name: r.last, phone: r.phone, email: r.email }))
-    )
-    if (error) { setError(error.message); setSaving(false); return }
+    const applicantId = typeof window !== "undefined" ? localStorage.getItem("applicantId")?.trim() || "" : ""
+    if (!applicantId) {
+      setError("Missing applicant session. Return to Step 1 and save your profile.")
+      setSaving(false)
+      return
+    }
+
+    const res = await fetch("/api/onboarding/worker-references", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        applicantId,
+        references: refs.map((r) => ({
+          first: r.first,
+          last: r.last,
+          phone: r.phone,
+          email: r.email,
+        })),
+      }),
+    })
+    let payload: { error?: string; hint?: string } = {}
+    try {
+      payload = (await res.json()) as { error?: string; hint?: string }
+    } catch {
+      /* ignore */
+    }
+    if (!res.ok) {
+      setError(
+        payload.hint
+          ? `${payload.error || "Save failed"}. ${payload.hint}`
+          : payload.error || `Save failed (${res.status})`,
+      )
+      setSaving(false)
+      return
+    }
     // router.push("/application/step-6-summary")
     localStorage.setItem("referenceData", JSON.stringify(refs))
     localStorage.setItem("referencesCount", String(refs.length))

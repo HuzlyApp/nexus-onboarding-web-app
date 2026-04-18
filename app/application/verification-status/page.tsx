@@ -1,12 +1,13 @@
 "use client"
 
+import { Suspense } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { ChevronRight } from "lucide-react"
 import { useSearchParams } from "next/navigation"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 
-export default function VerificationStatusPage() {
+function VerificationStatusContent() {
   const searchParams = useSearchParams()
   const status = searchParams.get("status")
   const isRejected = status === "rejected"
@@ -161,5 +162,13 @@ export default function VerificationStatusPage() {
         </div>
       </div>
     </OnboardingLayout>
+  )
+}
+
+export default function VerificationStatusPage() {
+  return (
+    <Suspense fallback={null}>
+      <VerificationStatusContent />
+    </Suspense>
   )
 }

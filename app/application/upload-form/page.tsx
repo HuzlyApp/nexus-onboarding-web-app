@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { Suspense, useEffect, useRef, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { useSearchParams, useRouter } from "next/navigation"
@@ -29,7 +29,7 @@ function isAllowedFile(file: File) {
   return lowerName.endsWith(".pdf") || lowerName.endsWith(".docx")
 }
 
-export default function Upload19FormPage() {
+function Upload19FormContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -274,5 +274,13 @@ export default function Upload19FormPage() {
         </div>
       </div>
     </OnboardingLayout>
+  )
+}
+
+export default function Upload19FormPage() {
+  return (
+    <Suspense fallback={null}>
+      <Upload19FormContent />
+    </Suspense>
   )
 }
