@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
+import Link from "next/link"
 import { CheckCircle2, Pencil } from "lucide-react"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
@@ -15,14 +16,14 @@ interface ResumeData { first_name?: string; last_name?: string; job_role?: strin
 function SummaryCard({
   title,
   subtitle,
-  showEdit,
+  editHref,
 }: {
   title: string
   subtitle?: string
-  showEdit?: boolean
+  editHref?: string
 }) {
   return (
-    <div className="flex items-center justify-between rounded-xl border border-[#0D9488] bg-[#f0fffe] px-4 py-3">
+    <div className="group flex items-center justify-between rounded-xl border border-[#0D9488] bg-[#f0fffe] px-4 py-3">
       <div className="flex items-center gap-3">
         <CheckCircle2 className="h-5 w-5 shrink-0 text-[#0D9488]" />
         <div>
@@ -30,7 +31,15 @@ function SummaryCard({
           {subtitle ? <p className="text-[11px] text-[#0D9488]">{subtitle}</p> : null}
         </div>
       </div>
-      {showEdit ? <Pencil className="h-4 w-4 text-slate-400 cursor-pointer hover:text-slate-600" /> : null}
+      {editHref ? (
+        <Link
+          href={editHref}
+          aria-label={`Edit ${title}`}
+          className="rounded p-1 text-slate-400 opacity-0 transition group-hover:opacity-100 hover:text-slate-600"
+        >
+          <Pencil className="h-4 w-4" />
+        </Link>
+      ) : null}
     </div>
   )
 }
@@ -124,7 +133,7 @@ export default function SummaryPage() {
               <SummaryCard
                 title="Resume Uploaded"
                 subtitle={resumeFileName}
-                showEdit
+                editHref="/application/step-1-upload-v2"
               />
             </div>
 
@@ -132,30 +141,32 @@ export default function SummaryPage() {
             <div>
               <p className="text-[13px] font-semibold text-slate-700 mb-2">Requirements</p>
               <div className="space-y-2">
-                <SummaryCard title="Nursing License" subtitle="Nursing-license.png" />
-                <SummaryCard title="TB Test" subtitle="tb-test.png" />
-                <SummaryCard title="CPR Certifications" subtitle="cpr-cert.jpg" />
+                <SummaryCard title="Nursing License" subtitle="Nursing-license.png" editHref="/application/step-2-license" />
+                <SummaryCard title="TB Test" subtitle="tb-test.png" editHref="/application/step-2-license" />
+                <SummaryCard title="CPR Certifications" subtitle="cpr-cert.jpg" editHref="/application/step-2-license" />
               </div>
             </div>
 
             {/* Skill Assessment */}
             <div>
               <p className="text-[13px] font-semibold text-slate-700 mb-2">Skill Assessment</p>
-              <SummaryCard title={skillStatus} />
+              <SummaryCard title={skillStatus} editHref="/application/step-3-assessment" />
             </div>
 
             {/* Authorizations & Documents */}
             <div>
               <p className="text-[13px] font-semibold text-slate-700 mb-2">Authorizations &amp; Documents</p>
               <div className="space-y-2">
-                <SummaryCard title="Authorization-Agreement" subtitle="Signed" />
+                <SummaryCard title="Authorization-Agreement" subtitle="Signed" editHref="/application/step-4-documents" />
                 <SummaryCard
                   title="SSN Card"
                   subtitle={identityDocs?.ssn ? identityDocs.ssn.name : "Signed"}
+                  editHref="/application/step-4-documents"
                 />
                 <SummaryCard
                   title="Driver's License"
                   subtitle={identityDocs?.license ? identityDocs.license.name : "Signed"}
+                  editHref="/application/step-4-documents"
                 />
               </div>
             </div>
@@ -163,7 +174,7 @@ export default function SummaryPage() {
             {/* References */}
             <div>
               <p className="text-[13px] font-semibold text-slate-700 mb-2">References</p>
-              <SummaryCard title={`${referencesCount} of 3 Added`} />
+              <SummaryCard title={`${referencesCount} of 3 Added`} editHref="/application/step-5-add-references" />
             </div>
           </div>
 
