@@ -2,19 +2,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { usePathname } from "next/navigation";
 import Link from "next/link";
 import {
-  Users,
-  UserCheck,
-  UserPlus,
-  UserX,
-  Briefcase,
-  Calendar,
-  Settings,
-  LogOut,
-  Menu,
-  X,
   Plus,
   Search,
   Filter,
@@ -24,8 +13,6 @@ import {
   MapPin,
   CalendarDays,
   Columns2,
-  ChevronDown,
-  ChevronRight,
   FileText,
   Eye,
   MoreHorizontal,
@@ -112,32 +99,13 @@ function formatDateShort(iso: string | null) {
   });
 }
 
-const CANDIDATE_SUB = [
-  { label: "All", href: "/admin_recruiter/candidates", icon: Users },
-  { label: "New", href: "/admin_recruiter/new", icon: UserPlus },
-  { label: "Pending", href: "/admin_recruiter/pending", icon: UserCheck },
-  { label: "Approved", href: "/admin_recruiter/approved", icon: UserCheck },
-  { label: "Disapproved", href: "/admin_recruiter/disapproved", icon: UserX },
-] as const;
-
-const WORKER_SUB = [
-  { label: "Active", href: "/admin_recruiter/workers" },
-  { label: "Inactive", href: "/admin_recruiter/workers" },
-  { label: "Cancelled", href: "/admin_recruiter/workers" },
-  { label: "Banned", href: "/admin_recruiter/workers" },
-] as const;
-
 const PAGE_SIZE = 9;
 
 export default function CandidatesPage() {
-  const pathname = usePathname();
   const [candidates, setCandidates] = useState<CandidateRow[]>([]);
   const [totalFromApi, setTotalFromApi] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadMoreLoading, setLoadMoreLoading] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [candidatesGroupOpen, setCandidatesGroupOpen] = useState(true);
-  const [workersGroupOpen, setWorkersGroupOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [typeFilter] = useState("Candidates");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("All");
@@ -257,221 +225,95 @@ export default function CandidatesPage() {
   }, [statusFilter]);
 
   return (
-    <div className="flex h-screen bg-zinc-50 overflow-hidden">
-      <div
-        className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#0A1F1C] text-white transform transition-transform lg:translate-x-0 ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
-      >
-        <div className="flex h-full flex-col">
-          <div className="px-6 py-8 flex items-center gap-3 border-b border-white/10">
-            <div className="w-10 h-10 bg-white rounded-2xl flex items-center justify-center">
-              <span className="text-[#0A1F1C] font-bold text-3xl">N</span>
-            </div>
-            <div>
-              <div className="font-semibold text-2xl tracking-tight">Nexus</div>
-              <div className="text-xs text-teal-400 -mt-1">MedPro Staffing</div>
-            </div>
-          </div>
+    <div className="flex h-screen bg-[#f3f5f5] overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <header className="h-16 border-b border-[#e5ecea] bg-white flex items-center px-6 justify-between shrink-0">
+          <div />
 
-          <nav className="flex-1 px-3 py-8 space-y-1 overflow-y-auto">
-            <div className="px-4 text-xs uppercase tracking-widest text-teal-400/70 mb-4">PERSONAL SETTINGS</div>
-            <a href="#" className="flex items-center gap-3 px-4 py-3 text-sm hover:bg-white/10 rounded-2xl">
-              Profile
-            </a>
-            <a href="#" className="flex items-center gap-3 px-4 py-3 text-sm hover:bg-white/10 rounded-2xl">
-              Account
-            </a>
-
-            <div className="px-4 pt-8 text-xs uppercase tracking-widest text-teal-400/70 mb-2">TEAM MANAGEMENT</div>
-
-            <div className="rounded-2xl border border-white/10 bg-white/5 overflow-hidden">
-              <button
-                type="button"
-                onClick={() => setCandidatesGroupOpen((v) => !v)}
-                className="flex w-full items-center justify-between gap-2 px-4 py-3 text-sm text-white/95 hover:bg-white/10"
-              >
-                <span className="flex items-center gap-3">
-                  <Users className="w-5 h-5 shrink-0" />
-                  Candidates
-                </span>
-                {candidatesGroupOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-              </button>
-              {candidatesGroupOpen ? (
-                <div className="pb-2 pl-2 pr-2 space-y-0.5">
-                  {CANDIDATE_SUB.map((item) => {
-                    const Icon = item.icon;
-                    const active = pathname === item.href;
-                    return (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        className={`flex items-center gap-3 pl-10 pr-4 py-2.5 text-sm rounded-xl transition-all ${
-                          active
-                            ? "border border-teal-400/80 bg-teal-500/15 text-white"
-                            : "text-white/75 hover:bg-white/10"
-                        }`}
-                      >
-                        <Icon className="w-4 h-4 opacity-90" />
-                        {item.label}
-                      </Link>
-                    );
-                  })}
-                </div>
-              ) : null}
-            </div>
-
-            <div className="mt-2 rounded-2xl border border-white/10 bg-white/5 overflow-hidden">
-              <button
-                type="button"
-                onClick={() => setWorkersGroupOpen((v) => !v)}
-                className="flex w-full items-center justify-between gap-2 px-4 py-3 text-sm text-white/95 hover:bg-white/10"
-              >
-                <span className="flex items-center gap-3">
-                  <Briefcase className="w-5 h-5 shrink-0" />
-                  Workers
-                </span>
-                {workersGroupOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-              </button>
-              {workersGroupOpen ? (
-                <div className="pb-2 pl-2 pr-2 space-y-0.5">
-                  {WORKER_SUB.map((item) => {
-                    const onWorkers = pathname.startsWith("/admin_recruiter/workers");
-                    const active = onWorkers && item.label === "Active";
-                    return (
-                      <Link
-                        key={item.label}
-                        href={item.href}
-                        className={`flex items-center gap-3 pl-10 pr-4 py-2.5 text-sm rounded-xl transition-all ${
-                          active
-                            ? "border border-teal-400/80 bg-teal-500/15 text-white"
-                            : "text-white/75 hover:bg-white/10"
-                        }`}
-                      >
-                        {item.label}
-                      </Link>
-                    );
-                  })}
-                </div>
-              ) : null}
-            </div>
-
-            <Link
-              href="/admin_recruiter/schedule"
-              className={`mt-2 flex items-center gap-3 px-4 py-3 text-sm rounded-2xl transition-all ${
-                pathname === "/admin_recruiter/schedule"
-                  ? "bg-white/10 text-white"
-                  : "text-white/80 hover:bg-white/10"
-              }`}
-            >
-              <Calendar className="w-5 h-5" />
-              Schedule
-            </Link>
-
-            <div className="px-4 pt-6">
-              <a href="#" className="flex items-center gap-3 px-4 py-3 text-sm hover:bg-white/10 rounded-2xl">
-                <Settings className="w-5 h-5" /> Settings
-              </a>
-            </div>
-          </nav>
-
-          <div className="p-6 border-t border-white/10">
-            <button className="flex w-full items-center gap-3 px-4 py-3 text-sm text-red-400 hover:bg-white/10 rounded-2xl">
-              <LogOut className="w-5 h-5" /> Sign out
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div className="flex-1 flex flex-col overflow-hidden lg:pl-72">
-        <header className="h-16 border-b bg-white flex items-center px-6 justify-between shrink-0">
           <div className="flex items-center gap-4">
-            <button type="button" onClick={() => setSidebarOpen(!sidebarOpen)} className="lg:hidden text-gray-600">
-              {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
-            </button>
-            <div className="font-semibold text-2xl">Candidates</div>
-          </div>
-
-          <div className="flex items-center gap-4 sm:gap-6">
-            <div className="hidden sm:flex items-center gap-2 bg-emerald-100 text-emerald-700 px-4 py-1 rounded-full text-sm">
-              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-              Online
-            </div>
-
-            <div className="flex items-center gap-2 text-gray-600">
-              <button type="button" className="p-2 rounded-xl hover:bg-zinc-100" aria-label="Messages">
+            <div className="flex items-center gap-1 text-[#9da9a6]">
+              <button type="button" className="p-1.5 rounded-lg hover:bg-zinc-100" aria-label="Messages">
                 <MessageCircle className="w-5 h-5" />
               </button>
-              <button type="button" className="p-2 rounded-xl hover:bg-zinc-100" aria-label="Notifications">
+              <button type="button" className="p-1.5 rounded-lg hover:bg-zinc-100" aria-label="Notifications">
                 <Bell className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="flex items-center gap-3">
-              <div className="text-right hidden xs:block">
-                <div className="font-medium text-sm">Sean Smith</div>
-                <div className="text-xs text-gray-600">Manager</div>
+            <div className="flex items-center gap-2">
+              <div className="text-right hidden sm:block leading-tight">
+                <div className="font-semibold text-sm text-[#2d3a39]">Sean Smith</div>
+                <div className="text-[10px] text-[#8ca09e]">Manager</div>
               </div>
               <img
                 src="https://i.pravatar.cc/128?u=sean"
                 alt="Sean Smith"
-                className="w-9 h-9 rounded-full object-cover"
+                className="w-8 h-8 rounded-full object-cover"
               />
             </div>
           </div>
         </header>
 
-        <div className="flex-1 p-6 sm:p-8 overflow-auto">
-          <div className="text-xs text-gray-600 mb-3">Admin - Candidate Listings</div>
-
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
+        <div className="flex-1 p-4 sm:p-5 overflow-auto">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-4">
             <div>
-              <h1 className="text-3xl font-semibold text-gray-600">Candidates</h1>
-              <p className="text-gray-600 mt-1">Manage applicants in one place</p>
+              <h1
+                className="text-[#1d2739]"
+                style={{
+                  fontFamily: "Inter, Arial, Helvetica, sans-serif",
+                  fontWeight: 600,
+                  fontSize: "36px",
+                  lineHeight: "40px",
+                  letterSpacing: "0",
+                }}
+              >
+                Candidates
+              </h1>
+              <p className="mt-1 text-sm text-[#6f7683]">Manage applicants in one place</p>
             </div>
 
-            <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap">
               <button
                 type="button"
-                className="flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white px-5 sm:px-6 py-3 rounded-2xl transition shadow-sm"
+                className="h-8 inline-flex items-center gap-1.5 bg-[#0c918a] hover:bg-[#0a7b75] text-white px-3 rounded-md transition text-xs font-semibold"
               >
-                <Plus className="w-5 h-5" /> Create Candidate
+                <Plus className="w-3.5 h-3.5" /> Create Candidate
               </button>
 
-              <div className="flex items-center bg-white border border-zinc-200 rounded-2xl px-4 sm:px-5 py-3 min-w-0 flex-1 sm:flex-initial sm:min-w-[240px]">
-                <Search className="w-5 h-5 text-gray-600 mr-3 shrink-0" />
+              <div className="flex h-8 items-center bg-white border border-[#dce6e3] rounded-md px-3 min-w-0 flex-1 sm:flex-initial sm:min-w-[220px]">
+                <Search className="w-3.5 h-3.5 text-[#8ca09e] mr-2 shrink-0" />
                 <input
                   type="search"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Search worker or candidate"
-                  className="bg-transparent outline-none flex-1 min-w-0 text-sm"
+                  className="bg-transparent outline-none flex-1 min-w-0 text-xs text-[#586766]"
                 />
               </div>
 
               <button
                 type="button"
-                className="flex items-center gap-2 border border-zinc-200 bg-white hover:bg-zinc-50 px-5 py-3 rounded-2xl transition"
+                onClick={() => void loadCandidates()}
+                className="h-8 inline-flex items-center gap-1.5 border border-[#dce6e3] bg-white hover:bg-zinc-50 px-3 rounded-md transition text-xs text-[#3d4a4a]"
               >
-                <Filter className="w-5 h-5" /> Filters
+                <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} /> Refresh
               </button>
 
               <button
                 type="button"
-                onClick={() => void loadCandidates()}
-                className="flex items-center gap-2 border border-zinc-200 bg-white hover:bg-zinc-50 px-5 py-3 rounded-2xl transition"
+                className="h-8 inline-flex items-center gap-1.5 border border-[#dce6e3] bg-white hover:bg-zinc-50 px-3 rounded-md transition text-xs text-[#3d4a4a]"
               >
-                <RefreshCw className={`w-5 h-5 ${loading ? "animate-spin" : ""}`} /> Refresh
+                <Filter className="w-3.5 h-3.5" /> Filters
               </button>
 
               <div className="relative">
                 <button
                   type="button"
                   onClick={() => setMoreMenuOpen((v) => !v)}
-                  className="flex items-center justify-center w-12 h-12 border border-zinc-200 bg-white hover:bg-zinc-50 rounded-2xl transition"
+                  className="flex items-center justify-center w-8 h-8 border border-[#dce6e3] bg-white hover:bg-zinc-50 rounded-md transition"
                   aria-label="More actions"
                 >
-                  <MoreHorizontal className="w-5 h-5 text-gray-600" />
+                  <MoreHorizontal className="w-4 h-4 text-[#6f8380]" />
                 </button>
                 {moreMenuOpen ? (
                   <>
@@ -496,25 +338,28 @@ export default function CandidatesPage() {
             </div>
           </div>
 
-          <div className="bg-white border border-zinc-200 rounded-3xl overflow-hidden shadow-sm">
-            <div className="px-4 sm:px-6 py-4 border-b border-zinc-100 flex flex-wrap items-center gap-3 sm:gap-4">
+          <div className="bg-white border border-[#e3ecea] rounded-xl overflow-hidden">
+            <div className="px-4 py-3 border-b border-[#edf3f2] flex flex-wrap items-center gap-3">
+              <div className="flex items-center text-[#9aaba9]">
+                <Filter className="h-4 w-4" />
+              </div>
               <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                 <label className="flex items-center gap-2">
-                  <span className="text-xs text-gray-600 whitespace-nowrap">Type</span>
+                  <span className="text-[11px] text-[#6f8380] whitespace-nowrap">Type</span>
                   <select
                     value={typeFilter}
                     disabled
-                    className="text-sm px-3 py-1.5 rounded-xl border border-zinc-200 bg-zinc-50 text-gray-600 max-w-[140px]"
+                    className="h-8 text-xs px-2.5 rounded-md border border-[#dce6e3] bg-white text-[#435351] min-w-[120px]"
                   >
                     <option>Candidates</option>
                   </select>
                 </label>
                 <label className="flex items-center gap-2">
-                  <span className="text-xs text-gray-600 whitespace-nowrap">Status</span>
+                  <span className="text-[11px] text-[#6f8380] whitespace-nowrap">Status</span>
                   <select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-                    className="text-sm px-3 py-1.5 rounded-xl border border-zinc-200 bg-white hover:bg-zinc-50 max-w-[140px]"
+                    className="h-8 text-xs px-2.5 rounded-md border border-[#dce6e3] bg-white hover:bg-zinc-50 min-w-[120px]"
                   >
                     {STATUS_FILTER.map((s) => (
                       <option key={s} value={s}>
@@ -524,11 +369,11 @@ export default function CandidatesPage() {
                   </select>
                 </label>
                 <label className="flex items-center gap-2">
-                  <span className="text-xs text-gray-600 whitespace-nowrap">Job Role</span>
+                  <span className="text-[11px] text-[#6f8380] whitespace-nowrap">Job Role</span>
                   <select
                     value={jobRoleFilter}
                     onChange={(e) => setJobRoleFilter(e.target.value)}
-                    className="text-sm px-3 py-1.5 rounded-xl border border-zinc-200 bg-white hover:bg-zinc-50 max-w-[160px]"
+                    className="h-8 text-xs px-2.5 rounded-md border border-[#dce6e3] bg-white hover:bg-zinc-50 min-w-[140px]"
                   >
                     <option value="">All</option>
                     {jobRoleOptions.map((role) => (
@@ -539,11 +384,11 @@ export default function CandidatesPage() {
                   </select>
                 </label>
                 <label className="flex items-center gap-2">
-                  <span className="text-xs text-gray-600 whitespace-nowrap">Location</span>
+                  <span className="text-[11px] text-[#6f8380] whitespace-nowrap">Location</span>
                   <select
                     value={locationFilter}
                     onChange={(e) => setLocationFilter(e.target.value)}
-                    className="text-sm px-3 py-1.5 rounded-xl border border-zinc-200 bg-white hover:bg-zinc-50 max-w-[180px]"
+                    className="h-8 text-xs px-2.5 rounded-md border border-[#dce6e3] bg-white hover:bg-zinc-50 min-w-[140px]"
                   >
                     <option value="">All</option>
                     {locationOptions.map((loc) => (
@@ -556,17 +401,17 @@ export default function CandidatesPage() {
               </div>
             </div>
 
-            <div className="px-4 sm:px-6 py-4 flex flex-wrap items-center justify-between gap-4 border-b border-zinc-100 bg-zinc-50/50">
-              <div className="text-sm text-gray-600">
+            <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-4 border-b border-[#edf3f2] bg-[#fbfdfd]">
+              <div className="text-xs text-[#5e7371]">
                 Total:{" "}
-                <span className="font-semibold text-gray-600">
+                <span className="font-semibold text-[#203130]">
                   {loading ? "—" : totalFromApi ?? filtered.length}
                 </span>{" "}
                 {loading ? "" : totalLabel}
               </div>
 
-              <div className="flex items-center gap-3 flex-wrap">
-                <span className={`text-xs font-medium ${view === "card" ? "text-teal-700" : "text-gray-600"}`}>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className={`text-[11px] font-medium ${view === "card" ? "text-[#0f6a65]" : "text-[#6f8380]"}`}>
                   Card View
                 </span>
                 <button
@@ -575,24 +420,24 @@ export default function CandidatesPage() {
                   aria-checked={view === "list"}
                   aria-label="Toggle list view"
                   onClick={() => setView((v) => (v === "card" ? "list" : "card"))}
-                  className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors ${
-                    view === "list" ? "bg-teal-600" : "bg-zinc-300"
+                  className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+                    view === "list" ? "bg-[#0c918a]" : "bg-zinc-300"
                   }`}
                 >
                   <span
-                    className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${
-                      view === "list" ? "translate-x-6" : "translate-x-1"
+                    className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition ${
+                      view === "list" ? "translate-x-5" : "translate-x-0.5"
                     }`}
                   />
                 </button>
-                <span className={`text-xs font-medium ${view === "list" ? "text-teal-700" : "text-gray-600"}`}>
+                <span className={`text-[11px] font-medium ${view === "list" ? "text-[#0f6a65]" : "text-[#6f8380]"}`}>
                   List View
                 </span>
                 {view === "list" ? (
                   <button
                     type="button"
                     onClick={() => setEditColumnsOpen(true)}
-                    className="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 py-2 text-xs font-medium text-gray-600 hover:bg-zinc-50"
+                    className="inline-flex items-center gap-2 rounded-md border border-[#dce6e3] bg-white px-3 py-1.5 text-[11px] font-medium text-[#506462] hover:bg-zinc-50"
                   >
                     <Columns2 className="h-4 w-4" />
                     Edit columns
@@ -601,7 +446,7 @@ export default function CandidatesPage() {
               </div>
             </div>
 
-            <div className="p-4 sm:p-6">
+            <div className="p-4">
               {(() => {
                 const formatDate = formatDateShort;
 
@@ -651,62 +496,62 @@ export default function CandidatesPage() {
 
                 return (
                   <>
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 sm:gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                       {visibleCards.map((c) => (
                         <div
                           key={c.id}
-                          className="bg-white border border-zinc-200 rounded-3xl p-5 sm:p-6 hover:shadow-md hover:border-teal-200/60 transition-shadow"
+                          className="bg-white border border-[#e3ecea] rounded-lg p-3.5 hover:shadow-sm transition-shadow"
                         >
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex items-start gap-3 min-w-0">
-                              <div className="w-11 h-11 rounded-full bg-teal-600 text-white flex items-center justify-center text-xs font-semibold shrink-0">
+                              <div className="w-8 h-8 rounded-full bg-[#17a39b] text-white flex items-center justify-center text-[10px] font-semibold shrink-0">
                                 {initialsFromName(c.name || "NA")}
                               </div>
                               <div className="min-w-0">
-                                <div className="font-semibold text-gray-600 truncate text-[15px]">{c.name || "Unnamed"}</div>
-                                <div className="text-[11px] text-gray-600 mt-0.5">RN #{c.reference}</div>
+                                <div className="font-semibold text-[#2d3a39] truncate text-sm">{c.name || "Unnamed"}</div>
+                                <div className="text-[10px] text-[#8ca09e] mt-0.5">RN #{c.reference}</div>
                               </div>
                             </div>
 
                             <div className="flex items-center gap-1.5 shrink-0">
                               <Link
                                 href={`/admin_recruiter/new/attachments/${c.id}`}
-                                className="w-9 h-9 rounded-xl border border-zinc-200 hover:bg-teal-50 hover:border-teal-200 flex items-center justify-center text-gray-600 hover:text-teal-800 transition"
+                                className="w-6 h-6 rounded-md border border-[#dce6e3] hover:bg-teal-50 flex items-center justify-center text-[#4e6462] transition"
                                 aria-label="View document"
                               >
-                                <FileText className="w-4 h-4" />
+                                <FileText className="w-3 h-3" />
                               </Link>
                               <Link
                                 href={`/admin_recruiter/new/profile/${c.id}`}
-                                className="w-9 h-9 rounded-xl border border-zinc-200 hover:bg-teal-50 hover:border-teal-200 flex items-center justify-center text-gray-600 hover:text-teal-800 transition"
+                                className="w-6 h-6 rounded-md border border-[#dce6e3] hover:bg-teal-50 flex items-center justify-center text-[#4e6462] transition"
                                 aria-label="View profile"
                               >
-                                <Eye className="w-4 h-4" />
+                                <Eye className="w-3 h-3" />
                               </Link>
                             </div>
                           </div>
 
-                          <div className="mt-4 flex items-center justify-between gap-2 flex-wrap">
-                            <div className="flex items-center gap-2 text-xs text-gray-600">
-                              <CalendarDays className="w-4 h-4 text-teal-600 shrink-0" />
+                          <div className="mt-3 flex items-center justify-between gap-2 flex-wrap">
+                            <div className="flex items-center gap-1.5 text-[11px] text-[#6f8380]">
+                              <CalendarDays className="w-3.5 h-3.5 text-[#16a39b] shrink-0" />
                               <span>{formatDateTime(c.createdAt)}</span>
                             </div>
-                            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border-2 border-teal-600 text-teal-800 bg-white">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-[10px] font-medium border border-[#8fd0c9] text-[#0d6e68] bg-[#effbfa]">
                               {c.status}
                             </span>
                           </div>
 
-                          <div className="mt-5 space-y-2.5 text-xs text-gray-600">
+                          <div className="mt-3 space-y-1.5 text-[11px] text-[#4f6462]">
                             <div className="flex items-start gap-2.5">
-                              <Mail className="w-4 h-4 text-teal-600 shrink-0 mt-0.5" />
+                              <Mail className="w-3.5 h-3.5 text-[#16a39b] shrink-0 mt-0.5" />
                               <span className="truncate">{c.email || "—"}</span>
                             </div>
                             <div className="flex items-center gap-2.5">
-                              <Phone className="w-4 h-4 text-teal-600 shrink-0" />
+                              <Phone className="w-3.5 h-3.5 text-[#16a39b] shrink-0" />
                               <span className="truncate">{c.phone || "—"}</span>
                             </div>
                             <div className="flex items-start gap-2.5">
-                              <MapPin className="w-4 h-4 text-teal-600 shrink-0 mt-0.5" />
+                              <MapPin className="w-3.5 h-3.5 text-[#16a39b] shrink-0 mt-0.5" />
                               <span className="leading-snug">{c.address || "—"}</span>
                             </div>
                           </div>
