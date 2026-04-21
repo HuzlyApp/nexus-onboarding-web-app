@@ -1,7 +1,7 @@
 "use client"
 
 import type { HTMLAttributes, ReactNode } from "react"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { Suspense, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 import Image from "next/image"
@@ -181,7 +181,7 @@ function SearchableSelect({
   )
 }
 
-export default function Step1Review() {
+function Step1ReviewContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const urlJobTitle = useMemo(() => {
@@ -829,6 +829,14 @@ export default function Step1Review() {
       ) : null}
 
     </div>
+  )
+}
+
+export default function Step1Review() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#1db4a3]" />}>
+      <Step1ReviewContent />
+    </Suspense>
   )
 }
 
