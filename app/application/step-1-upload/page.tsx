@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
@@ -20,6 +20,21 @@ export default function Step1Upload() {
   const [parseError, setParseError] = useState<string | null>(null)
   const [fileRequiredError, setFileRequiredError] = useState<string | null>(null)
   const [termsRequiredError, setTermsRequiredError] = useState<string | null>(null)
+
+  function setTermsAcceptedState(value: boolean) {
+    setAgree(value)
+    if (typeof window !== "undefined") {
+      localStorage.setItem("step1TermsAccepted", value ? "true" : "false")
+    }
+  }
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const savedTerms = localStorage.getItem("step1TermsAccepted")
+    if (savedTerms === "true") {
+      setAgree(true)
+    }
+  }, [])
 
   function saveResumeFileToLocalStorage(selected: File) {
     return new Promise<void>((resolve, reject) => {
@@ -158,6 +173,7 @@ export default function Step1Upload() {
 
         localStorage.setItem("parsedResume", JSON.stringify(parsed))
         localStorage.setItem("resumeName", uploadJson?.fileName || file.name)
+        localStorage.setItem("step1TermsAccepted", "true")
         router.push("/application/step-1-success")
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Failed to parse resume"
@@ -258,7 +274,7 @@ export default function Step1Upload() {
               type="checkbox"
               checked={agree}
               onChange={() => {
-                setAgree(!agree)
+                setTermsAcceptedState(!agree)
                 setTermsRequiredError(null)
               }}
               className="cursor-pointer  h-5 w-5 accent-teal-600"

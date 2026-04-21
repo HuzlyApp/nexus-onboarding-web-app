@@ -112,7 +112,7 @@ className="border rounded-lg p-2 w-full"
 <div className="flex gap-4">
 
 <input
-placeholder="Phone"
+placeholder="(201) 555-5555"
 className="border rounded-lg p-2 w-full"
 />
 

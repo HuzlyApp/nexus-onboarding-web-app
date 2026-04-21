@@ -3,8 +3,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff, Stethoscope } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/cn";
+import OnboardingLayout from "@/app/components/OnboardingLayout";
 
 export default function AdminRecruiterLogin() {
   const router = useRouter();
@@ -35,15 +36,17 @@ export default function AdminRecruiterLogin() {
   };
 
   return (
-    <div className="min-h-screen bg-teal-600 flex items-center justify-center p-4 sm:p-6 lg:p-8">
-      <div
-        className={cn(
-          "w-full max-w-5xl bg-white rounded-2xl shadow-2xl overflow-hidden",
-          "grid md:grid-cols-2 gap-0"
-        )}
-      >
-        {/* Left side - Login Form */}
-        <div className="p-8 md:p-12 lg:p-16 flex flex-col justify-center">
+    <OnboardingLayout
+      cardClassName="md:w-[950px] md:min-w-[950px] md:max-w-[950px] md:h-[622px] md:min-h-[550px] md:grid-cols-[560px_390px]"
+      rightPanelImageSrc="/images/handshake.jpg"
+      rightPanelImageAlt="Handshake"
+      rightPanelImageClassName="object-cover opacity-50 grayscale-0"
+      rightPanelOverlayClassName="bg-white/75"
+      rightPanelContentClassName="p-6"
+      taglineClassName="text-[15px] leading-6 text-slate-700"
+    >
+      {/* Left side - Login Form */}
+      <div className="p-6 md:p-10 lg:p-12 flex flex-col justify-center">
           <div className="mb-10">
             <div className="w-12 h-1 bg-teal-500 rounded-full mb-4" />
             <h1 className="text-3xl md:text-4xl font-bold text-gray-900">
@@ -123,7 +126,7 @@ export default function AdminRecruiterLogin() {
                 type="checkbox"
                 checked={form.agree}
                 onChange={handleChange}
-                className="mt-1 h-5 w-5 text-teal-600 border-gray-300 rounded focus:ring-teal-500"
+                className="cursor-pointer h-5 w-5 accent-teal-600"
               />
               <label htmlFor="agree" className="text-sm text-gray-600 leading-6">
                 By checking this box you agree to our{" "}
@@ -159,42 +162,7 @@ export default function AdminRecruiterLogin() {
               </button>
             </div>
           </form>
-        </div>
-
-        {/* Right side - Branding (hidden on mobile) */}
-        <div className="hidden md:flex flex-col items-center justify-center bg-teal-50/80 p-12 lg:p-16 relative">
-          <div className="text-center space-y-8 max-w-md">
-            {/* Logo / Icon */}
-            <div className="flex justify-center">
-              <div className="w-28 h-28 md:w-32 md:h-32 bg-teal-600 rounded-2xl flex items-center justify-center text-white shadow-xl">
-                <Stethoscope size={64} strokeWidth={1.5} />
-              </div>
-            </div>
-
-            <div>
-              <h2 className="text-5xl md:text-6xl font-bold text-teal-800 tracking-tight">
-                NEXUS
-              </h2>
-              <p className="text-xl md:text-2xl font-medium text-teal-700 mt-2">
-                MedPro Staffing
-              </p>
-            </div>
-
-            <p className="text-lg text-teal-700 leading-relaxed">
-              Connecting Healthcare professionals with service providers
-            </p>
-
-            {/* Decorative line */}
-            <div className="flex items-center justify-center gap-6 pt-6">
-              <div className="h-0.5 w-20 bg-teal-400/60" />
-              <div className="w-12 h-12 rounded-full bg-teal-100 flex items-center justify-center">
-                <Stethoscope size={24} className="text-teal-600" />
-              </div>
-              <div className="h-0.5 w-20 bg-teal-400/60" />
-            </div>
-          </div>
-        </div>
       </div>
-    </div>
+    </OnboardingLayout>
   );
 }

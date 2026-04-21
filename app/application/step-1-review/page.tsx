@@ -8,6 +8,7 @@ import { AlertTriangle, X, XCircle } from "lucide-react"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
 import OnboardingLoader from "@/app/components/OnboardingLoader"
 import OnboardingSuccessPopup from "@/app/components/OnboardingSuccessPopup"
+import { formatPhoneNumber, normalizePhoneInput } from "@/lib/phone"
 
 type ContactConflictKind = "email" | "phone"
 
@@ -62,7 +63,7 @@ export default function Step1Review() {
         city: parsed.city || parsed.City || "",
         state: parsed.state || parsed.State || "",
         zipCode: parsed.zipCode || parsed.zip || "",
-        phone: parsed.phone || parsed.Phone || "",
+        phone: normalizePhoneInput(parsed.phone || parsed.Phone || ""),
         email: parsed.email || parsed.Email || "",
         jobRole: parsed.job_role || parsed.JobRole || parsed.job_title || "",
         sameAsAddress1: false,
@@ -468,14 +469,15 @@ export default function Step1Review() {
                   </div>
                   <div className="relative">
                     <input
-                      value={form.phone}
-                      onChange={(e) => handleChange("phone", e.target.value)}
+                      value={formatPhoneNumber(form.phone)}
+                      onChange={(e) => handleChange("phone", normalizePhoneInput(e.target.value))}
                       className={`w-full px-4 pr-11 h-[52px] sm:h-[56px] border rounded-md focus:outline-none text-[#1e293b] text-sm bg-white ${
                         phoneConflict
                           ? "border-red-500 focus:border-red-500"
                           : "border-gray-200 focus:border-[#1db4a3]"
                       }`}
-                      placeholder="+1-800-512-2366"
+                      placeholder="(201) 555-5555"
+                      inputMode="numeric"
                     />
                     {phoneConflict ? (
                       <XCircle

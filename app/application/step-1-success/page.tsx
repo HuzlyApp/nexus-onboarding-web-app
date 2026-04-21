@@ -19,7 +19,10 @@ export default function Step1Success() {
     const sizeNum = sizeRaw ? Number(sizeRaw) : null
     return sizeNum != null && Number.isFinite(sizeNum) ? sizeNum : null
   })
-  const [agree, setAgree] = useState<boolean>(false)
+  const [agree, setAgree] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false
+    return localStorage.getItem("step1TermsAccepted") === "true"
+  })
   const [termsRequiredError, setTermsRequiredError] = useState<string | null>(null)
   function formatBytes(bytes: number | null) {
     if (!bytes && bytes !== 0) return "—"
@@ -119,7 +122,11 @@ export default function Step1Success() {
               type="checkbox"
               checked={agree}
               onChange={() => {
-                setAgree(!agree)
+                const nextValue = !agree
+                setAgree(nextValue)
+                if (typeof window !== "undefined") {
+                  localStorage.setItem("step1TermsAccepted", nextValue ? "true" : "false")
+                }
                 setTermsRequiredError(null)
               }}
               className="cursor-pointer mt-0.5 h-5 w-5 rounded border-slate-300 accent-teal-600"

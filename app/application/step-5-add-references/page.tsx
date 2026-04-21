@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
 import OnboardingSuccessPopup from "@/app/components/OnboardingSuccessPopup"
+import { formatPhoneNumber, normalizePhoneInput } from "@/lib/phone"
 
 export default function ReferencesPage() {
   const router = useRouter()
@@ -147,9 +148,11 @@ export default function ReferencesPage() {
                   <div>
                     <label className="block text-[11px] text-slate-500 mb-1">Phone</label>
                     <input
-                      value={r.phone}
-                      onChange={(e) => update(index, "phone", e.target.value)}
+                      value={formatPhoneNumber(r.phone)}
+                      onChange={(e) => update(index, "phone", normalizePhoneInput(e.target.value))}
                       className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] text-slate-800 outline-none focus:border-[#0D9488] transition"
+                      placeholder="(201) 555-5555"
+                      inputMode="numeric"
                     />
                   </div>
                   <div>
