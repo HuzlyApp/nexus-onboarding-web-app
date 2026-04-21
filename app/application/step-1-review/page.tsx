@@ -1,16 +1,186 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import type { HTMLAttributes, ReactNode } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 import Image from "next/image"
-import { AlertTriangle, X, XCircle } from "lucide-react"
+import { AlertTriangle, ChevronDown, Pencil, Search, X, XCircle } from "lucide-react"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
 import OnboardingLoader from "@/app/components/OnboardingLoader"
 import OnboardingSuccessPopup from "@/app/components/OnboardingSuccessPopup"
 import { formatPhoneNumber, normalizePhoneInput } from "@/lib/phone"
 
 type ContactConflictKind = "email" | "phone"
+
+const US_STATES = [
+  "Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado", "Connecticut", "Delaware",
+  "Florida", "Georgia", "Hawaii", "Idaho", "Illinois", "Indiana", "Iowa", "Kansas", "Kentucky",
+  "Louisiana", "Maine", "Maryland", "Massachusetts", "Michigan", "Minnesota", "Mississippi",
+  "Missouri", "Montana", "Nebraska", "Nevada", "New Hampshire", "New Jersey", "New Mexico",
+  "New York", "North Carolina", "North Dakota", "Ohio", "Oklahoma", "Oregon", "Pennsylvania",
+  "Rhode Island", "South Carolina", "South Dakota", "Tennessee", "Texas", "Utah", "Vermont",
+  "Virginia", "Washington", "West Virginia", "Wisconsin", "Wyoming",
+]
+
+const POPULAR_CITIES = [
+  "Los Angeles", "San Diego", "San Francisco", "Sacramento", "Phoenix", "Las Vegas",
+  "Dallas", "Houston", "Austin", "Chicago", "Miami", "Orlando", "Atlanta", "New York",
+  "Brooklyn", "Queens", "Boston", "Seattle", "Portland", "Denver", "Nashville", "Charlotte",
+]
+
+type EditableInputProps = {
+  label: string
+  value: string
+  placeholder?: string
+  onChange: (value: string) => void
+  required?: boolean
+  className?: string
+  hint?: string
+  iconSlot?: ReactNode
+  inputMode?: HTMLAttributes<HTMLInputElement>["inputMode"]
+  disabled?: boolean
+}
+
+function EditableInput({
+  label,
+  value,
+  placeholder,
+  onChange,
+  required,
+  className,
+  hint,
+  iconSlot,
+  inputMode,
+  disabled,
+}: EditableInputProps) {
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  return (
+    <div>
+      <div className="flex justify-between flex-wrap gap-1">
+        <label className="block text-[13px] font-medium text-gray-600 mb-1.5">
+          {label}
+          {required ? <span className="text-red-500 ml-0.5">*</span> : null}
+        </label>
+        {hint ? <span className="text-[11px] text-gray-400 mt-0.5">{hint}</span> : null}
+      </div>
+      <div className="group relative">
+        {iconSlot ? (
+          <div className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2">{iconSlot}</div>
+        ) : null}
+        <input
+          ref={inputRef}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className={className}
+          placeholder={placeholder}
+          inputMode={inputMode}
+          disabled={disabled}
+        />
+        <button
+          type="button"
+          onClick={() => inputRef.current?.focus()}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100 focus:outline-none"
+          aria-label={`Edit ${label}`}
+        >
+          <Pencil className="h-4 w-4" />
+        </button>
+      </div>
+    </div>
+  )
+}
+
+type SearchableSelectProps = {
+  label: string
+  value: string
+  placeholder: string
+  options: string[]
+  onChange: (value: string) => void
+  required?: boolean
+}
+
+function SearchableSelect({
+  label,
+  value,
+  placeholder,
+  options,
+  onChange,
+  required,
+}: SearchableSelectProps) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState("")
+  const wrapperRef = useRef<HTMLDivElement>(null)
+
+  const filteredOptions = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return options
+    return options.filter((opt) => opt.toLowerCase().includes(q))
+  }, [options, query])
+
+  useEffect(() => {
+    if (!open) return
+    const onDocClick = (e: MouseEvent) => {
+      if (!wrapperRef.current?.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener("mousedown", onDocClick)
+    return () => document.removeEventListener("mousedown", onDocClick)
+  }, [open])
+
+  return (
+    <div ref={wrapperRef}>
+      <label className="block text-[13px] font-medium text-gray-600 mb-1.5">
+        {label}
+        {required ? <span className="text-red-500 ml-0.5">*</span> : null}
+      </label>
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => setOpen((prev) => !prev)}
+          className="w-full px-4 h-[56px] border border-gray-200 rounded-md focus:border-[#1db4a3] text-left text-[#1e293b] text-sm bg-white font-medium flex items-center justify-between"
+        >
+          <span className={value ? "text-[#1e293b]" : "text-gray-400"}>{value || placeholder}</span>
+          <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform ${open ? "rotate-180" : ""}`} />
+        </button>
+        {open ? (
+          <div className="absolute z-20 mt-2 w-full rounded-md border border-slate-200 bg-white shadow-lg">
+            <div className="relative p-2 border-b border-slate-100">
+              <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={`Search ${label}`}
+                className="w-full rounded-md border border-slate-200 py-2 pl-9 pr-3 text-sm outline-none focus:border-[#1db4a3]"
+              />
+            </div>
+            <div className="max-h-44 overflow-y-auto py-1">
+              {filteredOptions.length ? (
+                filteredOptions.map((opt) => (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => {
+                      onChange(opt)
+                      setOpen(false)
+                      setQuery("")
+                    }}
+                    className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-teal-50"
+                  >
+                    {opt}
+                  </button>
+                ))
+              ) : (
+                <div className="px-3 py-3 text-sm text-slate-500">No result found</div>
+              )}
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  )
+}
 
 export default function Step1Review() {
   const router = useRouter()
@@ -322,105 +492,66 @@ export default function Step1Review() {
             <div className="space-y-4 sm:space-y-5">
               {/* Name */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
-                <div>
-                  <label className="block text-[13px] font-medium text-gray-600 mb-1.5">
-                    First Name<span className="text-red-500 ml-0.5">*</span>
-                  </label>
-                  <div className="relative">
-                    <input
-                      value={form.firstName}
-                      onChange={(e) => handleChange("firstName", e.target.value)}
-                      className="w-full px-4 h-[56px] border border-gray-200 rounded-md focus:border-[#1db4a3] focus:outline-none text-[#1e293b] text-sm bg-white font-medium"
-                      placeholder="First Name"
-                    />
-                    <div className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
-                    </div>
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-[13px] font-medium text-gray-600 mb-1.5">
-                    Last Name<span className="text-red-500 ml-0.5">*</span>
-                  </label>
-                  <input
-                    value={form.lastName}
-                    onChange={(e) => handleChange("lastName", e.target.value)}
-                    className="w-full px-4 h-[56px] border border-gray-200 rounded-md focus:border-[#1db4a3] focus:outline-none text-[#1e293b] text-sm bg-white"
-                    placeholder="Last Name"
-                  />
-                </div>
+                <EditableInput
+                  label="First Name"
+                  required
+                  value={form.firstName}
+                  onChange={(value) => handleChange("firstName", value)}
+                  className="w-full px-4 h-[56px] border border-gray-200 rounded-md focus:border-[#1db4a3] focus:outline-none text-[#1e293b] text-sm bg-white font-medium pr-10"
+                  placeholder="First Name"
+                />
+                <EditableInput
+                  label="Last Name"
+                  required
+                  value={form.lastName}
+                  onChange={(value) => handleChange("lastName", value)}
+                  className="w-full px-4 h-[56px] border border-gray-200 rounded-md focus:border-[#1db4a3] focus:outline-none text-[#1e293b] text-sm bg-white pr-10"
+                  placeholder="Last Name"
+                />
               </div>
 
               {/* Address 1 */}
-              <div>
-                <div className="flex justify-between flex-wrap gap-1">
-                  <label className="block text-[13px] font-medium text-gray-600 mb-1.5">
-                    Address 1<span className="text-red-500 ml-0.5">*</span>
-                  </label>
-                  <span className="text-[11px] text-gray-400 mt-0.5">Street Address, P.O Box</span>
-                </div>
-                <input
-                  value={form.address1}
-                  onChange={(e) => handleChange("address1", e.target.value)}
-                  className="w-full px-4 h-[56px] border border-gray-200 rounded-md focus:border-[#1db4a3] focus:outline-none text-[#1e293b] text-sm bg-white"
-                  placeholder="1234 Main St, Apt 4B"
-                />
-              </div>
+              <EditableInput
+                label="Address 1"
+                required
+                hint="Street Address, P.O Box"
+                value={form.address1}
+                onChange={(value) => handleChange("address1", value)}
+                className="w-full px-4 h-[56px] border border-gray-200 rounded-md focus:border-[#1db4a3] focus:outline-none text-[#1e293b] text-sm bg-white pr-10"
+                placeholder="1234 Main St, Apt 4B"
+              />
 
               {/* Address 2 */}
-              <div>
-                <div className="flex justify-between items-center mb-1.5">
-                  <label className="block text-[13px] font-medium text-gray-600">Address 2</label>
-                  <span className="text-[11px] text-gray-400">Apt, Suite, Building, Floor, etc...</span>
-                </div>
-                <input
-                  value={form.address2}
-                  onChange={(e) => handleChange("address2", e.target.value)}
-                  disabled={form.sameAsAddress1}
-                  className={`w-full px-4 h-[56px] border border-gray-200 rounded-md focus:border-[#1db4a3] focus:outline-none text-[#1e293b] text-sm
-                    ${form.sameAsAddress1 ? "bg-gray-50 text-gray-500" : "bg-white"}`}
-                  placeholder="Same as address 1"
-                />
-              </div>
+              <EditableInput
+                label="Address 2"
+                hint="Apt, Suite, Building, Floor, etc..."
+                value={form.address2}
+                onChange={(value) => handleChange("address2", value)}
+                disabled={form.sameAsAddress1}
+                className={`w-full px-4 h-[56px] border border-gray-200 rounded-md focus:border-[#1db4a3] focus:outline-none text-[#1e293b] text-sm pr-10 ${
+                  form.sameAsAddress1 ? "bg-gray-50 text-gray-500" : "bg-white"
+                }`}
+                placeholder="Same as address 1"
+              />
 
               {/* City, State */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
-                <div>
-                  <label className="block text-[13px] font-medium text-gray-600 mb-1.5">
-                    City<span className="text-red-500 ml-0.5">*</span>
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={form.city}
-                      onChange={(e) => handleChange("city", e.target.value)}
-                      className="w-full px-4 h-[56px] border border-gray-200 rounded-md focus:border-[#1db4a3] focus:outline-none text-[#1e293b] text-sm appearance-none bg-white font-medium"
-                    >
-                      <option value="Los Angeles">Los Angeles</option>
-                      {/* Add more as needed */}
-                    </select>
-                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                    </div>
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-[13px] font-medium text-gray-600 mb-1.5">
-                    State<span className="text-red-500 ml-0.5">*</span>
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={form.state}
-                      onChange={(e) => handleChange("state", e.target.value)}
-                      className="w-full px-4 h-[56px] border border-gray-200 rounded-md focus:border-[#1db4a3] focus:outline-none text-[#1e293b] text-sm appearance-none bg-white font-medium"
-                    >
-                      <option value="California">California</option>
-                      {/* Add more as needed */}
-                    </select>
-                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                    </div>
-                  </div>
-                </div>
+                <SearchableSelect
+                  label="City"
+                  required
+                  value={form.city}
+                  placeholder="Select City"
+                  options={POPULAR_CITIES}
+                  onChange={(value) => handleChange("city", value)}
+                />
+                <SearchableSelect
+                  label="State"
+                  required
+                  value={form.state}
+                  placeholder="Select State"
+                  options={US_STATES}
+                  onChange={(value) => handleChange("state", value)}
+                />
               </div>
 
               {fieldConflict?.bannerVisible ? (
@@ -467,18 +598,33 @@ export default function Step1Review() {
                       <span className="text-[11px] font-medium text-red-600">Phone was already used</span>
                     ) : null}
                   </div>
-                  <div className="relative">
+                  <div className="group relative">
+                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2">
+                      <span className="relative block h-4 w-6 overflow-hidden rounded-[2px] border border-slate-300 bg-white">
+                        <span className="absolute inset-0 bg-[repeating-linear-gradient(to_bottom,#b91c1c_0,#b91c1c_1.5px,#ffffff_1.5px,#ffffff_3px)]" />
+                        <span className="absolute left-0 top-0 h-2.5 w-2.5 bg-[#1d4ed8]" />
+                      </span>
+                    </span>
                     <input
+                      id="phone-input"
                       value={formatPhoneNumber(form.phone)}
                       onChange={(e) => handleChange("phone", normalizePhoneInput(e.target.value))}
-                      className={`w-full px-4 pr-11 h-[52px] sm:h-[56px] border rounded-md focus:outline-none text-[#1e293b] text-sm bg-white ${
-                        phoneConflict
-                          ? "border-red-500 focus:border-red-500"
-                          : "border-gray-200 focus:border-[#1db4a3]"
+                      className={`w-full pl-14 pr-11 h-[52px] sm:h-[56px] border rounded-md focus:outline-none text-[#1e293b] text-sm bg-white ${
+                        phoneConflict ? "border-red-500 focus:border-red-500" : "border-gray-200 focus:border-[#1db4a3]"
                       }`}
-                      placeholder="(201) 555-5555"
+                      placeholder="(201) 512-2366"
                       inputMode="numeric"
                     />
+                    {!phoneConflict ? (
+                      <button
+                        type="button"
+                        onClick={() => document.getElementById("phone-input")?.focus()}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100"
+                        aria-label="Edit Phone"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                    ) : null}
                     {phoneConflict ? (
                       <XCircle
                         className="pointer-events-none absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-red-500"
@@ -496,8 +642,9 @@ export default function Step1Review() {
                       <span className="text-[11px] font-medium text-red-600">Email was already used</span>
                     ) : null}
                   </div>
-                  <div className="relative">
+                  <div className="group relative">
                     <input
+                      id="email-input"
                       value={form.email}
                       onChange={(e) => handleChange("email", e.target.value)}
                       className={`w-full px-4 pr-11 h-[52px] sm:h-[56px] border rounded-md focus:outline-none text-[#1e293b] text-sm bg-white ${
@@ -507,6 +654,16 @@ export default function Step1Review() {
                       }`}
                       placeholder="rickashton@gmail.com"
                     />
+                    {!emailConflict ? (
+                      <button
+                        type="button"
+                        onClick={() => document.getElementById("email-input")?.focus()}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100"
+                        aria-label="Edit Email"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                    ) : null}
                     {emailConflict ? (
                       <XCircle
                         className="pointer-events-none absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-red-500"
@@ -519,17 +676,15 @@ export default function Step1Review() {
 
               {/* Zip & Job Role */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
-                <div>
-                  <label className="block text-[13px] font-medium text-gray-600 mb-1.5">
-                    Zip Code<span className="text-red-500 ml-0.5">*</span>
-                  </label>
-                  <input
-                    value={form.zipCode}
-                    onChange={(e) => handleChange("zipCode", e.target.value)}
-                    className="w-full px-4 h-[56px] border border-gray-200 rounded-md focus:border-[#1db4a3] focus:outline-none text-[#1e293b] text-sm bg-white"
-                    placeholder="40170"
-                  />
-                </div>
+                <EditableInput
+                  label="Zip Code"
+                  required
+                  value={form.zipCode}
+                  onChange={(value) => handleChange("zipCode", value)}
+                  className="w-full px-4 h-[56px] border border-gray-200 rounded-md focus:border-[#1db4a3] focus:outline-none text-[#1e293b] text-sm bg-white pr-10"
+                  placeholder="40170"
+                  inputMode="numeric"
+                />
                 <div>
                   <label className="block text-[13px] font-medium text-gray-600 mb-1.5">
                     Job Role<span className="text-red-500 ml-0.5">*</span>

@@ -2,6 +2,7 @@
 
 import Image from "next/image"
 import { Check } from "lucide-react"
+import { useRouter } from "next/navigation"
 
 interface Props {
   currentStep: number
@@ -18,6 +19,7 @@ export default function OnboardingStepper({
   titleIconSrc,
   titleIconAlt
 }: Props) {
+  const router = useRouter()
   const steps = [
     "Add Resume",
     "Professional\nLicense",
@@ -25,6 +27,14 @@ export default function OnboardingStepper({
     "Authorizations\n& Documents",
     "Add References",
     "Summary"
+  ]
+  const stepRoutes = [
+    "/application/step-1-upload",
+    "/application/step-2-license",
+    "/application/step-3-skills",
+    "/application/step-4-documents",
+    "/application/step-5-add-references",
+    "/application/step-6-summary",
   ]
 
   const progress =
@@ -53,9 +63,13 @@ export default function OnboardingStepper({
               const active = stepNumber === currentStep
 
               return (
-                <div
+                <button
                   key={step}
-                  className="flex w-24 flex-col items-center text-center"
+                  type="button"
+                  onClick={() => router.push(stepRoutes[index])}
+                  className="group flex w-24 flex-col items-center rounded-lg px-1.5 py-1 text-center cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1db4a3]/40"
+                  aria-label={`Go to ${step.replace("\n", " ")}`}
+                  title={`Go to ${step.replace("\n", " ")}`}
                 >
                   <div
                     className={`
@@ -85,11 +99,11 @@ export default function OnboardingStepper({
                           ? "text-[#1db4a3] font-medium"
                           : "text-gray-400"
                       }
-                    `}
+                    group-hover:text-[#1db4a3] group-hover:underline`}
                   >
                     {step}
                   </span>
-                </div>
+                </button>
               )
             })}
           </div>
