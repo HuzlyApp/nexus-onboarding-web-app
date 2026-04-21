@@ -9,7 +9,6 @@ import { supabaseBrowser as supabase } from "@/lib/supabase-browser"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingLoader from "@/app/components/OnboardingLoader"
-import OnboardingSuccessPopup from "@/app/components/OnboardingSuccessPopup"
 
 type Category = {
   id: string
@@ -70,7 +69,6 @@ export default function AssessmentPage() {
   const [completedSlugs, setCompletedSlugs] = useState<Set<string>>(() => new Set())
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
-  const [success, setSuccess] = useState(false)
 
   const loadCategories = useCallback(async () => {
     setLoadError(null)
@@ -207,10 +205,7 @@ export default function AssessmentPage() {
             <button
               type="button"
               onClick={() => {
-                setSuccess(true)
-                setTimeout(() => {
-                  router.push("/application/step-4-documents")
-                }, 3000)
+                router.push("/application/step-4-documents")
               }}
               className="cursor-pointer rounded-md bg-[#0D9488] px-6 py-2 text-[12px] font-medium leading-5 text-white transition hover:bg-[#0b7a70]"
             >
@@ -219,10 +214,6 @@ export default function AssessmentPage() {
           </div>
         </div>
       </div>
-      <OnboardingSuccessPopup
-        open={success}
-        onContinue={() => router.push("/application/step-4-documents")}
-      />
     </OnboardingLayout>
   )
 }

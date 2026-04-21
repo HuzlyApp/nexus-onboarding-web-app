@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import { ChevronRight } from "lucide-react"
@@ -9,7 +9,7 @@ import { WORKER_REQUIRED_FILES_BUCKET } from "@/lib/supabase-storage-buckets"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
 
-type UploadSlot = { file: File | null }
+type UploadSlot = { file: File | null; name?: string; url?: string }
 
 export default function Step4Identity() {
   const router = useRouter()
@@ -18,6 +18,26 @@ export default function Step4Identity() {
   const [licenseFile, setLicenseFile] = useState<UploadSlot>({ file: null })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const storedIdentity = localStorage.getItem("identityDocuments")
+    if (!storedIdentity) return
+    try {
+      const parsed = JSON.parse(storedIdentity) as {
+        ssn?: { name?: string; url?: string }
+        license?: { name?: string; url?: string }
+      }
+      if (parsed.ssn?.name) {
+        setSsnFile({ file: null, name: parsed.ssn.name, url: parsed.ssn.url })
+      }
+      if (parsed.license?.name) {
+        setLicenseFile({ file: null, name: parsed.license.name, url: parsed.license.url })
+      }
+    } catch {
+      // ignore invalid cache
+    }
+  }, [])
 
   const uploadFile = async (
     file: File,
@@ -51,7 +71,12 @@ export default function Step4Identity() {
 
   const handleNext = async () => {
     setError(null)
+    const hasExistingDocs = Boolean(ssnFile.url && licenseFile.url)
     if (!ssnFile.file || !licenseFile.file) {
+      if (hasExistingDocs) {
+        router.push("/application/step-4-documents")
+        return
+      }
       setError("Please upload both SSN Card and Driver's License")
       return
     }
@@ -108,10 +133,12 @@ export default function Step4Identity() {
 
   const UploadBox = ({
     id,
+    storageKey,
     slot,
     setSlot,
   }: {
     id: string
+    storageKey: "ssn" | "license"
     slot: UploadSlot
     setSlot: (s: UploadSlot) => void
   }) => (
@@ -128,12 +155,47 @@ export default function Step4Identity() {
           if (e.target.files?.[0]) setSlot({ file: e.target.files[0] })
         }}
       />
-      {slot.file ? (
-        <div className="space-y-1">
-          <p className="text-[13px] font-semibold text-[#0D9488]">{slot.file.name}</p>
-          <p className="text-[11px] text-slate-400">
-            {(slot.file.size / 1024 / 1024).toFixed(2)} MB
-          </p>
+      {slot.file || slot.name ? (
+        <div className="mx-auto flex max-w-md items-center justify-between gap-3 rounded-lg border border-[#9fded8] bg-[#ecfffd] px-4 py-3">
+          <div className="min-w-0 text-left">
+            <p className="truncate text-[13px] font-semibold text-[#0D9488]">{slot.file?.name || slot.name}</p>
+            {slot.file ? (
+              <p className="text-[11px] text-slate-400">
+                {(slot.file.size / 1024 / 1024).toFixed(2)} MB
+              </p>
+            ) : (
+              <p className="text-[11px] text-slate-400">Already uploaded</p>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              setSlot({ file: null })
+              if (typeof window !== "undefined") {
+                const storedIdentity = localStorage.getItem("identityDocuments")
+                if (!storedIdentity) return
+                try {
+                  const parsed = JSON.parse(storedIdentity) as Record<string, unknown>
+                  delete parsed[storageKey]
+                  localStorage.setItem("identityDocuments", JSON.stringify(parsed))
+                } catch {
+                  // ignore invalid cache
+                }
+              }
+            }}
+            className="cursor-pointer p-1"
+            aria-label={`Remove ${storageKey} file`}
+          >
+            <Image
+              src="/icons/delete-icon.svg"
+              alt="Delete"
+              width={28}
+              height={28}
+              className="h-7 w-7"
+            />
+          </button>
         </div>
       ) : (
         <div className="flex flex-col items-center gap-2">
@@ -189,7 +251,7 @@ export default function Step4Identity() {
                 <p className="text-[14px] font-semibold text-slate-800">SSN Card</p>
                 <p className="text-[11px] text-slate-400">front/back</p>
               </div>
-              <UploadBox id="ssn-upload" slot={ssnFile} setSlot={setSsnFile} />
+              <UploadBox id="ssn-upload" storageKey="ssn" slot={ssnFile} setSlot={setSsnFile} />
             </div>
 
             {/* Driver's License */}
@@ -198,7 +260,7 @@ export default function Step4Identity() {
                 <p className="text-[14px] font-semibold text-slate-800">Driver&apos;s License</p>
                 <p className="text-[11px] text-slate-400">front/back</p>
               </div>
-              <UploadBox id="license-upload" slot={licenseFile} setSlot={setLicenseFile} />
+              <UploadBox id="license-upload" storageKey="license" slot={licenseFile} setSlot={setLicenseFile} />
             </div>
 
             <p className="text-[11px] text-slate-400">Only support png, jpg or pdf files</p>

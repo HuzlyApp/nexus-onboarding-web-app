@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
@@ -17,17 +17,24 @@ export default function Step1Upload() {
   const [parsing, setParsing] = useState(false)
   const [parseError, setParseError] = useState<string | null>(null)
   const [fileRequiredError, setFileRequiredError] = useState<string | null>(null)
+  const [savedResumeName, setSavedResumeName] = useState("")
+  const [savedResumeSizeBytes, setSavedResumeSizeBytes] = useState<number | null>(null)
 
-  function saveResumeFileToLocalStorage(selected: File) {
-    return new Promise<void>((resolve, reject) => {
-      const reader = new FileReader()
-      reader.onerror = () => reject(new Error("Failed to read the file"))
-      reader.onload = () => {
-        localStorage.setItem("resumeFile", String(reader.result || ""))
-        resolve()
-      }
-      reader.readAsDataURL(selected)
-    })
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    setSavedResumeName(localStorage.getItem("resumeName") || "")
+    const sizeRaw = localStorage.getItem("resumeSizeBytes")
+    const sizeNum = sizeRaw ? Number(sizeRaw) : null
+    setSavedResumeSizeBytes(sizeNum != null && Number.isFinite(sizeNum) ? sizeNum : null)
+  }, [])
+
+  function formatBytes(bytes: number | null) {
+    if (!bytes && bytes !== 0) return ""
+    const mb = bytes / (1024 * 1024)
+    if (mb >= 1) return `${mb.toFixed(1)} MB`
+    const kb = bytes / 1024
+    if (kb >= 1) return `${kb.toFixed(0)} KB`
+    return `${bytes} B`
   }
 
   function persistSelectedFile(selected: File) {
@@ -36,11 +43,8 @@ export default function Step1Upload() {
     localStorage.setItem("resumeMimeType", selected.type || "")
     // Clear previous parsing results when choosing a new file.
     localStorage.removeItem("parsedResume")
-
-    // Keep previous working behavior: store the actual file payload too.
-    saveResumeFileToLocalStorage(selected).catch(() => {
-      // Best-effort: user can still continue; we'll surface an error on "Next" if needed.
-    })
+    setSavedResumeName(selected.name)
+    setSavedResumeSizeBytes(selected.size)
   }
 
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -95,6 +99,10 @@ export default function Step1Upload() {
 
   function next() {
     if (!file) {
+      if (savedResumeName && localStorage.getItem("parsedResume")) {
+        router.push("/application/step-1-success")
+        return
+      }
       setFileRequiredError("Please upload your resume *")
       return
     }
@@ -129,6 +137,18 @@ export default function Step1Upload() {
         const text = uploadJson?.text
         if (uploadJson.storagePath) {
           localStorage.setItem("resumeStoragePath", uploadJson.storagePath)
+          if (applicantId) {
+            await fetch("/api/onboarding/worker-requirements", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                applicantId,
+                resume_path: uploadJson.storagePath,
+              }),
+            }).catch(() => {
+              // Non-blocking: continue onboarding even if this sync fails.
+            })
+          }
         }
         if (!text || typeof text !== "string" || !text.trim()) {
           throw new Error("Could not extract text from the resume file")
@@ -160,6 +180,20 @@ export default function Step1Upload() {
     })()
   }
 
+  function clearSelectedResume() {
+    setFile(null)
+    setSavedResumeName("")
+    setSavedResumeSizeBytes(null)
+    setFileRequiredError(null)
+    setParseError(null)
+    localStorage.removeItem("resumeName")
+    localStorage.removeItem("resumeSizeBytes")
+    localStorage.removeItem("resumeMimeType")
+    localStorage.removeItem("resumeStoragePath")
+    localStorage.removeItem("parsedResume")
+    localStorage.setItem("step1TermsAccepted", "false")
+  }
+
   return (
     <div className="relative min-h-screen bg-[linear-gradient(135deg,#19c7c0_0%,#10a58f_100%)] flex items-center justify-center p-4 md:p-8">
 
@@ -186,9 +220,44 @@ export default function Step1Upload() {
               }`}
           >
 
-            {file ? (
-              <div className="text-teal-700 font-semibold">
-                 {file.name}
+            {file || savedResumeName ? (
+              <div className="mx-auto flex max-w-[540px] items-center justify-between gap-3 rounded-lg border border-[#9fded8] bg-[#ecfffd] px-4 py-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-md bg-[#dff7f3]">
+                    <Image
+                      src="/icons/pdf-icon.svg"
+                      alt="PDF"
+                      width={24}
+                      height={24}
+                      className="h-6 w-6"
+                    />
+                  </div>
+                  <div className="min-w-0 text-left">
+                    <div className="truncate text-teal-700 font-semibold">
+                      {file?.name || savedResumeName}
+                    </div>
+                    <div className="text-xs text-slate-500">
+                      {formatBytes(file ? file.size : savedResumeSizeBytes)}
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    clearSelectedResume()
+                  }}
+                  className="cursor-pointer p-1"
+                  aria-label="Remove uploaded resume"
+                >
+                  <Image
+                    src="/icons/delete-icon.svg"
+                    alt="Delete"
+                    width={28}
+                    height={28}
+                    className="h-7 w-7"
+                  />
+                </button>
               </div>
             ) : (
               <>

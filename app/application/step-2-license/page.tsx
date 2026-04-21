@@ -3,7 +3,7 @@
 
 import Image from "next/image"
 import { useRouter } from "next/navigation"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useDropzone } from "react-dropzone"
 import { ChevronRight, FileText, Trash2 } from "lucide-react"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
@@ -19,13 +19,24 @@ type UploadType = "license" | "tb" | "cpr"
 export default function Step2License() {
   const router = useRouter()
 
-  const [files, setFiles] = useState<Record<UploadType, UploadFile | null>>({
-    license: null,
-    tb: null,
-    cpr: null
+  const [files, setFiles] = useState<Record<UploadType, UploadFile | null>>(() => {
+    if (typeof window === "undefined") {
+      return { license: null, tb: null, cpr: null }
+    }
+    const stored = localStorage.getItem("step2_files")
+    if (!stored) return { license: null, tb: null, cpr: null }
+    try {
+      return JSON.parse(stored)
+    } catch {
+      return { license: null, tb: null, cpr: null }
+    }
   })
   const [error, setError] = useState<string | null>(null)
   const hasAnyUpload = Boolean(files.license || files.tb || files.cpr)
+
+  useEffect(() => {
+    localStorage.setItem("step2_files", JSON.stringify(files))
+  }, [files])
 
   const handleUpload = (file: File, type: UploadType) => {
     setError(null)
@@ -160,7 +171,7 @@ export default function Step2License() {
       return
     }
     localStorage.setItem("step2_files", JSON.stringify(files))
-    router.push("/application/step-2-review-req")
+    router.push("/application/step-3-skills")
   }
 
   return (
@@ -220,7 +231,7 @@ export default function Step2License() {
               disabled={!hasAnyUpload}
               className="group inline-flex cursor-pointer items-center gap-2 rounded-md bg-[#1db4a3] px-6 py-2 text-[12px] font-medium leading-5 text-white transition hover:bg-[#189d8e] disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Next
+              Save & Continue
               <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
             </button>
           </div>

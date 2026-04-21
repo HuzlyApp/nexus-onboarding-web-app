@@ -2,13 +2,12 @@
 
 import type { HTMLAttributes, ReactNode } from "react"
 import { useEffect, useMemo, useRef, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 import Image from "next/image"
 import { AlertTriangle, ChevronDown, Pencil, Search, X, XCircle } from "lucide-react"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
 import OnboardingLoader from "@/app/components/OnboardingLoader"
-import OnboardingSuccessPopup from "@/app/components/OnboardingSuccessPopup"
 import { formatPhoneNumber, normalizePhoneInput } from "@/lib/phone"
 
 type ContactConflictKind = "email" | "phone"
@@ -184,6 +183,16 @@ function SearchableSelect({
 
 export default function Step1Review() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const urlJobTitle = useMemo(() => {
+    return (
+      searchParams.get("jobTitle") ||
+      searchParams.get("job_title") ||
+      searchParams.get("jobRole") ||
+      searchParams.get("role") ||
+      ""
+    ).trim()
+  }, [searchParams])
 
   const [form, setForm] = useState({
     firstName: "",
@@ -206,7 +215,6 @@ export default function Step1Review() {
     bannerVisible: boolean
   } | null>(null)
   const [genericError, setGenericError] = useState<string | null>(null)
-  const [success, setSuccess] = useState(false)   // ← for popup
 
   // Load parsed resume data from PDF
   useEffect(() => {
@@ -235,13 +243,21 @@ export default function Step1Review() {
         zipCode: parsed.zipCode || parsed.zip || "",
         phone: normalizePhoneInput(parsed.phone || parsed.Phone || ""),
         email: parsed.email || parsed.Email || "",
-        jobRole: parsed.job_role || parsed.JobRole || parsed.job_title || "",
+        jobRole: urlJobTitle || parsed.job_role || parsed.JobRole || parsed.job_title || "",
         sameAsAddress1: false,
       })
     } catch (e) {
       console.error("Failed to parse resume data", e)
     }
-  }, [])
+  }, [urlJobTitle])
+
+  useEffect(() => {
+    if (!urlJobTitle) return
+    setForm((prev) => ({
+      ...prev,
+      jobRole: prev.jobRole || urlJobTitle,
+    }))
+  }, [urlJobTitle])
 
   const handleChange = (key: string, value: string | boolean) => {
     if (key === "email" && fieldConflict?.kind === "email") setFieldConflict(null)
@@ -439,13 +455,7 @@ export default function Step1Review() {
         })
       )
 
-      // Show success popup
-      setSuccess(true)
-
-      // Auto go to next page after showing popup
-      setTimeout(() => {
-        router.push("/application/step-2-license")
-      }, 3000)
+      router.push("/application/step-2-license")
 
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Failed to save data"
@@ -687,7 +697,7 @@ export default function Step1Review() {
                 />
                 <div>
                   <label className="block text-[13px] font-medium text-gray-600 mb-1.5">
-                    Job Role<span className="text-red-500 ml-0.5">*</span>
+                    Select Job Title<span className="text-red-500 ml-0.5">*</span>
                   </label>
                   <div className="relative">
                     <select
@@ -695,11 +705,18 @@ export default function Step1Review() {
                       onChange={(e) => handleChange("jobRole", e.target.value)}
                       className="w-full px-4 h-[56px] border border-gray-200 rounded-md focus:border-[#1db4a3] focus:outline-none text-[#1e293b] text-sm appearance-none bg-white font-medium"
                     >
+                      <option value="" disabled>
+                        Select Job Title
+                      </option>
                       <option value="CNA">CNA</option>
                       <option value="RN">RN</option>
                       <option value="LVN">LVN</option>
                       <option value="Medical Assistant">Medical Assistant</option>
                       <option value="Caregiver">Caregiver</option>
+                      {form.jobRole &&
+                      !["CNA", "RN", "LVN", "Medical Assistant", "Caregiver"].includes(form.jobRole) ? (
+                        <option value={form.jobRole}>{form.jobRole}</option>
+                      ) : null}
                     </select>
                     <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
@@ -811,10 +828,6 @@ export default function Step1Review() {
         />
       ) : null}
 
-      <OnboardingSuccessPopup
-        open={success}
-        onContinue={() => router.push("/application/step-2-license")}
-      />
     </div>
   )
 }

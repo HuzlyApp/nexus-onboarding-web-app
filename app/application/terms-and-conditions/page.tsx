@@ -67,24 +67,37 @@ export default function TermsAndConditionsPage() {
 
         {isAtBottom ? (
           <div className="mt-5">
-            <label className="flex items-center gap-3 text-sm text-slate-700">
-              <input
-                type="checkbox"
-                checked={agreed}
-                onChange={(e) => setAgreed(e.target.checked)}
-                className="h-5 w-5 cursor-pointer appearance-none rounded-full border-2 border-[#1db4a3] checked:bg-[#1db4a3] checked:border-[#1db4a3] relative checked:after:content-[''] checked:after:absolute checked:after:left-[5px] checked:after:top-[1px] checked:after:h-[9px] checked:after:w-[5px] checked:after:rotate-45 checked:after:border-b-2 checked:after:border-r-2 checked:after:border-white"
-              />
-              <span>I accept the above terms and conditions.</span>
-            </label>
-
             <button
               type="button"
-              onClick={handleAccept}
-              disabled={!agreed}
-              className="mt-4 w-full rounded-md bg-[#0D9488] py-3 text-sm font-semibold text-white transition hover:bg-[#0b7c72] disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={() => setAgreed((prev) => !prev)}
+              className="flex items-center gap-3 text-left text-sm text-slate-700"
+              aria-pressed={agreed}
             >
-              Accept and Continue
+              <span
+                className={`flex h-5 w-5 items-center justify-center rounded-full border-2 ${
+                  agreed ? "border-[#1db4a3] bg-[#1db4a3] text-white" : "border-slate-300 bg-white"
+                }`}
+                aria-hidden
+              >
+                {agreed ? (
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                    <path d="M20 6L9 17L4 12" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                ) : null}
+              </span>
+              <span>I accept the above terms and conditions.</span>
             </button>
+
+            <div className="mt-4 flex justify-end">
+              <button
+                type="button"
+                onClick={handleAccept}
+                disabled={!agreed}
+                className="rounded-md bg-[#0D9488] px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-[#0b7c72] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Accept and Continue
+              </button>
+            </div>
           </div>
         ) : (
           <p className="mt-4 text-sm text-slate-600">Please scroll to the bottom to accept.</p>

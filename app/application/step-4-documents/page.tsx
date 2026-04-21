@@ -8,7 +8,6 @@ import { supabaseBrowser as supabase } from "@/lib/supabase-browser"
 import { WORKER_REQUIRED_FILES_BUCKET } from "@/lib/supabase-storage-buckets"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
-import OnboardingSuccessPopup from "@/app/components/OnboardingSuccessPopup"
 import {
   fetchZohoSignStatus,
   mapZohoStatusToLabel,
@@ -50,7 +49,6 @@ export default function DocumentsPage() {
   const [error, setError] = useState<string | null>(null)
   const [zohoNote, setZohoNote] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
-  const [success, setSuccess] = useState(false)
 
   const [signerEmail, setSignerEmail] = useState("")
   const [signerName, setSignerName] = useState("")
@@ -214,10 +212,10 @@ export default function DocumentsPage() {
         project_id: "onboarding",
       })
 
-      setSigningUrl(null)
+      setSigningUrl(data.signing_url || null)
       setEnvelopeId(data.request_id)
       setSigningStatus(data.status || "sent")
-      setSigningCompleteManual(true)
+      setSigningCompleteManual(!data.signing_url)
       localStorage.setItem("signingRequestId", data.request_id)
       setOnboardingAgreementLocked(true)
     } catch (err: unknown) {
@@ -441,10 +439,7 @@ export default function DocumentsPage() {
       }
 
       await syncZoho()
-      setSuccess(true)
-      setTimeout(() => {
-        router.push("/application/step-5-add-references")
-      }, 3000)
+      router.push("/application/step-5-add-references")
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : "Save failed"
       setError(message)
@@ -679,13 +674,25 @@ export default function DocumentsPage() {
             )}
 
             {signingUrl && (
-              <div className="mt-5 border border-slate-200 rounded-3xl overflow-hidden">
+              <div className="mt-5 border border-slate-200 rounded-3xl overflow-hidden bg-white">
+                <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-2.5">
+                  <p className="text-xs font-semibold text-slate-700">
+                    Sign in this window (Type / Draw / Upload options are available)
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setSigningUrl(null)}
+                    className="rounded-md border border-slate-300 px-2.5 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-100"
+                  >
+                    Close
+                  </button>
+                </div>
                 <iframe
                   title="Sign document"
                   src={signingUrl}
                   width="100%"
                   height="520"
-                  allow="clipboard-write"
+                  allow="clipboard-write; camera; microphone"
                   className="min-h-[520px] w-full"
                 />
               </div>
@@ -752,10 +759,6 @@ export default function DocumentsPage() {
           </div>
         </div>
       </div>
-      <OnboardingSuccessPopup
-        open={success}
-        onContinue={() => router.push("/application/step-5-add-references")}
-      />
     </OnboardingLayout>
   )
 }

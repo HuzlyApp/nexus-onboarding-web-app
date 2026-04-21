@@ -4,7 +4,6 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
-import OnboardingSuccessPopup from "@/app/components/OnboardingSuccessPopup"
 import { formatPhoneNumber, normalizePhoneInput } from "@/lib/phone"
 
 export default function ReferencesPage() {
@@ -13,7 +12,6 @@ export default function ReferencesPage() {
   const [refs, setRefs] = useState([{ first: "", last: "", phone: "", email: "" }])
   const [error, setError] = useState("")
   const [saving, setSaving] = useState(false)
-  const [success, setSuccess] = useState(false)
 
   function update(index: number, field: string, value: string) {
     const updated = [...refs]
@@ -82,10 +80,7 @@ export default function ReferencesPage() {
     // router.push("/application/step-6-summary")
     localStorage.setItem("referenceData", JSON.stringify(refs))
     localStorage.setItem("referencesCount", String(refs.length))
-    setSuccess(true)
-    setTimeout(() => {
-      router.push("/application/step-5-reference-review")
-    }, 3000)
+    router.push("/application/step-5-reference-review")
     setSaving(false)
   }
 
@@ -201,10 +196,6 @@ export default function ReferencesPage() {
           </div>
         </div>
       </div>
-      <OnboardingSuccessPopup
-        open={success}
-        onContinue={() => router.push("/application/step-5-reference-review")}
-      />
     </OnboardingLayout>
   )
 }
