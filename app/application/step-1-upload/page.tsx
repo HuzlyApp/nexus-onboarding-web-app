@@ -1,11 +1,10 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
 import OnboardingLoader from "@/app/components/OnboardingLoader"
-import Link from "next/link"
 
 
 export default function Step1Upload() {
@@ -14,27 +13,10 @@ export default function Step1Upload() {
   const fileInput = useRef<HTMLInputElement>(null)
 
   const [file, setFile] = useState<File | null>(null)
-  const [agree, setAgree] = useState(false)
   const [dragActive, setDragActive] = useState(false)
   const [parsing, setParsing] = useState(false)
   const [parseError, setParseError] = useState<string | null>(null)
   const [fileRequiredError, setFileRequiredError] = useState<string | null>(null)
-  const [termsRequiredError, setTermsRequiredError] = useState<string | null>(null)
-
-  function setTermsAcceptedState(value: boolean) {
-    setAgree(value)
-    if (typeof window !== "undefined") {
-      localStorage.setItem("step1TermsAccepted", value ? "true" : "false")
-    }
-  }
-
-  useEffect(() => {
-    if (typeof window === "undefined") return
-    const savedTerms = localStorage.getItem("step1TermsAccepted")
-    if (savedTerms === "true") {
-      setAgree(true)
-    }
-  }, [])
 
   function saveResumeFileToLocalStorage(selected: File) {
     return new Promise<void>((resolve, reject) => {
@@ -66,7 +48,6 @@ export default function Step1Upload() {
     if (!selected) return
 
     setFileRequiredError(null)
-    setTermsRequiredError(null)
 
     // ✅ SIZE VALIDATION
     if (selected.size > 10 * 1024 * 1024) {
@@ -92,7 +73,6 @@ export default function Step1Upload() {
     if (!dropped) return
 
     setFileRequiredError(null)
-    setTermsRequiredError(null)
 
     if (dropped.size > 10 * 1024 * 1024) {
       alert("Max file size is 10MB")
@@ -116,11 +96,6 @@ export default function Step1Upload() {
   function next() {
     if (!file) {
       setFileRequiredError("Please upload your resume *")
-      return
-    }
-
-    if (!agree) {
-      setTermsRequiredError("Please accept Terms & Conditions *")
       return
     }
 
@@ -173,7 +148,7 @@ export default function Step1Upload() {
 
         localStorage.setItem("parsedResume", JSON.stringify(parsed))
         localStorage.setItem("resumeName", uploadJson?.fileName || file.name)
-        localStorage.setItem("step1TermsAccepted", "true")
+        localStorage.setItem("step1TermsAccepted", "false")
         router.push("/application/step-1-success")
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Failed to parse resume"
@@ -266,31 +241,6 @@ export default function Step1Upload() {
           {parseError ? (
             <div className="mt-4 text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3">
               {parseError}
-            </div>
-          ) : null}
-
-          <div className="flex items-center gap-2 mt-6 text-sm">
-            <input
-              type="checkbox"
-              checked={agree}
-              onChange={() => {
-                setTermsAcceptedState(!agree)
-                setTermsRequiredError(null)
-              }}
-              className="cursor-pointer  h-5 w-5 accent-teal-600"
-            />
-
-            <span className="text-gray-600">
-              By checking this box you agree to our{" "}
-              <Link href="#" className="cursor-pointer text-[#0D9488] ml-1 underline">
-                Terms &amp; Conditions
-              </Link>
-            </span>
-          </div>
-
-          {termsRequiredError ? (
-            <div className="mt-2 text-sm text-rose-600" aria-live="polite">
-              {termsRequiredError}
             </div>
           ) : null}
 

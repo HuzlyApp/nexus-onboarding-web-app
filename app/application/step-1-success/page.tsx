@@ -1,8 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
 
@@ -24,6 +25,16 @@ export default function Step1Success() {
     return localStorage.getItem("step1TermsAccepted") === "true"
   })
   const [termsRequiredError, setTermsRequiredError] = useState<string | null>(null)
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const refreshAgreeState = () => {
+      setAgree(localStorage.getItem("step1TermsAccepted") === "true")
+    }
+    window.addEventListener("focus", refreshAgreeState)
+    refreshAgreeState()
+    return () => window.removeEventListener("focus", refreshAgreeState)
+  }, [])
+
   function formatBytes(bytes: number | null) {
     if (!bytes && bytes !== 0) return "—"
     const mb = bytes / (1024 * 1024)
@@ -117,27 +128,26 @@ export default function Step1Success() {
             </button>
           </div>
 
-          <label className="mt-6 flex items-start gap-3 text-sm text-slate-600">
-            <input
-              type="checkbox"
-              checked={agree}
-              onChange={() => {
-                const nextValue = !agree
-                setAgree(nextValue)
-                if (typeof window !== "undefined") {
-                  localStorage.setItem("step1TermsAccepted", nextValue ? "true" : "false")
-                }
-                setTermsRequiredError(null)
-              }}
-              className="cursor-pointer mt-0.5 h-5 w-5 rounded border-slate-300 accent-teal-600"
-            />
-            <span className="text-[14px] leading-6">
-              By checking this box you agree to our{" "}
-              <span className="cursor-pointer font-semibold text-teal-600 underline">
-                Terms & Conditions
-              </span>
+          <div className="mt-6 flex items-center gap-3 text-sm text-slate-700">
+            <span
+              className={`flex h-5 w-5 items-center justify-center rounded-full border-2 ${
+                agree ? "border-[#1db4a3] bg-[#1db4a3] text-white" : "border-slate-300 bg-white"
+              }`}
+              aria-hidden
+            >
+              {agree ? (
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                  <path d="M20 6L9 17L4 12" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              ) : null}
             </span>
-          </label>
+            <span className="text-[14px] leading-6">
+              Click this link to accept the{" "}
+              <Link href="/application/terms-and-conditions" className="font-semibold text-teal-600 underline">
+                Terms & Conditions
+              </Link>
+            </span>
+          </div>
 
           {termsRequiredError ? (
             <div className="mt-2 text-sm text-rose-600" aria-live="polite">
@@ -157,7 +167,8 @@ export default function Step1Success() {
             <button
               type="button"
               onClick={handleContinue}
-              className="cursor-pointer inline-flex h-11 items-center justify-center rounded-lg bg-[#1db4a3] px-10 text-[16px] font-semibold text-white transition hover:bg-[#169b8c]"
+              disabled={!agree}
+              className="cursor-pointer inline-flex h-11 items-center justify-center rounded-lg bg-[#1db4a3] px-10 text-[16px] font-semibold text-white transition hover:bg-[#169b8c] disabled:cursor-not-allowed disabled:opacity-50"
             >
               Continue
             </button>
