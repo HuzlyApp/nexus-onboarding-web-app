@@ -157,15 +157,20 @@ export default function Step4Identity() {
       />
       {slot.file || slot.name ? (
         <div className="mx-auto flex max-w-md items-center justify-between gap-3 rounded-lg border border-[#9fded8] bg-[#ecfffd] px-4 py-3">
-          <div className="min-w-0 text-left">
-            <p className="truncate text-[13px] font-semibold text-[#0D9488]">{slot.file?.name || slot.name}</p>
-            {slot.file ? (
-              <p className="text-[11px] text-slate-400">
-                {(slot.file.size / 1024 / 1024).toFixed(2)} MB
-              </p>
-            ) : (
-              <p className="text-[11px] text-slate-400">Already uploaded</p>
-            )}
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-10 w-10 flex-none items-center justify-center rounded-md bg-[#dff7f3]">
+              <Image src="/icons/pdf-icon.svg" alt="File" width={20} height={20} className="h-5 w-5" />
+            </div>
+            <div className="min-w-0 text-left">
+              <p className="truncate text-[13px] font-semibold text-[#0D9488]">{slot.file?.name || slot.name}</p>
+              {slot.file ? (
+                <p className="text-[11px] text-slate-400">
+                  {(slot.file.size / 1024 / 1024).toFixed(2)} MB
+                </p>
+              ) : (
+                <p className="text-[11px] text-slate-400">Already uploaded</p>
+              )}
+            </div>
           </div>
           <button
             type="button"

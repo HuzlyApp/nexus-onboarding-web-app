@@ -39,7 +39,10 @@ export default function DocumentsPage() {
   const [showAuthPdf, setShowAuthPdf] = useState(false)
 
   const [applicantId, setApplicantId] = useState<string | null>(null)
-  const [agreed, setAgreed] = useState(false)
+  const [agreed, setAgreed] = useState(() => {
+    if (typeof window === "undefined") return false
+    return localStorage.getItem("step4AuthorizationAgreed") === "true"
+  })
   const [identityPaths, setIdentityPaths] = useState<IdentityPaths>({
     ssnFront: null,
     ssnBack: null,
@@ -72,6 +75,11 @@ export default function DocumentsPage() {
   useEffect(() => {
     if (signedFromStatus) setAgreed(true)
   }, [signedFromStatus])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    localStorage.setItem("step4AuthorizationAgreed", agreed ? "true" : "false")
+  }, [agreed])
 
   const identityDocsComplete = useMemo(() => {
     const { ssnFront, dlFront } = identityPaths
@@ -580,15 +588,35 @@ export default function DocumentsPage() {
           </div>
 
           <label
-            className={`flex items-start gap-3 mb-8 ${signedFromStatus ? "cursor-default" : "cursor-pointer"}`}
+            className={`mb-8 inline-flex items-center gap-3 ${
+              signedFromStatus ? "cursor-default" : "cursor-pointer"
+            }`}
           >
             <input
               type="checkbox"
               checked={agreed}
               disabled={signedFromStatus}
               onChange={(e) => setAgreed(e.target.checked)}
-              className="mt-1 w-5 h-5 accent-[#0D9488] disabled:opacity-70"
+              className="sr-only"
             />
+            <span
+              className={`flex h-5 w-5 items-center justify-center rounded-full border-2 ${
+                agreed ? "border-[#1db4a3] bg-[#1db4a3] text-white" : "border-slate-300 bg-white"
+              } ${signedFromStatus ? "opacity-80" : ""}`}
+              aria-hidden
+            >
+              {agreed ? (
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                  <path
+                    d="M20 6L9 17L4 12"
+                    stroke="currentColor"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              ) : null}
+            </span>
             <span className="text-slate-800 font-medium">I Agree to the Authorization</span>
           </label>
 
@@ -740,7 +768,7 @@ export default function DocumentsPage() {
             <button
               type="button"
               onClick={() => router.back()}
-              className="rounded-xl border border-[#0D9488] bg-white px-6 py-2 text-[12px] font-medium text-[#0D9488] transition hover:bg-[#f0fffe]"
+              className="rounded-lg border border-[#0D9488] bg-white px-6 py-2 text-[12px] font-medium text-[#0D9488] transition hover:bg-[#f0fffe]"
             >
               Back
             </button>
@@ -748,7 +776,7 @@ export default function DocumentsPage() {
               type="button"
               onClick={() => void handleSaveAndContinue()}
               disabled={saving || !agreed || !identityDocsComplete}
-              className={`rounded-xl px-6 py-2 text-[12px] font-medium text-white transition ${
+              className={`rounded-lg px-6 py-2 text-[12px] font-medium text-white transition ${
                 saving || !agreed || !identityDocsComplete
                   ? "bg-gray-400 cursor-not-allowed"
                   : "bg-[#0D9488] hover:bg-[#0b7a70]"
