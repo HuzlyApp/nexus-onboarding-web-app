@@ -2,14 +2,18 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/cn";
 import OnboardingLayout from "@/app/components/OnboardingLayout";
+import { supabase } from "@/lib/supabase/client";
 
 export default function AdminRecruiterLogin() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [showPassword, setShowPassword] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({
     username: "",
     password: "",
@@ -24,15 +28,31 @@ export default function AdminRecruiterLogin() {
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.username || !form.password || !form.agree) return;
+    setSubmitting(true);
+    setError(null);
 
-    // TODO: real auth logic (e.g. signIn from next-auth, or your API)
-    console.log("Login attempt:", form);
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: form.username.trim(),
+      password: form.password,
+    });
 
-    // Example redirect after success
-    // router.push("/dashboard");
+    if (signInError) {
+      setError(signInError.message || "Login failed");
+      setSubmitting(false);
+      return;
+    }
+
+    const nextPath = searchParams.get("next");
+    if (nextPath && nextPath.startsWith("/")) {
+      router.push(nextPath);
+    } else {
+      router.push("/admin_recruiter/dashboard");
+    }
+    router.refresh();
+    setSubmitting(false);
   };
 
   return (
@@ -61,16 +81,16 @@ export default function AdminRecruiterLogin() {
                 htmlFor="username"
                 className="block text-sm font-medium text-gray-700 mb-1.5"
               >
-                Username
+                Email
               </label>
               <input
                 id="username"
                 name="username"
-                type="text"
+                type="email"
                 value={form.username}
                 onChange={handleChange}
-                placeholder="Username"
-                autoComplete="username"
+                placeholder="Email"
+                autoComplete="email"
                 className={cn(
                   "w-full px-4 py-3.5 border border-gray-300 rounded-lg",
                   "focus:ring-2 focus:ring-teal-500 focus:border-teal-500",
@@ -79,6 +99,12 @@ export default function AdminRecruiterLogin() {
                 required
               />
             </div>
+
+            {error ? (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {error}
+              </div>
+            ) : null}
 
             {/* Password */}
             <div>
@@ -151,14 +177,14 @@ export default function AdminRecruiterLogin() {
 
               <button
                 type="submit"
-                disabled={!form.username || !form.password || !form.agree}
+                disabled={!form.username || !form.password || !form.agree || submitting}
                 className={cn(
                   "flex-1 py-3.5 px-6 bg-teal-600 text-white rounded-lg",
                   "font-medium hover:bg-teal-700 transition-colors",
                   "disabled:opacity-60 disabled:cursor-not-allowed"
                 )}
               >
-                Log in
+                {submitting ? "Logging in..." : "Log in"}
               </button>
             </div>
           </form>

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { AdminRecruiterSidebar } from "./components/AdminRecruiterSidebar";
+import { AdminRecruiterHeader } from "./components/AdminRecruiterHeader";
 import "./layout.css";
 
 /**
@@ -10,7 +11,10 @@ export default function AdminRecruiterLayout({ children }: { children: ReactNode
   return (
     <div className="admin-recruiter-shell min-h-screen bg-[#f3f5f5] text-gray-600">
       <AdminRecruiterSidebar />
-      <div className="lg:pl-[248px]">{children}</div>
+      <div className="admin-recruiter-content lg:pl-[248px]">
+        <AdminRecruiterHeader />
+        {children}
+      </div>
     </div>
   );
 }

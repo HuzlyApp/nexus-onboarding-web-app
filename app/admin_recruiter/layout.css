@@ -5,3 +5,7 @@
 .admin-recruiter-shell .lg\:pl-72 {
   padding-left: 0 !important;
 }
+
+.admin-recruiter-shell .admin-recruiter-content header.h-16.border-b {
+  display: none !important;
+}
