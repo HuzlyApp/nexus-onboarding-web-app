@@ -3,7 +3,7 @@
 import type { HTMLAttributes, ReactNode } from "react"
 import { Suspense, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { supabase } from "@/lib/supabase"
+import { supabaseBrowser as supabase } from "@/lib/supabase-browser"
 import Image from "next/image"
 import { AlertTriangle, ChevronDown, Pencil, Search, X, XCircle } from "lucide-react"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
@@ -772,6 +772,7 @@ function Step1ReviewContent() {
               src="/images/nurse.jpg"
               alt="Healthcare professional smiling"
               fill
+              sizes="(max-width: 767px) 0px, 35vw"
               className="object-cover object-top opacity-50 grayscale"
               priority
             />
@@ -786,6 +787,7 @@ function Step1ReviewContent() {
                 alt="Nexus MedPro Logo"
                 width={204}
                 height={60}
+                className="h-auto w-auto"
                 priority
               />
             </div>

@@ -48,6 +48,7 @@ export default function OnboardingLayout({
             src={rightPanelImageSrc ?? "/images/nurse.jpg"}
             alt={rightPanelImageAlt ?? "Nexus MedPro nurse"}
             fill
+            sizes="(max-width: 767px) 0px, 330px"
             className={cn("object-cover grayscale", rightPanelImageClassName)}
             priority
           />
@@ -80,6 +81,7 @@ export default function OnboardingLayout({
                   src="/images/new-logo-nexus.svg"
                   alt="Nexus MedPro Logo"
                   fill
+                  sizes="204px"
                   className="object-contain "
                   priority
                 />

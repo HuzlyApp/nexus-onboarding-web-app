@@ -134,9 +134,7 @@ export async function POST(req: NextRequest) {
 
     const { data: existingRows, error: selErr } = await supabase
       .from("worker_requirements")
-      .select(
-        "id, ssn_card_path, drivers_license_path, ssn_card_front_path, ssn_card_back_path, drivers_license_front_path, drivers_license_back_path, resume_path, job_certificate_path, drug_test_results_path, w9_path"
-      )
+      .select("id")
       // worker_requirements.worker_id should reference worker.id.
       // Fallback to applicantId to support legacy rows created with the wrong key.
       .or(`worker_id.eq.${worker.id},worker_id.eq.${applicantId}`)
@@ -144,43 +142,40 @@ export async function POST(req: NextRequest) {
 
     if (selErr) throw selErr
 
-    const existing = existingRows?.[0] as Record<string, string | number | null | undefined> | undefined
-
-    const merged: Record<string, string | null> = {}
-    for (const k of PATH_KEYS) {
-      if (body[k] !== undefined) {
-        merged[k] = normPath(body[k])
-      } else {
-        merged[k] = normPath(existing?.[k]) ?? null
-      }
-    }
+    const existing = existingRows?.[0] as { id?: string | number | null } | undefined
 
     const updated_at = new Date().toISOString()
 
-    const rowPayload: Record<string, unknown> = {
-      ...merged,
-      updated_at,
-    }
+    const rowPayload: Record<string, unknown> = { updated_at }
     const bodyRecord = body as Record<string, unknown>
+    for (const k of PATH_KEYS) {
+      if (bodyRecord[k] !== undefined) {
+        rowPayload[k] = normPath(bodyRecord[k])
+      }
+    }
     for (const k of OTHER_KEYS) {
       if (bodyRecord[k] !== undefined) {
         rowPayload[k] = normPath(bodyRecord[k])
-      } else {
-        rowPayload[k] = normPath(existing?.[k]) ?? null
       }
     }
 
     // Fallback payload when the DB doesn't yet have the newer front/back columns.
     const legacyPayload: Record<string, unknown> = {
-      ssn_card_path: merged.ssn_card_front_path ?? merged.ssn_card_path ?? null,
-      drivers_license_path: merged.drivers_license_front_path ?? merged.drivers_license_path ?? null,
       updated_at,
+    }
+    const ssnFront = body.ssn_card_front_path
+    const ssnSingle = body.ssn_card_path
+    if (ssnFront !== undefined || ssnSingle !== undefined) {
+      legacyPayload.ssn_card_path = normPath(ssnFront ?? ssnSingle ?? null)
+    }
+    const dlFront = body.drivers_license_front_path
+    const dlSingle = body.drivers_license_path
+    if (dlFront !== undefined || dlSingle !== undefined) {
+      legacyPayload.drivers_license_path = normPath(dlFront ?? dlSingle ?? null)
     }
     for (const k of OTHER_KEYS) {
       if (bodyRecord[k] !== undefined) {
         legacyPayload[k] = normPath(bodyRecord[k])
-      } else {
-        legacyPayload[k] = normPath(existing?.[k]) ?? null
       }
     }
 

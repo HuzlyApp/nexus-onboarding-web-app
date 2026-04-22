@@ -43,6 +43,7 @@ export default function Home() {
             src="/images/handshake.jpg"
             alt="Nexus MedPro staffing"
             fill
+            sizes="(max-width: 767px) 100vw, 440px"
             className="object-cover grayscale"
             priority
           />
@@ -57,6 +58,7 @@ export default function Home() {
                 src="/images/new-logo-nexus.svg"
                 alt="Nexus MedPro Logo"
                 fill
+                sizes="270px"
                 className="object-contain"
                 priority
               />

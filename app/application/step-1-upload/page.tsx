@@ -334,7 +334,13 @@ export default function Step1Upload() {
         </div>
 
         <div className="hidden md:block w-1/3 relative">
-          <Image src="/images/nurse.jpg" alt="nurse" fill className="object-cover grayscale" />
+          <Image
+            src="/images/nurse.jpg"
+            alt="nurse"
+            fill
+            sizes="(max-width: 767px) 0px, 33vw"
+            className="object-cover grayscale"
+          />
           <div className="absolute inset-0 bg-white/70" />
           <div className="absolute inset-0 flex items-center justify-center px-8 text-center">
             <div className="flex flex-col items-center">
