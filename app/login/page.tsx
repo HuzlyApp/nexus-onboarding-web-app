@@ -40,8 +40,8 @@ export default function AdminRecruiterLogin() {
       cardClassName="md:w-[950px] md:min-w-[950px] md:max-w-[950px] md:h-[622px] md:min-h-[550px] md:grid-cols-[560px_390px]"
       rightPanelImageSrc="/images/handshake.jpg"
       rightPanelImageAlt="Handshake"
-      rightPanelImageClassName="object-cover opacity-50 grayscale-0"
-      rightPanelOverlayClassName="bg-white/75"
+      rightPanelImageClassName="object-cover opacity-60 grayscale"
+      rightPanelOverlayClassName="bg-white/65"
       rightPanelContentClassName="p-6"
       taglineClassName="text-[15px] leading-6 text-slate-700"
     >

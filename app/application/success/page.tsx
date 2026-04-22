@@ -37,10 +37,10 @@ export default function SuccessPage() {
 
           <div className="relative hidden md:flex w-[330px] h-[500px] p-[20px] flex flex-col gap-[24px] items-center justify-center overflow-hidden bg-white">
             <Image
-              src="/images/nurse.jpg"
+              src="/images/success.jpg"
               alt="Nurse background"
               fill
-              className="object-cover object-center opacity-60"
+              className="object-cover grayscale bg-white/60 object-center opacity-60"
               priority
             />
             <div className="absolute inset-0 bg-white/65" />

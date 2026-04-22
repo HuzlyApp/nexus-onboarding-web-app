@@ -34,7 +34,7 @@ export default function DocumentReceivedPage() {
               src="/images/verification-status.jpg"
               alt="Nurse background"
               fill
-              className="object-cover opacity-60"
+              className="object-cover bg-white/65 grayscale opacity-60"
               priority
             />
             <div className="absolute inset-0 bg-white/65" />

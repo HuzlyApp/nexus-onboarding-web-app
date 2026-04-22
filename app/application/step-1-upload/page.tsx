@@ -28,6 +28,12 @@ export default function Step1Upload() {
     setSavedResumeSizeBytes(sizeNum != null && Number.isFinite(sizeNum) ? sizeNum : null)
   }, [])
 
+  useEffect(() => {
+    if (file || savedResumeName) {
+      setFileRequiredError(null)
+    }
+  }, [file, savedResumeName])
+
   function formatBytes(bytes: number | null) {
     if (!bytes && bytes !== 0) return ""
     const mb = bytes / (1024 * 1024)
@@ -98,8 +104,17 @@ export default function Step1Upload() {
   }
 
   function next() {
+    const hasSavedResume =
+      typeof window !== "undefined" &&
+      Boolean(localStorage.getItem("resumeName")?.trim()) &&
+      Boolean(
+        localStorage.getItem("parsedResume")?.trim() ||
+        localStorage.getItem("resumeStoragePath")?.trim()
+      )
+
     if (!file) {
-      if (savedResumeName && localStorage.getItem("parsedResume")) {
+      if (hasSavedResume) {
+        setFileRequiredError(null)
         router.push("/application/step-1-success")
         return
       }

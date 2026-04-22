@@ -116,7 +116,7 @@ export default function Upload19FormPage() {
   return (
     <OnboardingLayout
       cardClassName="md:grid-cols-[660px_400px]"
-      rightPanelImageSrc="/images/nurse.jpg"
+      rightPanelImageSrc="/images/verification-status.jpg"
       rightPanelImageClassName="object-cover object-center grayscale opacity-60"
       rightPanelOverlayClassName="bg-white/65"
       rightPanelContentClassName="p-5"
