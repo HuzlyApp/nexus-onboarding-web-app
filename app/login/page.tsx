@@ -1,14 +1,14 @@
 // app/login/page.tsx
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/cn";
 import OnboardingLayout from "@/app/components/OnboardingLayout";
 import { supabase } from "@/lib/supabase/client";
 
-export default function AdminRecruiterLogin() {
+function AdminRecruiterLoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [showPassword, setShowPassword] = useState(false);
@@ -190,5 +190,13 @@ export default function AdminRecruiterLogin() {
           </form>
       </div>
     </OnboardingLayout>
+  );
+}
+
+export default function AdminRecruiterLogin() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[linear-gradient(135deg,#27c8c0_0%,#16a79a_100%)]" />}>
+      <AdminRecruiterLoginContent />
+    </Suspense>
   );
 }
