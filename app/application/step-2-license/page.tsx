@@ -176,11 +176,11 @@ export default function Step2License() {
 
   return (
     <OnboardingLayout
-      cardClassName="md:min-w-0 md:max-w-[920px] md:w-full md:grid-cols-[2fr_1fr] md:h-auto md:min-h-[0]"
+      cardClassName="md:min-w-0 md:max-w-[950px] md:w-full md:grid-cols-[2fr_1fr] md:h-auto md:min-h-[0]"
       rightPanelContentClassName="p-5"
       rightPanelImageSrc="/images/step-2-license-bg-image.jpg"
-      rightPanelImageClassName="opacity-50 object-top"
-      rightPanelOverlayClassName="bg-white/0"
+      rightPanelImageClassName="opacity-90 object-top"
+      rightPanelOverlayClassName="bg-white/70"
     >
       <div className="flex h-full flex-col px-10 pb-10 pt-8">
         <OnboardingStepper currentStep={2} />

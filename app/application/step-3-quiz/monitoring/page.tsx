@@ -344,8 +344,8 @@ export default function MonitoringQuiz() {
     <OnboardingLayout
       cardClassName="md:h-auto md:min-h-[700px]"
       rightPanelImageSrc="/images/skill-bg.jpg"
-      rightPanelImageClassName="opacity-50 object-top"
-      rightPanelOverlayClassName="bg-white/0"
+      rightPanelImageClassName="opacity-60 object-top"
+      rightPanelOverlayClassName="bg-white/65"
     >
       <div className="flex h-full flex-col px-10 pb-10 pt-8">
         <OnboardingStepper currentStep={3} completedThrough={2} />

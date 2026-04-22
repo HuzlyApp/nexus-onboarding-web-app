@@ -107,6 +107,7 @@ function SearchableSelect({
   onChange,
   required,
 }: SearchableSelectProps) {
+  const focusBorderClass = "focus:outline-none focus:border-[#22c7c8] focus:ring-2 focus:ring-[#22c7c8]/20"
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState("")
   const wrapperRef = useRef<HTMLDivElement>(null)
@@ -138,7 +139,7 @@ function SearchableSelect({
         <button
           type="button"
           onClick={() => setOpen((prev) => !prev)}
-          className="w-full px-4 h-[56px] border border-gray-200 rounded-md focus:border-[#1db4a3] text-left text-[#1e293b] text-sm bg-white font-medium flex items-center justify-between"
+          className={`w-full px-4 h-[56px] border border-gray-200 rounded-md text-left text-[#1e293b] text-sm bg-white font-medium flex items-center justify-between ${focusBorderClass}`}
         >
           <span className={value ? "text-[#1e293b]" : "text-gray-400"}>{value || placeholder}</span>
           <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform ${open ? "rotate-180" : ""}`} />
@@ -151,7 +152,7 @@ function SearchableSelect({
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder={`Search ${label}`}
-                className="w-full rounded-md border border-slate-200 py-2 pl-9 pr-3 text-sm outline-none focus:border-[#1db4a3]"
+                className={`w-full rounded-md border border-slate-200 py-2 pl-9 pr-3 text-sm ${focusBorderClass}`}
               />
             </div>
             <div className="max-h-44 overflow-y-auto py-1">
@@ -182,6 +183,7 @@ function SearchableSelect({
 }
 
 function Step1ReviewContent() {
+  const focusBorderClass = "focus:outline-none focus:border-[#22c7c8] focus:ring-2 focus:ring-[#22c7c8]/20"
   const router = useRouter()
   const searchParams = useSearchParams()
   const urlJobTitle = useMemo(() => {
@@ -507,7 +509,7 @@ function Step1ReviewContent() {
                   required
                   value={form.firstName}
                   onChange={(value) => handleChange("firstName", value)}
-                  className="w-full px-4 h-[56px] border border-gray-200 rounded-md focus:border-[#1db4a3] focus:outline-none text-[#1e293b] text-sm bg-white font-medium pr-10"
+                  className={`w-full px-4 h-[56px] border border-gray-200 rounded-md text-[#1e293b] text-sm bg-white font-medium pr-10 ${focusBorderClass}`}
                   placeholder="First Name"
                 />
                 <EditableInput
@@ -515,7 +517,7 @@ function Step1ReviewContent() {
                   required
                   value={form.lastName}
                   onChange={(value) => handleChange("lastName", value)}
-                  className="w-full px-4 h-[56px] border border-gray-200 rounded-md focus:border-[#1db4a3] focus:outline-none text-[#1e293b] text-sm bg-white pr-10"
+                  className={`w-full px-4 h-[56px] border border-gray-200 rounded-md text-[#1e293b] text-sm bg-white pr-10 ${focusBorderClass}`}
                   placeholder="Last Name"
                 />
               </div>
@@ -527,7 +529,7 @@ function Step1ReviewContent() {
                 hint="Street Address, P.O Box"
                 value={form.address1}
                 onChange={(value) => handleChange("address1", value)}
-                className="w-full px-4 h-[56px] border border-gray-200 rounded-md focus:border-[#1db4a3] focus:outline-none text-[#1e293b] text-sm bg-white pr-10"
+                className={`w-full px-4 h-[56px] border border-gray-200 rounded-md text-[#1e293b] text-sm bg-white pr-10 ${focusBorderClass}`}
                 placeholder="1234 Main St, Apt 4B"
               />
 
@@ -619,8 +621,8 @@ function Step1ReviewContent() {
                       id="phone-input"
                       value={formatPhoneNumber(form.phone)}
                       onChange={(e) => handleChange("phone", normalizePhoneInput(e.target.value))}
-                      className={`w-full pl-14 pr-11 h-[52px] sm:h-[56px] border rounded-md focus:outline-none text-[#1e293b] text-sm bg-white ${
-                        phoneConflict ? "border-red-500 focus:border-red-500" : "border-gray-200 focus:border-[#1db4a3]"
+                      className={`w-full pl-14 pr-11 h-[52px] sm:h-[56px] border rounded-md text-[#1e293b] text-sm bg-white ${
+                        phoneConflict ? "border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-200" : `border-gray-200 ${focusBorderClass}`
                       }`}
                       placeholder="(201) 512-2366"
                       inputMode="numeric"
@@ -657,10 +659,10 @@ function Step1ReviewContent() {
                       id="email-input"
                       value={form.email}
                       onChange={(e) => handleChange("email", e.target.value)}
-                      className={`w-full px-4 pr-11 h-[52px] sm:h-[56px] border rounded-md focus:outline-none text-[#1e293b] text-sm bg-white ${
+                      className={`w-full px-4 pr-11 h-[52px] sm:h-[56px] border rounded-md text-[#1e293b] text-sm bg-white ${
                         emailConflict
-                          ? "border-red-500 focus:border-red-500"
-                          : "border-gray-200 focus:border-[#1db4a3]"
+                          ? "border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-200 focus:outline-none"
+                          : `border-gray-200 ${focusBorderClass}`
                       }`}
                       placeholder="rickashton@gmail.com"
                     />
@@ -691,7 +693,7 @@ function Step1ReviewContent() {
                   required
                   value={form.zipCode}
                   onChange={(value) => handleChange("zipCode", value)}
-                  className="w-full px-4 h-[56px] border border-gray-200 rounded-md focus:border-[#1db4a3] focus:outline-none text-[#1e293b] text-sm bg-white pr-10"
+                  className={`w-full px-4 h-[56px] border border-gray-200 rounded-md text-[#1e293b] text-sm bg-white pr-10 ${focusBorderClass}`}
                   placeholder="40170"
                   inputMode="numeric"
                 />
@@ -703,7 +705,7 @@ function Step1ReviewContent() {
                     <select
                       value={form.jobRole}
                       onChange={(e) => handleChange("jobRole", e.target.value)}
-                      className="w-full px-4 h-[56px] border border-gray-200 rounded-md focus:border-[#1db4a3] focus:outline-none text-[#1e293b] text-sm appearance-none bg-white font-medium"
+                      className={`w-full px-4 h-[56px] border border-gray-200 rounded-md text-[#1e293b] text-sm appearance-none bg-white font-medium ${focusBorderClass}`}
                     >
                       <option value="" disabled>
                         Select Job Title
@@ -773,11 +775,10 @@ function Step1ReviewContent() {
               alt="Healthcare professional smiling"
               fill
               sizes="(max-width: 767px) 0px, 35vw"
-              className="object-cover object-top opacity-50 grayscale"
+              className="object-cover object-top opacity-60 grayscale"
               priority
             />
-            {/* Gradient overlay to match the original soft fade */}
-            <div className="absolute inset-0 bg-gradient-to-b from-white/20 via-white/40 to-white"></div>
+            <div className="absolute inset-0 bg-white/65"></div>
           </div>
 
           <div className="absolute inset-0 flex flex-col items-center justify-center z-10 px-10">
@@ -793,17 +794,10 @@ function Step1ReviewContent() {
             </div>
 
             <div className="w-full max-w-[280px]">
-              <div className="w-full h-[1px] bg-gray-300 relative mb-6">
-                <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-full p-1 flex items-center justify-center]">
-                  {/* <div className="w-[10px] h-[10px] bg-[#1cb5a3] rounded-full"></div> */}
-                  <Image
-                    src="/icons/circle-star-icon.svg"
-                    alt=""
-                    width={24}
-                    height={24}
-                    className="h-6 w-6 flex-none"
-                  />
-                </div>
+              <div className="mb-6 flex w-full items-center justify-center gap-4">
+                <div className="h-px flex-1 bg-slate-300/80" />
+                <Image src="/icons/circle-star-icon.svg" alt="" width={24} height={24} className="h-6 w-6 flex-none" />
+                <div className="h-px flex-1 bg-slate-300/80" />
               </div>
               <p
                 className="text-[#1e293b]"

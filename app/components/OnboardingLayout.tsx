@@ -49,12 +49,12 @@ export default function OnboardingLayout({
             alt={rightPanelImageAlt ?? "Nexus MedPro nurse"}
             fill
             sizes="(max-width: 767px) 0px, 330px"
-            className={cn("object-cover grayscale", rightPanelImageClassName)}
+            className={cn("object-cover grayscale opacity-60", rightPanelImageClassName)}
             priority
           />
           <div
             className={cn(
-              "absolute inset-0 bg-white/50",
+              "absolute inset-0 bg-white/65",
               rightPanelOverlayClassName
             )}
           />

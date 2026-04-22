@@ -16,8 +16,8 @@ function VerificationStatusContent() {
     <OnboardingLayout
       cardClassName="md:grid-cols-[660px_400px]"
       rightPanelImageSrc="/images/verification-status.jpg"
-      rightPanelImageClassName="object-cover object-center grayscale opacity-40"
-      rightPanelOverlayClassName="bg-white/75"
+      rightPanelImageClassName="object-cover object-center grayscale opacity-60"
+      rightPanelOverlayClassName="bg-white/65"
       rightPanelContentClassName="p-5"
       rightPanelInnerClassName="max-w-[300px] gap-8"
       logoClassName="h-[72px] w-[240px]"

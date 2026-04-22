@@ -130,8 +130,8 @@ export default function EmployeeAgreementPage() {
     <OnboardingLayout
       rightPanelImageSrc="/images/n1.jpg"
       rightPanelImageAlt="Nexus MedPro employee agreement"
-      rightPanelImageClassName="object-cover object-center opacity-50"
-      rightPanelOverlayClassName="bg-white/50"
+      rightPanelImageClassName="object-cover object-center opacity-60"
+      rightPanelOverlayClassName="bg-white/65"
       rightPanelContentClassName="p-5"
       rightPanelInnerClassName="max-w-[290px] gap-8"
       logoClassName="h-[72px] w-[240px]"

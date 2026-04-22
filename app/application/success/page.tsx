@@ -40,10 +40,10 @@ export default function SuccessPage() {
               src="/images/nurse.jpg"
               alt="Nurse background"
               fill
-              className="object-cover object-center opacity-50"
+              className="object-cover object-center opacity-60"
               priority
             />
-            <div className="absolute inset-0 bg-white/70" />
+            <div className="absolute inset-0 bg-white/65" />
             <div className="relative flex flex-col items-center justify-center gap-[24px] text-center w-full">
               <div className="relative h-16 w-44">
                 <Image
@@ -56,15 +56,13 @@ export default function SuccessPage() {
               </div>
               <div className="flex w-full items-center justify-center gap-3">
                 <div className="h-px flex-1 bg-slate-300/70" />
-                <div className="flex-none rounded-full border border-slate-300/70 bg-white p-2 shadow-sm">
-                  <Image
-                    src="/icons/circle-star-icon.svg"
-                    alt="Star icon"
-                    width={24}
-                    height={24}
-                    className="object-contain"
-                  />
-                </div>
+                <Image
+                  src="/icons/circle-star-icon.svg"
+                  alt="Star icon"
+                  width={24}
+                  height={24}
+                  className="object-contain"
+                />
                 <div className="h-px flex-1 bg-slate-300/70" />
               </div>
               <p className="max-w-[240px] text-[14px] leading-6 text-slate-700">

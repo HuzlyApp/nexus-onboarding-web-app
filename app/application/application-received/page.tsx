@@ -27,8 +27,8 @@ export default function ApplicationReceivedPage() {
         </div>
 
         <div className="w-[360px] relative hidden md:block">
-          <Image src="/images/nurse.jpg" alt="" fill className="object-cover grayscale" priority />
-          <div className="absolute inset-0 bg-white/70" />
+          <Image src="/images/nurse.jpg" alt="" fill className="object-cover grayscale opacity-60" priority />
+          <div className="absolute inset-0 bg-white/65" />
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-8">
             <Image src="/images/nexus-logo.png" alt="logo" width={160} height={56} className="mb-4" />
             <p className="text-gray-700 text-sm">

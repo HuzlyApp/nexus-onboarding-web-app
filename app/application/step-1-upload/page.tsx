@@ -339,9 +339,9 @@ export default function Step1Upload() {
             alt="nurse"
             fill
             sizes="(max-width: 767px) 0px, 33vw"
-            className="object-cover grayscale"
+            className="object-cover grayscale opacity-60"
           />
-          <div className="absolute inset-0 bg-white/70" />
+          <div className="absolute inset-0 bg-white/65" />
           <div className="absolute inset-0 flex items-center justify-center px-8 text-center">
             <div className="flex flex-col items-center">
               <Image
