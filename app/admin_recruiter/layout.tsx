@@ -11,7 +11,7 @@ export default function AdminRecruiterLayout({ children }: { children: ReactNode
   return (
     <div className="admin-recruiter-shell min-h-screen bg-[#f3f5f5] text-gray-600">
       <AdminRecruiterSidebar />
-      <div className="admin-recruiter-content lg:pl-[248px]">
+      <div className="admin-recruiter-content lg:pl-[344px]">
         <AdminRecruiterHeader />
         {children}
       </div>
