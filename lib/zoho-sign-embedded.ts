@@ -67,25 +67,7 @@ type ZohoRequestGetResponse = {
   }
 }
 
-async function loadAuthorizationPdfBuffer(opts: {
-  primaryUrl: string
-  fallbackUrl?: string
-}): Promise<Buffer> {
-  const tryFetch = async (u: string) => {
-    const r = await fetch(u)
-    return { r, u }
-  }
 
-  const primary = await tryFetch(opts.primaryUrl)
-  if (primary.r.ok) return Buffer.from(await primary.r.arrayBuffer())
-
-  if (opts.fallbackUrl && opts.fallbackUrl !== opts.primaryUrl) {
-    const fb = await tryFetch(opts.fallbackUrl)
-    if (fb.r.ok) return Buffer.from(await fb.r.arrayBuffer())
-  }
-
-  throw new Error(`Could not load authorization PDF (${primary.r.status})`)
-}
 
 function maybeRedirectPages(returnUrl: string) {
   // Zoho Sign rejects non-https redirect URLs (commonly shows "Url has invalid scheme").
@@ -300,7 +282,6 @@ export async function createZohoEmbeddedSigningFromTemplate(params: {
           recipient_name: params.name,
           recipient_email: params.email,
           verify_recipient: false,
-          verification_type: "EMAIL",
           is_embedded: true,
         },
       ],
@@ -358,175 +339,5 @@ export async function createZohoEmbeddedSigningFromTemplate(params: {
   })
 }
 
-export async function createZohoEmbeddedSigningSession(params: {
-  email: string
-  name: string
-  /** used only for client-side correlation; not required by Zoho Sign */
-  clientUserId: string
-  /** absolute return URL (Zoho redirect page) */
-  returnUrl: string
-  /** Resolved site origin — used to load /docs/Auth Release form.pdf when env is unset */
-  publicOrigin?: string
-}): Promise<{ signingUrl: string; requestId: string; actionId: string }> {
-  const appUrl =
-    params.publicOrigin?.replace(/\/$/, "") ||
-    process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ||
-    ""
 
-  const localPdfUrl = appUrl ? `${appUrl}/docs/Auth%20Release%20form.pdf` : ""
-  const pdfUrl = process.env.AUTHORIZATION_PDF_URL?.trim() || localPdfUrl
-
-  if (!pdfUrl) {
-    throw new Error(
-      "Set AUTHORIZATION_PDF_URL, or host the PDF at /docs/Auth Release form.pdf (needs a resolvable app origin)."
-    )
-  }
-
-  const pdfBuffer = await loadAuthorizationPdfBuffer({
-    primaryUrl: pdfUrl,
-    fallbackUrl: localPdfUrl || undefined,
-  })
-
-  const accessToken = await getAccessToken()
-  const base = signApiBase()
-
-  const requestName = "Auth Release form — please sign"
-
-  const dataJson = {
-    requests: {
-      request_name: requestName,
-      is_sequential: true,
-      actions: [
-        {
-          recipient_name: params.name,
-          recipient_email: params.email,
-          action_type: "SIGN",
-          signing_order: 0,
-          verify_recipient: false,
-          is_embedded: true,
-          private_notes: `clientUserId=${params.clientUserId}`,
-        },
-      ],
-      ...(maybeRedirectPages(params.returnUrl)
-        ? { redirect_pages: maybeRedirectPages(params.returnUrl) }
-        : {}),
-    },
-  }
-
-  const fd = new FormData()
-  fd.append("data", JSON.stringify(dataJson))
-  fd.append(
-    "file",
-    new Blob([new Uint8Array(pdfBuffer)], { type: "application/pdf" }),
-    "Auth Release form.pdf"
-  )
-
-  const createRes = await fetch(`${base}/api/v1/requests`, {
-    method: "POST",
-    headers: {
-      Authorization: `Zoho-oauthtoken ${accessToken}`,
-    },
-    body: fd,
-  })
-
-  const createText = await createRes.text()
-  const createJson = (() => {
-    try {
-      return JSON.parse(createText) as ZohoCreateResponse
-    } catch {
-      return {} as ZohoCreateResponse
-    }
-  })()
-
-  if (!createRes.ok || createJson.status !== "success") {
-    throw new Error(
-      `Zoho Sign create request failed: ${createRes.status} ${createJson.message || createText || "Unknown error"}`
-    )
-  }
-
-  const requestId = createJson.requests?.request_id
-  const actionId = createJson.requests?.actions?.[0]?.action_id
-  if (!requestId || !actionId) throw new Error("Zoho Sign create request response missing request_id/action_id")
-  const documentId = createJson.requests?.document_ids?.[0]?.document_id
-  if (!documentId) throw new Error("Zoho Sign create request response missing document_id")
-
-  // Submit (send) the request for signing
-  const submitBody = new URLSearchParams({
-    data: JSON.stringify({
-      requests: {
-        actions: [
-          {
-            action_id: actionId,
-            action_type: "SIGN",
-            // Zoho requires at least one signer field before submit; add a signature field.
-            // Coordinates are in percentage-like units used by Zoho APIs (x_value/y_value/width/height).
-            // This places the signature near the bottom-right of page 1 (page_no=0) by default.
-            fields: [
-              {
-                field_type_name: "Signature",
-                action_id: actionId,
-                document_id: documentId,
-                field_name: "Signature",
-                field_label: "Signature",
-                field_category: "image",
-                page_no: 0,
-                x_value: "68.5",
-                y_value: "84.0",
-                width: "22.0",
-                height: "2.5",
-              },
-            ],
-          },
-        ],
-      },
-    }),
-  })
-
-  const submitRes = await fetch(`${base}/api/v1/requests/${encodeURIComponent(requestId)}/submit`, {
-    method: "POST",
-    headers: {
-      Authorization: `Zoho-oauthtoken ${accessToken}`,
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: submitBody.toString(),
-  })
-
-  if (!submitRes.ok) {
-    const t = await submitRes.text()
-    throw new Error(`Zoho Sign submit failed: ${submitRes.status} ${t}`)
-  }
-
-  // Generate the embedded signing URL (valid for 2 minutes)
-  const host = appUrl || new URL(params.returnUrl).origin
-  const embedBody = new URLSearchParams({ host })
-
-  const embedRes = await fetch(
-    `${base}/api/v1/requests/${encodeURIComponent(requestId)}/actions/${encodeURIComponent(actionId)}/embedtoken`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Zoho-oauthtoken ${accessToken}`,
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: embedBody.toString(),
-    }
-  )
-
-  const embedText = await embedRes.text()
-  const embedJson = (() => {
-    try {
-      return JSON.parse(embedText) as ZohoEmbedTokenResponse
-    } catch {
-      return {} as ZohoEmbedTokenResponse
-    }
-  })()
-
-  if (!embedRes.ok || embedJson.status !== "success" || !embedJson.sign_url) {
-    throw new Error(
-      `Zoho Sign embedtoken failed: ${embedRes.status} ${embedJson.message || embedText || "Unknown error"}`
-    )
-  }
-
-  return { signingUrl: embedJson.sign_url, requestId, actionId }
-}
 

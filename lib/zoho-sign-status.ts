@@ -23,6 +23,7 @@ export type SendAgreementPayload = {
   email: string;
   user_id?: string;
   project_id?: string;
+  host?: string;
 };
 
 export type SendAgreementResult = {
@@ -36,7 +37,7 @@ export type SendAgreementResult = {
 };
 
 const statusLabelMap: Record<ZohoSignDbStatus, string> = {
-  sent: "Pending",
+  sent: "Ready to Sign",
   viewed: "Viewed",
   signed: "Signed ✅",
   completed: "Completed 🎉",
@@ -54,52 +55,42 @@ export async function sendAgreement(payload: SendAgreementPayload): Promise<Send
     ...payload,
     email: payload.email?.trim().toLowerCase() || payload.email,
   };
+
   const { data, error } = await supabaseBrowser.functions.invoke("send-agreement", { body });
 
-  if (data && typeof data === "object" && "success" in data && (data as { success?: boolean }).success === false) {
-    const d = data as { stage?: string; message?: string };
-    const msg = d.message || "send-agreement failed";
-    throw new Error(d.stage ? `[${d.stage}] ${msg}` : msg);
+  // 2xx with success:false
+  if (data && typeof data === "object" && (data as { success?: boolean }).success === false) {
+    const d = data as { stage?: string; message?: string; details?: unknown };
+    const stage = d.stage ? `[${d.stage}] ` : "";
+    const details = d.details && typeof d.details === "object" ? ` ${JSON.stringify(d.details)}` : "";
+    throw new Error(`${stage}${d.message || "send-agreement failed"}${details}`);
   }
 
-  if (!error && data?.success) {
+  // 2xx success
+  if (!error && data && (data as { success?: boolean }).success) {
     return data as SendAgreementResult;
   }
 
+  // non-2xx — Supabase SDK returns FunctionsHttpError; body may already be consumed
   if (error) {
-    const context = (error as Error & { context?: Response }).context;
-    if (context) {
-      let parsedBody:
-        | {
-            success?: boolean;
-            stage?: string;
-            message?: string;
-            details?: unknown;
-          }
-        | null = null;
+    // Try to read raw body from the error context (FunctionsHttpError)
+    type FuncError = Error & { context?: Response; status?: number };
+    const fe = error as FuncError;
+    if (fe.context instanceof Response) {
       try {
-        const text = await context.text();
-        parsedBody = JSON.parse(text) as {
-          success?: boolean;
-          stage?: string;
-          message?: string;
-          details?: unknown;
-        };
-      } catch {
-        // ignore parse errors
-      }
-
-      if (parsedBody) {
-        const stageText = parsedBody.stage ? `[${parsedBody.stage}] ` : "";
-        const detailsText =
-          parsedBody.details && typeof parsedBody.details === "object" ? ` ${JSON.stringify(parsedBody.details)}` : "";
-        const composedMessage = `${stageText}${parsedBody.message || error.message || "send-agreement failed"}${detailsText}`;
-        throw new Error(composedMessage);
+        const text = await fe.context.clone().text();
+        const parsed = JSON.parse(text) as { success?: boolean; stage?: string; message?: string; details?: unknown };
+        const stage = parsed.stage ? `[${parsed.stage}] ` : "";
+        const details = parsed.details && typeof parsed.details === "object" ? ` ${JSON.stringify(parsed.details)}` : "";
+        throw new Error(`${stage}${parsed.message || fe.message || "send-agreement failed"}${details}`);
+      } catch (inner) {
+        if (inner instanceof Error && inner !== error) throw inner;
       }
     }
+    throw new Error(fe.message || "send-agreement failed");
   }
 
-  throw new Error(error?.message || "Failed to call send-agreement");
+  throw new Error("send-agreement: unexpected empty response");
 }
 
 export async function fetchZohoSignStatus(params: {

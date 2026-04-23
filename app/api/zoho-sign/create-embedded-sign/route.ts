@@ -4,7 +4,6 @@ import { createClient } from "@supabase/supabase-js"
 import { getSupabaseUrl } from "@/lib/supabase-env"
 import {
   createZohoEmbeddedSigningFromTemplate,
-  createZohoEmbeddedSigningSession,
   createZohoEmbeddedSigningUrlForExistingRequest,
 } from "@/lib/zoho-sign-embedded"
 
@@ -47,21 +46,17 @@ export async function POST(req: NextRequest) {
           returnUrl,
           publicOrigin: appUrl,
         })
-      : templateId
-        ? await createZohoEmbeddedSigningFromTemplate({
-            templateId,
-            email,
-            name,
-            returnUrl,
-            publicOrigin: appUrl,
-          })
-      : await createZohoEmbeddedSigningSession({
+      : await createZohoEmbeddedSigningFromTemplate({
+          templateId: templateId || process.env.ZOHO_SIGN_TEMPLATE_ID || "",
           email,
           name,
-          clientUserId: applicantId,
           returnUrl,
           publicOrigin: appUrl,
         })
+
+    if (!templateId && !existingRequestId && !process.env.ZOHO_SIGN_TEMPLATE_ID) {
+      console.warn("[zoho-sign/create-embedded-sign] No template ID provided and ZOHO_SIGN_TEMPLATE_ID not set")
+    }
 
     // Record the request so the Zoho webhook can update status on completion.
     const supabaseUrl = getSupabaseUrl()

@@ -9,6 +9,7 @@ type SendAgreementInput = {
   email?: string;
   user_id?: string | null;
   project_id?: string | null;
+  host?: string | null;
 };
 
 type ZohoTokenResponse = {
@@ -39,6 +40,8 @@ type ZohoCreateFromTemplateResponse = {
     document_ids?: Array<{ document_id?: string }>;
     document_id?: string;
     actions?: Array<{
+      action_id?: string;
+      action_type?: string;
       recipient_email?: string;
       action_url?: string;
       sign_url?: string;
@@ -90,6 +93,17 @@ function fail(stage: ErrorStage, message: string, status: number, details?: unkn
 
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
+}
+
+/**
+ * Resolve the HTTPS host used for the Zoho embedtoken call.
+ * Priority: client-supplied HTTPS host → ZOHO_SIGN_EMBED_HOST secret → empty (skip embedtoken).
+ */
+function getEffectiveEmbedHost(requestedHost: string): string {
+  if (/^https:\/\//i.test(requestedHost)) return requestedHost.replace(/\/$/, "");
+  const secret = (Deno.env.get("ZOHO_SIGN_EMBED_HOST") || "").trim().replace(/\/$/, "");
+  if (/^https:\/\//i.test(secret)) return secret;
+  return "";
 }
 
 function isValidEmail(email: string): boolean {
@@ -245,6 +259,7 @@ serve(async (req) => {
   const email = normalizeEmail(body.email || "");
   const userId = body.user_id?.trim() || null;
   const projectId = body.project_id?.trim() || null;
+  const host = (body.host || "").trim().replace(/\/$/, "");
 
   if (!name || !email) {
     return fail("request_validation", "name and email are required", 400);
@@ -270,22 +285,80 @@ serve(async (req) => {
   }
 
   if (existingRows && existingRows.length > 0) {
-    const first = existingRows[0];
-    return fail(
-      "duplicate_email",
-      "This email already has an onboarding agreement on file. Each address can only be used once unless the prior request was declined.",
-      409,
-      {
-        existing_request_id: first?.request_id,
-        status: first?.status,
-      },
-    );
+    const existing = existingRows[0];
+    const existingRequestId = (existing?.request_id as string | undefined)?.trim() || "";
+    let embeddedSigningUrl: string | null = null;
+
+    const effectiveHostExisting = getEffectiveEmbedHost(host);
+    console.log("[send-agreement] existing request re-embed host", { raw: host, effective: effectiveHostExisting });
+
+    if (existingRequestId && effectiveHostExisting) {
+      try {
+        const tokenResult = await fetchZohoAccessToken();
+        if (tokenResult.ok && tokenResult.accessToken) {
+          const token = tokenResult.accessToken;
+          for (const candidateBase of getZohoApiBaseCandidates()) {
+            try {
+              const getRes = await zohoRequest(candidateBase, `/api/v1/requests/${encodeURIComponent(existingRequestId)}`, token);
+              const getJson = JSON.parse(await getRes.text()) as {
+                status?: string;
+                requests?: { actions?: Array<{ action_id?: string; action_type?: string }> };
+              };
+              if (!getRes.ok || getJson.status !== "success") continue;
+              const reqActions = getJson.requests?.actions || [];
+              const actionId =
+                (reqActions.find((a) => (a.action_type || "").toUpperCase() === "SIGN") || reqActions[0])?.action_id?.trim() || "";
+              if (!actionId) continue;
+              const embedRes = await zohoRequest(
+                candidateBase,
+                `/api/v1/requests/${encodeURIComponent(existingRequestId)}/actions/${encodeURIComponent(actionId)}/embedtoken`,
+                token,
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                  body: new URLSearchParams({ host: effectiveHostExisting }).toString(),
+                },
+              );
+              const embedText = await embedRes.text();
+              const embedJson = JSON.parse(embedText) as { status?: string; sign_url?: string };
+              console.log("[send-agreement] existing request embedtoken", { status: embedRes.status, body: embedText.slice(0, 300) });
+              if (embedJson.status === "success" && embedJson.sign_url?.trim()) {
+                embeddedSigningUrl = embedJson.sign_url.trim();
+                await supabase
+                  .from("zoho_sign_requests")
+                  .update({ signing_url: embeddedSigningUrl, updated_at: new Date().toISOString() })
+                  .eq("request_id", existingRequestId);
+                break;
+              }
+            } catch { continue; }
+          }
+        }
+      } catch (e) {
+        console.warn("[send-agreement] re-embed for existing request failed", e);
+      }
+    }
+
+    console.log("[send-agreement] returning existing request, signing_url:", embeddedSigningUrl ? "set" : "null");
+
+    return jsonResponse({
+      success: true,
+      request_id: existingRequestId,
+      status: (existing?.status as string) || "sent",
+      email,
+      name,
+      signing_url: embeddedSigningUrl,
+    });
   }
 
   const templateName = "Onboarding Agreement";
   const templateId = getEnv("ZOHO_SIGN_TEMPLATE_ID");
   const zohoApiBases = getZohoApiBaseCandidates();
-
+  // Log template usage
+  console.log(\"[send-agreement] using template-based signing\", {
+    templateId: templateId ? `${templateId.slice(0, 8)}***` : \"missing\",
+    templateName,
+    zohoApiBases: zohoApiBases.map(u => new URL(u).hostname),
+  });
   let accessToken = "";
   try {
     const tokenResult = await fetchZohoAccessToken();
@@ -416,12 +489,20 @@ serve(async (req) => {
           recipient_name: name,
           recipient_email: email,
           verify_recipient: false,
-          verification_type: "EMAIL",
-          is_embedded: false,
+          is_embedded: true,
         },
       ],
     },
   };
+
+  console.log("[send-agreement] zoho template payload", {
+    templateId: templateId ? `${templateId.slice(0, 8)}***` : "missing",
+    requestName: zohoPayload.templates.request_name,
+    signerActionId: signerActionId ? `${signerActionId.slice(0, 8)}***` : "missing",
+    recipientEmail: email,
+    isEmbedded: zohoPayload.templates.actions[0].is_embedded,
+    apiEndpoint: `/api/v1/templates/{templateId}/createdocument?is_quicksend=true`,
+  });
 
   let zohoJson: ZohoCreateFromTemplateResponse = {};
   try {
@@ -472,11 +553,46 @@ serve(async (req) => {
     (typeof docIds[0]?.document_id === "string" && docIds[0].document_id.trim()) ||
     null;
   const actions = Array.isArray(reqBlock.actions) ? reqBlock.actions : [];
-  const firstAction = actions[0] || {};
-  const signingUrl =
-    (typeof firstAction.sign_url === "string" && firstAction.sign_url.trim()) ||
-    (typeof firstAction.action_url === "string" && firstAction.action_url.trim()) ||
+  const signerAction =
+    actions.find((a) => (a.action_type || "").toUpperCase() === "SIGN") || actions[0] || {};
+  const signerActionIdFromResponse = (typeof signerAction.action_id === "string" && signerAction.action_id.trim()) || "";
+
+  // Attempt embedded signing URL via embedtoken
+  let signingUrl: string | null =
+    (typeof signerAction.sign_url === "string" && signerAction.sign_url.trim()) ||
+    (typeof signerAction.action_url === "string" && signerAction.action_url.trim()) ||
     null;
+
+  const effectiveHost = getEffectiveEmbedHost(host);
+  console.log("[send-agreement] new request embed host", { raw: host, effective: effectiveHost, hasActionId: Boolean(signerActionIdFromResponse) });
+
+  if (effectiveHost && signerActionIdFromResponse) {
+    try {
+      const embedRes = await zohoRequest(
+        activeZohoBase,
+        `/api/v1/requests/${encodeURIComponent(requestId)}/actions/${encodeURIComponent(signerActionIdFromResponse)}/embedtoken`,
+        accessToken,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({ host: effectiveHost }).toString(),
+        },
+      );
+      const embedText = await embedRes.text();
+      let embedJson: { status?: string; sign_url?: string } = {};
+      try { embedJson = JSON.parse(embedText); } catch { /* ignore */ }
+      console.log("[send-agreement] new request embedtoken", { status: embedRes.status, body: embedText.slice(0, 300) });
+      if (embedJson.status === "success" && embedJson.sign_url?.trim()) {
+        signingUrl = embedJson.sign_url.trim();
+      } else {
+        console.warn("[send-agreement] embedtoken failed", { status: embedRes.status, body: embedText.slice(0, 200) });
+      }
+    } catch (embedErr) {
+      console.warn("[send-agreement] embedtoken exception", embedErr);
+    }
+  }
+
+  console.log("[send-agreement] signing_url:", signingUrl ? "set" : "null");
 
   try {
     const nowIso = new Date().toISOString();
@@ -527,5 +643,6 @@ serve(async (req) => {
     status: "sent",
     email,
     name,
+    signing_url: signingUrl,
   });
 });

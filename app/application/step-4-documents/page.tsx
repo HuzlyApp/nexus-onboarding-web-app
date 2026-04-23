@@ -61,6 +61,7 @@ export default function DocumentsPage() {
   const [envelopeId, setEnvelopeId] = useState<string | null>(null)
   const [isSigned, setIsSigned] = useState(false)
   const [signingCompleteManual, setSigningCompleteManual] = useState(false)
+  const [signingPopupOpened, setSigningPopupOpened] = useState(false)
   const [signingStatus, setSigningStatus] = useState<ZohoSignDbStatus>("sent")
   /** Email already has a non-declined onboarding Zoho row — do not call send-agreement again. */
   const [onboardingAgreementLocked, setOnboardingAgreementLocked] = useState(false)
@@ -198,10 +199,6 @@ export default function DocumentsPage() {
       setError("Please agree to the authorization first.")
       return
     }
-    if (onboardingAgreementLocked && !effectiveSigned) {
-      setError("This email already has an onboarding agreement. Use Preview below or check your inbox for Zoho’s sign link.")
-      return
-    }
     if (!signerEmail || !signerName) {
       setError("Missing your name or email. Complete Step 1 (review your profile) first.")
       return
@@ -213,26 +210,60 @@ export default function DocumentsPage() {
     setSigningCompleteManual(false)
 
     try {
+      // Use the production HTTPS URL as the embedtoken host so it works on localhost too.
+      // NEXT_PUBLIC_APP_URL should be your deployed HTTPS origin (e.g. https://nexusmedpro.com).
+      const embedHost =
+        (process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/$/, "") || window.location.origin
+
       const data = await sendAgreement({
         name: signerName,
         email: signerEmail.trim().toLowerCase(),
         user_id: applicantId,
         project_id: "onboarding",
+        host: embedHost,
       })
 
-      setSigningUrl(data.signing_url || null)
       setEnvelopeId(data.request_id)
       setSigningStatus(data.status || "sent")
-      setSigningCompleteManual(!data.signing_url)
       localStorage.setItem("signingRequestId", data.request_id)
       setOnboardingAgreementLocked(true)
+
+      // Environment detection: use window.open() on localhost, modal iframe on production
+      // Zoho frequently blocks iframe embedding on localhost, so we use a popup instead
+      const isLocalhost =
+        window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+
+      if (data.signing_url) {
+        if (isLocalhost) {
+          // Localhost: open signing URL in new tab/window to avoid iframe issues
+          console.log("[step-4] Opening Zoho signing in new tab (localhost environment)")
+          window.open(data.signing_url, "_blank", "noopener,noreferrer,width=1024,height=800")
+          setSigningPopupOpened(true)
+          setSigningCompleteManual(false)
+        } else {
+          // Production: show embedded signing modal with iframe
+          console.log("[step-4] Opening Zoho signing modal (production environment)")
+          setSigningUrl(data.signing_url)
+          setSigningPopupOpened(false)
+          setSigningCompleteManual(false)
+        }
+      } else {
+        setSigningUrl(null)
+        setSigningPopupOpened(false)
+        setSigningCompleteManual(true)
+        setError(
+          "Could not generate embedded signing URL. " +
+          "Set NEXT_PUBLIC_APP_URL=https://yourdomain.com in .env.local " +
+          "or set ZOHO_SIGN_EMBED_HOST in Supabase secrets."
+        )
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Signing setup failed"
       setError(message)
     } finally {
       setSigningLoading(false)
     }
-  }, [agreed, applicantId, effectiveSigned, onboardingAgreementLocked, signerEmail, signerName])
+  }, [agreed, applicantId, signerEmail, signerName])
 
   const refreshSigningStatus = useCallback(async () => {
     const email = signerEmail.trim().toLowerCase()
@@ -620,14 +651,6 @@ export default function DocumentsPage() {
             <span className="text-slate-800 font-medium">I Agree to the Authorization</span>
           </label>
 
-          {onboardingAgreementLocked && !effectiveSigned && (
-            <p className="mb-4 text-sm text-slate-600 -mt-4">
-              An onboarding agreement is already on file for this email. You cannot send another until the prior
-              request is declined. Use <span className="font-medium">Preview document</span> below or check your inbox
-              for Zoho&apos;s sign link.
-            </p>
-          )}
-
           <div className="rounded-3xl border border-[#0D9488] bg-[#f0fffe] p-6 shadow-sm mb-8">
             <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-4 min-w-0">
@@ -652,9 +675,9 @@ export default function DocumentsPage() {
                     }
                     void startSigning()
                   }}
-                  disabled={signingLoading || !agreed || (onboardingAgreementLocked && !effectiveSigned)}
+                  disabled={signingLoading || !agreed}
                   className={`rounded-xl px-5 py-2 text-[12px] font-semibold text-white transition ${
-                    signingLoading || !agreed || (onboardingAgreementLocked && !effectiveSigned)
+                    signingLoading || !agreed
                       ? "bg-gray-400 cursor-not-allowed"
                       : "bg-[#0D9488] hover:bg-[#0b7a70]"
                   }`}
@@ -695,34 +718,51 @@ export default function DocumentsPage() {
               </div>
             )}
 
-            {signingCompleteManual && (
-              <p className="mt-1 text-xs text-slate-500">
-                Check your email and click Zoho&apos;s official &ldquo;Click to Sign&rdquo; button.
+            {signingPopupOpened && (
+              <p className="mt-2 text-xs text-slate-500">
+                A signing window has been opened — complete your signature there, then return here.
               </p>
             )}
 
+            {/* Fullscreen Modal for Embedded Signing */}
             {signingUrl && (
-              <div className="mt-5 border border-slate-200 rounded-3xl overflow-hidden bg-white">
-                <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-2.5">
-                  <p className="text-xs font-semibold text-slate-700">
-                    Sign in this window (Type / Draw / Upload options are available)
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setSigningUrl(null)}
-                    className="rounded-md border border-slate-300 px-2.5 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-100"
-                  >
-                    Close
-                  </button>
+              <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+                <div className="relative w-full max-w-6xl h-[90vh] sm:h-[95vh] bg-white rounded-xl overflow-hidden shadow-2xl flex flex-col">
+                  {/* Modal Header */}
+                  <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 sm:px-6 sm:py-4 flex-shrink-0">
+                    <div>
+                      <p className="text-sm sm:text-base font-semibold text-slate-900">Sign Agreement</p>
+                      <p className="text-xs text-slate-500 mt-0.5">Use Type, Draw, or Upload to sign</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSigningUrl(null)}
+                      className="inline-flex items-center justify-center h-9 w-9 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-100 transition flex-shrink-0"
+                      aria-label="Close signing modal"
+                    >
+                      <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                  </div>
+
+                  {/* Modal Content - Iframe Container */}
+                  <div className="flex-1 overflow-hidden bg-slate-50">
+                    <iframe
+                      title="Zoho Sign - Embedded Signing"
+                      src={signingUrl}
+                      className="w-full h-full border-0"
+                      allow="clipboard-write; camera; microphone; fullscreen; payment; geolocation; accelerometer; gyroscope"
+                    />
+                  </div>
+
+                  {/* Modal Footer */}
+                  <div className="border-t border-slate-200 bg-white px-4 py-3 sm:px-6 sm:py-4 flex-shrink-0">
+                    <p className="text-xs text-slate-500">
+                      Complete your signature above, then the modal will close automatically upon signing completion.
+                    </p>
+                  </div>
                 </div>
-                <iframe
-                  title="Sign document"
-                  src={signingUrl}
-                  width="100%"
-                  height="520"
-                  allow="clipboard-write; camera; microphone"
-                  className="min-h-[520px] w-full"
-                />
               </div>
             )}
           </div>
