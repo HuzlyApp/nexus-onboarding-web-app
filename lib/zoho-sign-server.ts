@@ -111,8 +111,11 @@ async function refreshZohoAccessToken(): Promise<string> {
 }
 
 export function zohoSignApiBaseCandidates(): string[] {
-  const configuredBase = envValue("ZOHO_SIGN_API_BASE", "ZOHO_SIGN_BASE_URL");
-  return [...new Set([configuredBase, "https://sign.zoho.com", "https://www.zoho.com"].filter(Boolean))];
+  const configuredBaseRaw = envValue("ZOHO_SIGN_API_BASE", "ZOHO_SIGN_BASE_URL");
+  const configuredBase = /^https?:\/\/www\.zoho\.com\/?$/i.test(configuredBaseRaw)
+    ? "https://sign.zoho.com"
+    : configuredBaseRaw;
+  return [...new Set([configuredBase, "https://sign.zoho.com"].filter(Boolean))];
 }
 
 export type ZohoSignDbStatus = "sent" | "viewed" | "signed" | "completed" | "declined";

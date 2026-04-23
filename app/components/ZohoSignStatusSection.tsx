@@ -85,7 +85,7 @@ export default function ZohoSignStatusSection({
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-4">
       <h3 className="text-lg font-semibold text-slate-900">Sign your agreement</h3>
-      <p className="mt-2 text-sm text-slate-600">[ Check your email to sign ]</p>
+      <p className="mt-2 text-sm text-slate-600">Sign directly in this app using the embedded signing window.</p>
 
       {!requestId ? (
         <button
@@ -94,7 +94,7 @@ export default function ZohoSignStatusSection({
           disabled={sending}
           className="mt-4 inline-flex h-10 items-center justify-center rounded-lg bg-[#0D9488] px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {sending ? "Sending..." : "Send agreement email"}
+          {sending ? "Preparing signing session..." : "Review & Sign"}
         </button>
       ) : null}
 

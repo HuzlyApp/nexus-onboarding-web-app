@@ -11,7 +11,7 @@ const corsHeaders = {
 };
 
 const statusEventMatchers: Array<{ status: string; patterns: RegExp[] }> = [
-  { status: "sent", patterns: [/request_sent/, /\bsent\b/, /document_sent/, /quicksend/] },
+  { status: "sent", patterns: [/request_sent/, /\bsent\b/, /document_sent/, /quicksend/, /reassigned/] },
   { status: "viewed", patterns: [/request_viewed/, /action_viewed/, /document_viewed/, /\bviewed\b/] },
   {
     status: "signed",
@@ -31,22 +31,6 @@ const statusEventMatchers: Array<{ status: string; patterns: RegExp[] }> = [
   },
   { status: "declined", patterns: [/request_declined/, /document_declined/, /\bdeclined\b/, /\brejected\b/] },
 ];
-
-async function debugLog(runId: string, hypothesisId: string, location: string, message: string, data: unknown) {
-  fetch("http://127.0.0.1:7276/ingest/dacf9d73-75a8-49ea-93d6-df26fc921e6d", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "3f1178" },
-    body: JSON.stringify({
-      sessionId: "3f1178",
-      runId,
-      hypothesisId,
-      location,
-      message,
-      data,
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-}
 
 function jsonResponse(payload: unknown, status = 200): Response {
   return new Response(JSON.stringify(payload), { status, headers: corsHeaders });
@@ -82,7 +66,6 @@ function getEventType(body: JsonObject): string | null {
     requestObj.request_status,
     body.status,
   ];
-
   for (const value of candidates) {
     if (typeof value === "string" && value.trim()) {
       return value.trim();
@@ -102,7 +85,6 @@ function mapZohoEventToStatus(eventType: string | null): string | null {
   return null;
 }
 
-/** Map Zoho `requests.request_status` (API + webhook) to our row status. */
 function mapRequestStatusField(value: string | null): string | null {
   if (!value) return null;
   const s = value.trim().toLowerCase().replace(/\s+/g, "_");
@@ -111,7 +93,7 @@ function mapRequestStatusField(value: string | null): string | null {
   if (s.includes("expir")) return "declined";
   if (s.includes("view")) return "viewed";
   if ((/\bsigned\b/.test(s) || s.includes("partially_signed")) && !s.includes("unsigned")) return "signed";
-  if (/progress|pending|sent|draft/.test(s)) return "sent";
+  if (/progress|pending|sent|draft|reassign/.test(s)) return "sent";
   return null;
 }
 
@@ -179,6 +161,21 @@ function getRecipientEmail(body: JsonObject): string | null {
   return null;
 }
 
+function getActionId(body: JsonObject): string | null {
+  const requestObj = toJsonObject(body.requests);
+  const actions = Array.isArray(requestObj.actions) ? requestObj.actions : [];
+  for (const action of actions) {
+    const actionId = toJsonObject(action).action_id;
+    if (typeof actionId === "string" && actionId.trim()) return actionId.trim();
+  }
+  const n = getNotificationBlock(body);
+  const direct = [n?.action_id, body.action_id];
+  for (const value of direct) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return null;
+}
+
 async function parsePayload(rawBody: string, contentType: string): Promise<JsonObject> {
   if (contentType.includes("application/x-www-form-urlencoded")) {
     const params = new URLSearchParams(rawBody);
@@ -192,7 +189,6 @@ async function parsePayload(rawBody: string, contentType: string): Promise<JsonO
     }
     return Object.fromEntries(params.entries());
   }
-
   try {
     return JSON.parse(rawBody || "{}") as JsonObject;
   } catch {
@@ -257,47 +253,20 @@ async function verifyWebhook(req: Request, rawBody: string): Promise<{ ok: boole
 }
 
 serve(async (req) => {
-  // #region agent log
-  void debugLog(
-    "webhook-run1",
-    "H1",
-    "supabase/functions/zoho-webhook/index.ts:entry",
-    "zoho-webhook request received",
-    {
-      method: req.method,
-      contentType: req.headers.get("content-type"),
-      hasSignature: Boolean(req.headers.get("x-zoho-signature") || req.headers.get("x-zoho-hmac-signature")),
-      hasWebhookSecretHeader: Boolean(req.headers.get("x-zoho-webhook-secret")),
-      userAgent: req.headers.get("user-agent"),
-    },
-  );
-  // #endregion
-
   if (req.method === "OPTIONS") {
-    // #region agent log
-    void debugLog(
-      "webhook-run1",
-      "H2",
-      "supabase/functions/zoho-webhook/index.ts:options",
-      "preflight request handled",
-      {},
-    );
-    // #endregion
     return new Response("ok", { headers: corsHeaders });
   }
 
   if (req.method !== "POST") {
-    // #region agent log
-    void debugLog(
-      "webhook-run1",
-      "H2",
-      "supabase/functions/zoho-webhook/index.ts:method_not_allowed",
-      "non-POST request rejected",
-      { method: req.method },
-    );
-    // #endregion
     return jsonResponse({ ok: false, error: "Method not allowed" }, 405);
   }
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")?.trim();
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")?.trim();
+  if (!supabaseUrl || !serviceKey) {
+    return jsonResponse({ ok: false, error: "Missing Supabase service role configuration" }, 500);
+  }
+  const supabase = createClient(supabaseUrl, serviceKey);
 
   const rawBody = await req.text();
   const contentType = req.headers.get("content-type") || "";
@@ -306,28 +275,7 @@ serve(async (req) => {
   const eventType = getEventType(payload);
   const mappedStatus = resolveMappedStatus(payload) ?? mapZohoEventToStatus(eventType);
   const recipientEmail = getRecipientEmail(payload);
-
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")?.trim();
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")?.trim();
-  const hasDbAccess = Boolean(supabaseUrl && serviceKey);
-  const supabase = hasDbAccess ? createClient(supabaseUrl!, serviceKey!) : null;
-
-  // #region agent log
-  void debugLog(
-    "webhook-run1",
-    "H3",
-    "supabase/functions/zoho-webhook/index.ts:parsed",
-    "request parsed and identifiers extracted",
-    {
-      rawBodyLength: rawBody.length,
-      hasDbAccess,
-      requestId,
-      eventType,
-      mappedStatus,
-      recipientEmail,
-    },
-  );
-  // #endregion
+  const actionId = getActionId(payload);
 
   const verification = await verifyWebhook(req, rawBody);
   const receivedAtIso = new Date().toISOString();
@@ -337,68 +285,34 @@ serve(async (req) => {
     `${requestId || "no-request-id"}:${eventType || "no-event"}:${receivedAtIso}`;
   const eventId = await sha256Hex(eventIdSeed);
 
-  // #region agent log
-  void debugLog(
-    "webhook-run1",
-    "H4",
-    "supabase/functions/zoho-webhook/index.ts:verification",
-    "webhook verification result",
-    {
-      verificationOk: verification.ok,
-      reason: verification.reason,
-      eventId,
-    },
-  );
-  // #endregion
-
   try {
-    if (supabase) {
-      await supabase.from("zoho_webhook_events").upsert(
-        {
-          event_id: eventId,
-          method: req.method,
-          path: new URL(req.url).pathname,
-          query: Object.fromEntries(new URL(req.url).searchParams.entries()),
-          headers: {
-            "content-type": req.headers.get("content-type"),
-            "x-zoho-signature": req.headers.get("x-zoho-signature"),
-            "x-zoho-webhook-secret": req.headers.get("x-zoho-webhook-secret") ? "***" : null,
-          },
-          payload,
-          raw_body: rawBody,
-          processed: false,
-          processing_error: verification.ok ? null : verification.reason,
+    await supabase.from("zoho_webhook_events").upsert(
+      {
+        event_id: eventId,
+        method: req.method,
+        path: new URL(req.url).pathname,
+        query: Object.fromEntries(new URL(req.url).searchParams.entries()),
+        headers: {
+          "content-type": req.headers.get("content-type"),
+          "x-zoho-signature": req.headers.get("x-zoho-signature"),
+          "x-zoho-webhook-secret": req.headers.get("x-zoho-webhook-secret") ? "***" : null,
         },
-        { onConflict: "event_id", ignoreDuplicates: false },
-      );
-    }
+        payload,
+        raw_body: rawBody,
+        processed: false,
+        processing_error: verification.ok ? null : verification.reason,
+      },
+      { onConflict: "event_id", ignoreDuplicates: false },
+    );
   } catch (loggingError) {
     console.error("[zoho-webhook] failed to persist raw event", loggingError);
   }
 
   if (!verification.ok) {
-    console.warn("[zoho-webhook] webhook verification failed:", verification.reason);
-    // #region agent log
-    void debugLog(
-      "webhook-run1",
-      "H4",
-      "supabase/functions/zoho-webhook/index.ts:verification_failed_return",
-      "returning 200 with accepted=false due to verification failure",
-      { reason: verification.reason },
-    );
-    // #endregion
-    return jsonResponse({
-      ok: true,
-      accepted: false,
-      reason: verification.reason,
-    });
+    return jsonResponse({ ok: true, accepted: false, reason: verification.reason });
   }
 
   try {
-    if (!supabase) {
-      throw new Error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
-    }
-
     if (requestId) {
       const updatePayload: JsonObject = {
         raw_webhook_payload: payload,
@@ -406,22 +320,20 @@ serve(async (req) => {
       };
       if (mappedStatus) updatePayload.status = mappedStatus;
       if (recipientEmail) updatePayload.email = recipientEmail;
+      if (actionId) updatePayload.action_id = actionId;
 
       const { data: updatedRows, error: updateError } = await supabase
         .from("zoho_sign_requests")
         .update(updatePayload)
         .eq("request_id", requestId)
-        .select("request_id");
+        .select("request_id,user_id,onboarding_id,project_id");
 
-      if (updateError) {
-        throw updateError;
-      }
+      if (updateError) throw updateError;
 
-      // If webhook arrives before send-agreement persistence, create a minimal row
-      // so frontend status tracking can still resolve this request_id.
       if (!updatedRows || updatedRows.length === 0) {
         const insertPayload: JsonObject = {
           request_id: requestId,
+          action_id: actionId,
           status: mappedStatus || "sent",
           raw_webhook_payload: payload,
           updated_at: receivedAtIso,
@@ -432,16 +344,37 @@ serve(async (req) => {
         const { error: insertError } = await supabase
           .from("zoho_sign_requests")
           .upsert(insertPayload, { onConflict: "request_id", ignoreDuplicates: false });
+        if (insertError) throw insertError;
+      }
 
-        if (insertError) {
-          throw insertError;
-        }
+      if (mappedStatus) {
+        const { data: agreementContext } = await supabase
+          .from("zoho_sign_requests")
+          .select("user_id,onboarding_id,project_id")
+          .eq("request_id", requestId)
+          .maybeSingle();
+
+        const applicantId =
+          (agreementContext?.user_id as string | null) ||
+          (agreementContext?.onboarding_id as string | null) ||
+          (agreementContext?.project_id as string | null) ||
+          null;
+
+        await supabase.from("agreements").upsert(
+          {
+            request_id: requestId,
+            applicant_id: applicantId,
+            status: mappedStatus,
+            updated_at: receivedAtIso,
+          },
+          { onConflict: "request_id", ignoreDuplicates: false },
+        );
       }
     } else {
       console.warn("[zoho-webhook] request_id missing in payload");
     }
 
-    const { error: markProcessedError } = await supabase
+    await supabase
       .from("zoho_webhook_events")
       .update({
         processed: true,
@@ -449,49 +382,22 @@ serve(async (req) => {
         processing_error: null,
       })
       .eq("event_id", eventId);
-    if (markProcessedError) {
-      console.warn("[zoho-webhook] could not mark event processed:", markProcessedError.message);
-    }
   } catch (processingError) {
     console.error("[zoho-webhook] processing failed", processingError);
-    // #region agent log
-    void debugLog(
-      "webhook-run1",
-      "H5",
-      "supabase/functions/zoho-webhook/index.ts:processing_error",
-      "processing failed but function will still return 200",
-      {
-        error:
-          processingError instanceof Error ? processingError.message : String(processingError),
-      },
-    );
-    // #endregion
-    if (supabase) {
-      const { error: logErr } = await supabase
-        .from("zoho_webhook_events")
-        .update({
-          processed: false,
-          processed_at: receivedAtIso,
-          processing_error:
-            processingError instanceof Error ? processingError.message : String(processingError),
-        })
-        .eq("event_id", eventId);
-      if (logErr) console.warn("[zoho-webhook] failed to persist processing error:", logErr.message);
-    }
+    await supabase
+      .from("zoho_webhook_events")
+      .update({
+        processed: false,
+        processed_at: receivedAtIso,
+        processing_error: processingError instanceof Error ? processingError.message : String(processingError),
+      })
+      .eq("event_id", eventId);
   }
 
-  // #region agent log
-  void debugLog(
-    "webhook-run1",
-    "H5",
-    "supabase/functions/zoho-webhook/index.ts:final_return",
-    "returning webhook 200 response",
-    { requestId, eventType, mappedStatus, recipientEmail },
-  );
-  // #endregion
   return jsonResponse({
     ok: true,
     request_id: requestId,
+    action_id: actionId,
     event_type: eventType,
     status: mappedStatus,
     recipient_email: recipientEmail,

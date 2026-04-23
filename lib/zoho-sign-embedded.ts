@@ -19,7 +19,10 @@ function accountsHost(): string {
 }
 
 function signApiBase(): string {
-  return (process.env.ZOHO_SIGN_API_BASE || "https://sign.zoho.com").replace(/\/$/, "")
+  const configured = (process.env.ZOHO_SIGN_API_BASE || "").trim().replace(/\/$/, "")
+  if (!configured) return "https://sign.zoho.com"
+  if (/^https?:\/\/www\.zoho\.com$/i.test(configured)) return "https://sign.zoho.com"
+  return configured
 }
 
 async function getAccessToken(): Promise<string> {

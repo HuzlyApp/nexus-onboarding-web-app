@@ -3,6 +3,8 @@
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
 export type ZohoSignDbStatus =
+  | "pending"
+  | "awaiting_signature"
   | "sent"
   | "viewed"
   | "signed"
@@ -11,9 +13,12 @@ export type ZohoSignDbStatus =
 
 export type ZohoSignRequestRecord = {
   request_id: string;
+  action_id: string | null;
   email: string;
   recipient_name: string | null;
   status: ZohoSignDbStatus;
+  sign_url?: string | null;
+  signing_url?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -23,30 +28,39 @@ export type SendAgreementPayload = {
   email: string;
   user_id?: string;
   project_id?: string;
+  onboarding_id?: string;
+  host?: string;
+  request_id?: string;
+  action_id?: string;
 };
 
 export type SendAgreementResult = {
   success: boolean;
   request_id: string;
+  action_id?: string;
+  document_id?: string | null;
   status: ZohoSignDbStatus;
   email: string;
   name: string;
+  sign_url?: string | null;
   signing_url?: string | null;
   zoho_document_id?: string | null;
 };
 
 const statusLabelMap: Record<ZohoSignDbStatus, string> = {
-  sent: "Pending",
-  viewed: "Viewed",
-  signed: "Signed ✅",
-  completed: "Completed 🎉",
-  declined: "Declined ❌",
+  pending: "Ready to Sign",
+  awaiting_signature: "Awaiting Signature",
+  sent: "Ready to Sign",
+  viewed: "In Progress",
+  signed: "Signed",
+  completed: "Completed",
+  declined: "Declined",
 };
 
 export function mapZohoStatusToLabel(status: ZohoSignDbStatus | null | undefined): string {
-  if (!status) return "Pending";
+  if (!status) return "Awaiting signature";
   const normalized = String(status).trim().toLowerCase() as ZohoSignDbStatus;
-  return statusLabelMap[normalized] || "Pending";
+  return statusLabelMap[normalized] || "Awaiting signature";
 }
 
 export async function sendAgreement(payload: SendAgreementPayload): Promise<SendAgreementResult> {
@@ -136,7 +150,7 @@ export async function fetchZohoSignStatus(params: {
     // Fallback to direct client query for environments where server route is unavailable.
     let query = supabaseBrowser
       .from("zoho_sign_requests")
-      .select("request_id,email,recipient_name,status,created_at,updated_at")
+      .select("*")
       .order("updated_at", { ascending: false })
       .limit(1);
     query = requestId ? query.eq("request_id", requestId) : query.eq("email", email!);
