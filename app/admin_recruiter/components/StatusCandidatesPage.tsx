@@ -1,33 +1,19 @@
-// app/admin_recruiter/candidates/page.tsx
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import {
-  Plus,
-  Mail,
-  Phone,
-  MapPin,
-  CalendarDays,
-  Columns2,
-  FileText,
-  Eye,
-  MoreHorizontal,
-  Loader2,
-  Bell,
-  MessageCircle,
-} from "lucide-react";
-import { EditColumnsModal } from "./EditColumnsModal";
+import { Plus, Columns2, Loader2, Bell, MessageCircle } from "lucide-react";
+import { EditColumnsModal } from "../candidates/EditColumnsModal";
 import {
   columnLabel,
   DEFAULT_CANDIDATE_COLUMNS,
   loadColumnOrder,
   saveColumnOrder,
   type CandidateColumnId,
-} from "./column-config";
-import { renderListCell } from "./render-list-cell";
-import type { CandidateRow } from "./types";
+} from "../candidates/column-config";
+import { renderListCell } from "../candidates/render-list-cell";
+import type { CandidateRow } from "../candidates/types";
 
 type WorkerProfile = {
   id: string;
@@ -45,19 +31,17 @@ type WorkerProfile = {
   status?: string | null;
 };
 
-const STATUS_FILTER = ["All", "New", "Pending", "Approved", "Disapproved"] as const;
-type StatusFilter = (typeof STATUS_FILTER)[number];
+type StatusCandidatesPageProps = {
+  fetchUrl: string;
+  statusLabel: string;
+  emptyMessage: string;
+};
 
 function titleCaseStatus(s: string | null | undefined) {
   const v = (s || "").trim();
   if (!v) return "New";
   const low = v.toLowerCase();
   return low.slice(0, 1).toUpperCase() + low.slice(1);
-}
-
-function statusToApiParam(s: StatusFilter): string | null {
-  if (s === "All") return null;
-  return s.toLowerCase();
 }
 
 function initialsFromName(name: string) {
@@ -68,7 +52,6 @@ function initialsFromName(name: string) {
   return (first + last).toUpperCase();
 }
 
-/** Fixed `en-US` locale so SSR and browser produce identical strings (avoids hydration mismatch). */
 function formatDateTime(iso: string | null) {
   if (!iso) return "—";
   const d = new Date(iso);
@@ -99,14 +82,13 @@ function formatDateShort(iso: string | null) {
 
 const PAGE_SIZE = 9;
 
-export default function CandidatesPage() {
+export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: StatusCandidatesPageProps) {
   const [candidates, setCandidates] = useState<CandidateRow[]>([]);
   const [totalFromApi, setTotalFromApi] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadMoreLoading, setLoadMoreLoading] = useState(false);
   const [query, setQuery] = useState("");
   const [typeFilter] = useState("Candidates");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("All");
   const [jobRoleFilter, setJobRoleFilter] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
   const [showFilterRows, setShowFilterRows] = useState(true);
@@ -123,9 +105,7 @@ export default function CandidatesPage() {
   const loadCandidates = useCallback(async () => {
     setLoading(true);
     try {
-      const param = statusToApiParam(statusFilter);
-      const url = param ? `/api/workers?status=${encodeURIComponent(param)}` : "/api/workers";
-      const res = await fetch(url, { cache: "no-store" });
+      const res = await fetch(fetchUrl, { cache: "no-store" });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Failed to fetch workers");
 
@@ -150,7 +130,7 @@ export default function CandidatesPage() {
         zip: item.zip ?? "",
         address1: item.address1 ?? "",
         address2: item.address2 ?? "",
-        status: titleCaseStatus(item.status as string | undefined),
+        status: titleCaseStatus(item.status ?? statusLabel),
         createdAt: item.created_at,
         reference: item.id.slice(0, 7).toUpperCase(),
         dateOfBirth: null,
@@ -165,7 +145,7 @@ export default function CandidatesPage() {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter]);
+  }, [fetchUrl, statusLabel]);
 
   useEffect(() => {
     void loadCandidates();
@@ -213,22 +193,13 @@ export default function CandidatesPage() {
     return out;
   }, [candidates, query, jobRoleFilter, locationFilter]);
 
-  const visibleCards = useMemo(
-    () => filtered.slice(0, visibleCount),
-    [filtered, visibleCount]
-  );
-
-  const totalLabel = useMemo(() => {
-    if (statusFilter === "All") return "applicants";
-    return `${statusFilter} applicants`;
-  }, [statusFilter]);
+  const visibleCards = useMemo(() => filtered.slice(0, visibleCount), [filtered, visibleCount]);
 
   return (
     <div className="flex h-screen bg-[#f3f5f5] overflow-hidden">
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className="sticky top-0 z-30 h-16 border-b border-[#e5ecea] bg-white flex items-center px-6 justify-between shrink-0">
           <div />
-
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-1 text-[#9da9a6]">
               <button type="button" className="p-1.5 rounded-lg hover:bg-zinc-100" aria-label="Messages">
@@ -238,7 +209,6 @@ export default function CandidatesPage() {
                 <Bell className="w-5 h-5" />
               </button>
             </div>
-
             <div className="flex items-center gap-2">
               <div className="text-right hidden sm:block leading-tight">
                 <div className="font-semibold text-sm text-[#2d3a39]">Sean Smith</div>
@@ -303,18 +273,12 @@ export default function CandidatesPage() {
                     Refresh
                   </button>
 
-                  {/* <button
-                    type="button"
-                    className="h-8 inline-flex items-center gap-1.5 border border-[#dce6e3] bg-white hover:bg-zinc-50 px-3 rounded-md transition text-xs text-[#3d4a4a]"
-                  >
-                    Filters
-                  </button> */}
                   <button
                     type="button"
                     onClick={() => setShowFilterRows((v) => !v)}
                     className="h-8 inline-flex items-center gap-1.5 border border-[#dce6e3] bg-white hover:bg-zinc-50 px-3 rounded-md transition text-xs leading-4 font-semibold text-[#3d4a4a]"
                   >
-                  <Image src="/icons/admin-recruiter/candidates/filter.svg" alt="" width={16} height={16} />
+                    <Image src="/icons/admin-recruiter/candidates/filter.svg" alt="" width={16} height={16} />
                     {showFilterRows ? "Hide View" : "View Filters"}
                   </button>
 
@@ -357,71 +321,66 @@ export default function CandidatesPage() {
                       <Image src="/icons/admin-recruiter/candidates/filtered.svg.svg" alt="" width={20} height={20} />
                     </div>
                     <div className="flex flex-wrap items-center gap-4 sm:gap-8">
-                      
-                    <label className="flex items-center gap-3">
-                      <span className="text-[11px] text-[#6f8380] whitespace-nowrap">Type</span>
-                      <select
-                        value={typeFilter}
-                        disabled
-                        className="h-8 text-xs px-2.5 rounded-md border border-[#dce6e3] bg-white text-[#435351] min-w-[120px]"
-                      >
-                        <option>Candidates</option>
-                      </select>
-                    </label>
-                    <label className="flex items-center gap-3">
-                      <span className="text-[11px] text-[#6f8380] whitespace-nowrap">Status</span>
-                      <select
-                        value={statusFilter}
-                        onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-                        className="h-8 text-xs px-2.5 rounded-md border border-[#dce6e3] bg-white hover:bg-zinc-50 min-w-[120px]"
-                      >
-                        {STATUS_FILTER.map((s) => (
-                          <option key={s} value={s}>
-                            {s}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="flex items-center gap-3">
-                      <span className="text-[11px] text-[#6f8380] whitespace-nowrap">Job Role</span>
-                      <select
-                        value={jobRoleFilter}
-                        onChange={(e) => setJobRoleFilter(e.target.value)}
-                        className="h-8 text-xs px-2.5 rounded-md border border-[#dce6e3] bg-white hover:bg-zinc-50 min-w-[140px]"
-                      >
-                        <option value="">All</option>
-                        {jobRoleOptions.map((role) => (
-                          <option key={role} value={role}>
-                            {role}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="flex items-center gap-3">
-                      <span className="text-[11px] text-[#6f8380] whitespace-nowrap">Location</span>
-                      <select
-                        value={locationFilter}
-                        onChange={(e) => setLocationFilter(e.target.value)}
-                        className="h-8 text-xs px-2.5 rounded-md border border-[#dce6e3] bg-white hover:bg-zinc-50 min-w-[140px]"
-                      >
-                        <option value="">All</option>
-                        {locationOptions.map((loc) => (
-                          <option key={loc} value={loc}>
-                            {loc}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
+                      <label className="flex items-center gap-3">
+                        <span className="text-[11px] text-[#6f8380] whitespace-nowrap">Type</span>
+                        <select
+                          value={typeFilter}
+                          disabled
+                          className="h-8 text-xs px-2.5 rounded-md border border-[#dce6e3] bg-white text-[#435351] min-w-[120px]"
+                        >
+                          <option>Candidates</option>
+                        </select>
+                      </label>
+
+                      <label className="flex items-center gap-3">
+                        <span className="text-[11px] text-[#6f8380] whitespace-nowrap">Status</span>
+                        <select
+                          value={statusLabel}
+                          disabled
+                          className="h-8 text-xs px-2.5 rounded-md border border-[#dce6e3] bg-white text-[#435351] min-w-[120px]"
+                        >
+                          <option>{statusLabel}</option>
+                        </select>
+                      </label>
+
+                      <label className="flex items-center gap-3">
+                        <span className="text-[11px] text-[#6f8380] whitespace-nowrap">Job Role</span>
+                        <select
+                          value={jobRoleFilter}
+                          onChange={(e) => setJobRoleFilter(e.target.value)}
+                          className="h-8 text-xs px-2.5 rounded-md border border-[#dce6e3] bg-white hover:bg-zinc-50 min-w-[140px]"
+                        >
+                          <option value="">All</option>
+                          {jobRoleOptions.map((role) => (
+                            <option key={role} value={role}>
+                              {role}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="flex items-center gap-3">
+                        <span className="text-[11px] text-[#6f8380] whitespace-nowrap">Location</span>
+                        <select
+                          value={locationFilter}
+                          onChange={(e) => setLocationFilter(e.target.value)}
+                          className="h-8 text-xs px-2.5 rounded-md border border-[#dce6e3] bg-white hover:bg-zinc-50 min-w-[140px]"
+                        >
+                          <option value="">All</option>
+                          {locationOptions.map((loc) => (
+                            <option key={loc} value={loc}>
+                              {loc}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
                     </div>
                   </div>
 
                   <div className="h-[56px] border-b border-[#E5E7EB] bg-white px-[14px] flex items-center justify-between gap-4">
                     <div className="text-xs text-[#5e7371] shrink-0">
                       Total:{" "}
-                      <span className="font-semibold text-[#203130]">
-                        {loading ? "—" : totalFromApi ?? filtered.length}
-                      </span>{" "}
-                      {loading ? "" : totalLabel}
+                      <span className="font-semibold text-[#203130]">{loading ? "—" : totalFromApi ?? filtered.length}</span>{" "}
+                      {loading ? "" : `${statusLabel} applicants`}
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
@@ -476,7 +435,7 @@ export default function CandidatesPage() {
                   );
                 }
                 if (filtered.length === 0) {
-                  return <div className="text-center py-24 text-gray-600">No candidates found.</div>;
+                  return <div className="text-center py-24 text-gray-600">{emptyMessage}</div>;
                 }
 
                 if (view === "list") {
@@ -560,8 +519,7 @@ export default function CandidatesPage() {
                                 className="w-6 h-6 rounded-md hover:bg-teal-50 flex items-center justify-center text-[#4e6462] transition"
                                 aria-label="View document"
                               >
-                               <img src="/icons/admin-recruiter/save.svg" alt="Save" className="h-4 w-4" />
-                              
+                                <img src="/icons/admin-recruiter/save.svg" alt="Save" className="h-4 w-4" />
                               </Link>
                               <Link
                                 href={`/admin_recruiter/new/profile/${c.id}`}
@@ -575,7 +533,7 @@ export default function CandidatesPage() {
 
                           <div className="mt-3 flex items-center border-b border-[#E5E7EB] pb-3 justify-between gap-2 flex-wrap">
                             <div className="flex items-center gap-1.5 text-[11px] text-[#6f8380]">
-                            <img src="/icons/admin-recruiter/calendar.svg" alt="View" className="h-4 w-4" />
+                              <img src="/icons/admin-recruiter/calendar.svg" alt="Calendar" className="h-4 w-4" />
                               <span>{formatDateTime(c.createdAt)}</span>
                             </div>
                             <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-[10px] font-semibold border border-[#0D9488] text-[#0D9488] ">
@@ -585,15 +543,15 @@ export default function CandidatesPage() {
 
                           <div className="mt-3 space-y-1.5 text-[11px] text-[#4f6462]">
                             <div className="flex items-start gap-2.5">
-                            <img src="/icons/admin-recruiter/alternate_email.svg" alt="View" className="h-4 w-4" />
+                              <img src="/icons/admin-recruiter/alternate_email.svg" alt="Email" className="h-4 w-4" />
                               <span className="truncate text-black">{c.email || "—"}</span>
                             </div>
                             <div className="flex items-center gap-2.5">
-                            <img src="/icons/admin-recruiter/phone.svg" alt="View" className="h-4 w-4" />
+                              <img src="/icons/admin-recruiter/phone.svg" alt="Phone" className="h-4 w-4" />
                               <span className="truncate text-black">{c.phone || "—"}</span>
                             </div>
                             <div className="flex items-start gap-2.5">
-                            <img src="/icons/admin-recruiter/location-marker.svg" alt="View" className="h-4 w-4" />
+                              <img src="/icons/admin-recruiter/location-marker.svg" alt="Location" className="h-4 w-4" />
                               <span className="leading-snug text-black">{c.address || "—"}</span>
                             </div>
                           </div>
