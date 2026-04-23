@@ -2,6 +2,9 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 // @ts-expect-error - Deno URL imports are resolved at Edge runtime.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+// @ts-expect-error - Deno URL imports are resolved at Edge runtime.
+import { PDFDocument, StandardFonts, rgb } from "https://esm.sh/pdf-lib@1.17.1";
+
 declare const Deno: { env: { get: (name: string) => string | undefined } };
 
 type SendAgreementInput = {
@@ -9,6 +12,10 @@ type SendAgreementInput = {
   email?: string;
   user_id?: string | null;
   project_id?: string | null;
+  onboarding_id?: string | null;
+  host?: string | null;
+  request_id?: string | null;
+  action_id?: string | null;
 };
 
 type ZohoTokenResponse = {
@@ -17,31 +24,41 @@ type ZohoTokenResponse = {
   error_description?: string;
 };
 
-type ZohoTemplateDetailsResponse = {
-  status?: string;
-  message?: string;
-  templates?: {
-    template_name?: string;
-    actions?: Array<{
-      action_id?: string;
-      action_type?: string;
-      role?: string;
-    }>;
-  };
-};
-
-type ZohoCreateFromTemplateResponse = {
+type ZohoCreateRequestResponse = {
   status?: string;
   code?: unknown;
   message?: string;
   requests?: {
     request_id?: string;
-    document_ids?: Array<{ document_id?: string }>;
     document_id?: string;
+    document_ids?: Array<{ document_id?: string }>;
     actions?: Array<{
+      action_id?: string;
+      action_type?: string;
       recipient_email?: string;
-      action_url?: string;
-      sign_url?: string;
+    }>;
+  };
+};
+
+type ZohoEmbedTokenResponse = {
+  status?: string;
+  code?: unknown;
+  message?: string;
+  sign_url?: string;
+};
+
+type ZohoGetRequestResponse = {
+  status?: string;
+  message?: string;
+  requests?: {
+    request_id?: string;
+    request_status?: string;
+    document_id?: string;
+    document_ids?: Array<{ document_id?: string }>;
+    actions?: Array<{
+      action_id?: string;
+      action_type?: string;
+      recipient_email?: string;
     }>;
   };
 };
@@ -54,8 +71,7 @@ type ErrorStage =
   | "zoho_token"
   | "zoho_send"
   | "zoho_parse"
-  | "db_insert"
-  | "unknown";
+  | "db_insert";
 
 type ErrorResponse = {
   success: false;
@@ -70,12 +86,6 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Content-Type": "application/json",
 };
-
-const REQUIRED_ENVS = [
-  "ZOHO_SIGN_TEMPLATE_ID",
-  "SUPABASE_URL",
-  "SUPABASE_SERVICE_ROLE_KEY",
-] as const;
 
 function jsonResponse(payload: unknown, status = 200): Response {
   return new Response(JSON.stringify(payload), { status, headers: corsHeaders });
@@ -96,76 +106,67 @@ function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
-function getEnv(name: (typeof REQUIRED_ENVS)[number]): string {
-  return Deno.env.get(name)?.trim() || "";
+function env(...names: string[]): string {
+  for (const name of names) {
+    const value = Deno.env.get(name)?.trim();
+    if (value) return value;
+  }
+  return "";
 }
 
-function getZohoClientId(): string {
-  return (
-    Deno.env.get("ZOHO_SIGN_CLIENT_ID")?.trim() ||
-    Deno.env.get("ZOHO_CLIENT_ID")?.trim() ||
-    ""
-  );
-}
-
-function getZohoClientSecret(): string {
-  return (
-    Deno.env.get("ZOHO_SIGN_CLIENT_SECRET")?.trim() ||
-    Deno.env.get("ZOHO_CLIENT_SECRET")?.trim() ||
-    ""
-  );
-}
-
-function getZohoRefreshToken(): string {
-  return (
-    Deno.env.get("ZOHO_SIGN_REFRESH_TOKEN")?.trim() ||
-    Deno.env.get("ZOHO_REFRESH_TOKEN")?.trim() ||
-    ""
-  );
+function getZohoApiBase(): string {
+  const configured = env("ZOHO_SIGN_API_BASE", "ZOHO_SIGN_BASE_URL");
+  if (!configured) return "https://sign.zoho.com";
+  const normalized = configured.replace(/\/$/, "").trim();
+  if (/^https?:\/\/www\.zoho\.com$/i.test(normalized)) {
+    return "https://sign.zoho.com";
+  }
+  return normalized;
 }
 
 function getZohoAccountsHost(): string {
-  return (
-    Deno.env.get("ZOHO_ACCOUNTS_HOST")?.trim() ||
-    Deno.env.get("ZOHO_ACCOUNTS_BASE_URL")?.trim() ||
-    "https://accounts.zoho.com"
-  );
+  return env("ZOHO_ACCOUNTS_HOST", "ZOHO_ACCOUNTS_BASE_URL") || "https://accounts.zoho.com";
 }
 
-function getZohoApiBaseCandidates(): string[] {
-  const configured = [
-    Deno.env.get("ZOHO_SIGN_API_BASE")?.trim() || "",
-    Deno.env.get("ZOHO_SIGN_BASE_URL")?.trim() || "",
-  ].filter(Boolean);
-  const defaults = ["https://sign.zoho.com", "https://www.zoho.com"];
-  return [...new Set([...configured, ...defaults])].map((value) => value.replace(/\/$/, ""));
+function resolveEmbedHost(bodyHost?: string | null): string {
+  const host = (
+    bodyHost?.trim() ||
+    env("ZOHO_SIGN_EMBED_HOST", "NEXT_PUBLIC_APP_URL", "PUBLIC_APP_URL", "APP_URL") ||
+    "https://hr.nexusmedpro.com"
+  ).replace(/\/$/, "");
+  if (!host) {
+    throw new Error("Missing embedded signing host. Set ZOHO_SIGN_EMBED_HOST or pass host in request body.");
+  }
+  if (!/^https:\/\//i.test(host)) {
+    throw new Error(`Embedded signing host must use https. Received "${host}".`);
+  }
+  return host;
 }
 
-function logEnvAvailability() {
-  const availability = {
-    ZOHO_SIGN_TEMPLATE_ID: Boolean(getEnv("ZOHO_SIGN_TEMPLATE_ID")),
-    SUPABASE_URL: Boolean(getEnv("SUPABASE_URL")),
-    SUPABASE_SERVICE_ROLE_KEY: Boolean(getEnv("SUPABASE_SERVICE_ROLE_KEY")),
-    ZOHO_SIGN_CLIENT_ID_OR_ZOHO_CLIENT_ID: Boolean(getZohoClientId()),
-    ZOHO_SIGN_CLIENT_SECRET_OR_ZOHO_CLIENT_SECRET: Boolean(getZohoClientSecret()),
-    ZOHO_SIGN_REFRESH_TOKEN_OR_ZOHO_REFRESH_TOKEN: Boolean(getZohoRefreshToken()),
-    ZOHO_ACCOUNTS_HOST_OR_ZOHO_ACCOUNTS_BASE_URL: Boolean(getZohoAccountsHost()),
-    ZOHO_SIGN_API_BASE_OR_ZOHO_SIGN_BASE_URL: Boolean(getZohoApiBaseCandidates()[0]),
+function buildRedirectPages(host: string) {
+  return {
+    sign_success: env("ZOHO_SIGN_REDIRECT_SUCCESS") || `${host}/sign/success`,
+    sign_completed: env("ZOHO_SIGN_REDIRECT_COMPLETED") || `${host}/sign/completed`,
+    sign_declined: env("ZOHO_SIGN_REDIRECT_DECLINED") || `${host}/sign/declined`,
+    sign_later: env("ZOHO_SIGN_REDIRECT_LATER") || `${host}/sign/later`,
   };
-  console.log("[send-agreement] env availability", availability);
 }
 
-async function fetchZohoAccessToken(): Promise<{
-  ok: boolean;
-  accessToken?: string;
-  status: number;
-  body: string;
-}> {
-  const tokenUrl = `${getZohoAccountsHost().replace(/\/$/, "")}/oauth/v2/token`;
+async function fetchZohoAccessToken(): Promise<string> {
+  const clientId = env("ZOHO_SIGN_CLIENT_ID", "ZOHO_CLIENT_ID");
+  const clientSecret = env("ZOHO_SIGN_CLIENT_SECRET", "ZOHO_CLIENT_SECRET");
+  const refreshToken = env("ZOHO_SIGN_REFRESH_TOKEN", "ZOHO_REFRESH_TOKEN");
+  const accountsHost = getZohoAccountsHost().replace(/\/$/, "");
+
+  if (!clientId || !clientSecret || !refreshToken) {
+    throw new Error("Missing Zoho OAuth configuration.");
+  }
+
+  const tokenUrl = `${accountsHost}/oauth/v2/token`;
   const body = new URLSearchParams({
-    refresh_token: getZohoRefreshToken(),
-    client_id: getZohoClientId(),
-    client_secret: getZohoClientSecret(),
+    refresh_token: refreshToken,
+    client_id: clientId,
+    client_secret: clientSecret,
     grant_type: "refresh_token",
   });
 
@@ -175,20 +176,58 @@ async function fetchZohoAccessToken(): Promise<{
     body: body.toString(),
   });
   const rawBody = await response.text();
-
   let parsed: ZohoTokenResponse = {};
   try {
     parsed = JSON.parse(rawBody) as ZohoTokenResponse;
   } catch {
-    // parse handled by caller stage.
+    throw new Error(`Zoho OAuth response was not JSON (HTTP ${response.status}).`);
   }
-
-  console.log("[send-agreement] zoho token response status", response.status);
 
   if (!response.ok || !parsed.access_token) {
-    return { ok: false, status: response.status, body: rawBody };
+    throw new Error(parsed.error_description || parsed.error || rawBody || `HTTP ${response.status}`);
   }
-  return { ok: true, status: response.status, body: rawBody, accessToken: parsed.access_token };
+  return parsed.access_token;
+}
+
+async function loadAgreementPdf(): Promise<Uint8Array> {
+  const remoteUrl = env("AUTHORIZATION_PDF_URL");
+  if (remoteUrl) {
+    const response = await fetch(remoteUrl, { method: "GET" });
+    if (response.ok) {
+      return new Uint8Array(await response.arrayBuffer());
+    }
+    console.warn("[send-agreement] AUTHORIZATION_PDF_URL fetch failed, generating fallback PDF", {
+      status: response.status,
+    });
+  }
+
+  const pdfDoc = await PDFDocument.create();
+  const page = pdfDoc.addPage([612, 792]);
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  page.drawText("Agreement", { x: 60, y: 730, size: 24, font, color: rgb(0, 0, 0) });
+  page.drawText("This is a sample agreement for testing purposes.", {
+    x: 60,
+    y: 690,
+    size: 12,
+    font,
+    color: rgb(0, 0, 0),
+  });
+  page.drawText("Please sign below.", { x: 60, y: 670, size: 12, font, color: rgb(0, 0, 0) });
+  page.drawText("Sign Here: ______________________", {
+    x: 60,
+    y: 620,
+    size: 12,
+    font,
+    color: rgb(0, 0, 0),
+  });
+  page.drawText("Date: __________________________", {
+    x: 60,
+    y: 595,
+    size: 12,
+    font,
+    color: rgb(0, 0, 0),
+  });
+  return await pdfDoc.save();
 }
 
 async function zohoRequest(base: string, path: string, accessToken: string, init?: RequestInit): Promise<Response> {
@@ -202,49 +241,203 @@ async function zohoRequest(base: string, path: string, accessToken: string, init
   });
 }
 
-serve(async (req) => {
-  console.log("[send-agreement] request method", req.method);
-
-  if (req.method === "OPTIONS") {
-    console.log("[send-agreement] final stage before return", "cors_preflight");
-    return new Response("ok", { headers: corsHeaders });
+async function createEmbedSignUrl(params: {
+  requestId: string;
+  actionId: string;
+  host: string;
+  accessToken: string;
+  zohoApiBase: string;
+}) {
+  const embedRes = await zohoRequest(
+    params.zohoApiBase,
+    `/api/v1/requests/${encodeURIComponent(params.requestId)}/actions/${encodeURIComponent(params.actionId)}/embedtoken`,
+    params.accessToken,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ host: params.host }).toString(),
+    },
+  );
+  const embedText = await embedRes.text();
+  let embedJson: ZohoEmbedTokenResponse = {};
+  try {
+    embedJson = JSON.parse(embedText) as ZohoEmbedTokenResponse;
+  } catch {
+    throw new Error("Zoho embedtoken response could not be parsed.");
   }
 
+  if (!embedRes.ok || embedJson.status !== "success" || !embedJson.sign_url) {
+    throw new Error(embedJson.message || embedText || `Zoho embedtoken failed (${embedRes.status}).`);
+  }
+
+  return embedJson.sign_url.trim();
+}
+
+async function getZohoRequestDetails(params: {
+  requestId: string;
+  accessToken: string;
+  zohoApiBase: string;
+  preferredActionId?: string;
+  recipientEmail?: string;
+}): Promise<{ actionId: string; documentId: string | null; requestStatus: string | null }> {
+  const detailsRes = await zohoRequest(
+    params.zohoApiBase,
+    `/api/v1/requests/${encodeURIComponent(params.requestId)}`,
+    params.accessToken,
+  );
+  const detailsText = await detailsRes.text();
+  let detailsJson: ZohoGetRequestResponse = {};
+  try {
+    detailsJson = JSON.parse(detailsText) as ZohoGetRequestResponse;
+  } catch {
+    throw new Error("Zoho request details response could not be parsed.");
+  }
+
+  if (!detailsRes.ok || detailsJson.status !== "success") {
+    throw new Error(detailsJson.message || detailsText || `Zoho get request failed (${detailsRes.status}).`);
+  }
+
+  const request = detailsJson.requests || {};
+  const actions = request.actions || [];
+  const targetEmail = (params.recipientEmail || "").toLowerCase();
+  const actionId =
+    params.preferredActionId?.trim() ||
+    actions.find((a) => (a.recipient_email || "").trim().toLowerCase() === targetEmail)?.action_id?.trim() ||
+    actions.find((a) => (a.action_type || "").trim().toUpperCase() === "SIGN")?.action_id?.trim() ||
+    actions[0]?.action_id?.trim() ||
+    "";
+  const documentId =
+    request.document_id?.trim() ||
+    request.document_ids?.[0]?.document_id?.trim() ||
+    null;
+  const requestStatus = request.request_status?.trim() || null;
+  return { actionId, documentId, requestStatus };
+}
+
+async function ensureSignerFields(params: {
+  requestId: string;
+  actionId: string;
+  documentId: string;
+  accessToken: string;
+  zohoApiBase: string;
+}) {
+  const submitPayload = {
+    requests: {
+      actions: [
+        {
+          action_id: params.actionId,
+          action_type: "SIGN",
+          fields: [
+            {
+              field_type_name: "Signature",
+              action_id: params.actionId,
+              document_id: params.documentId,
+              field_name: "sign_here",
+              field_label: "Sign Here",
+              field_category: "image",
+              page_no: 0,
+              x_value: "56.0",
+              y_value: "79.5",
+              width: "28.0",
+              height: "3.0",
+            },
+            {
+              field_type_name: "Date",
+              action_id: params.actionId,
+              document_id: params.documentId,
+              field_name: "date_signed",
+              field_label: "Date",
+              field_category: "text",
+              page_no: 0,
+              x_value: "56.0",
+              y_value: "84.2",
+              width: "28.0",
+              height: "2.5",
+            },
+          ],
+        },
+      ],
+    },
+  };
+
+  const submitRes = await zohoRequest(
+    params.zohoApiBase,
+    `/api/v1/requests/${encodeURIComponent(params.requestId)}/submit`,
+    params.accessToken,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ data: JSON.stringify(submitPayload) }).toString(),
+    },
+  );
+  if (!submitRes.ok) {
+    const responseBody = await submitRes.text();
+    throw new Error(`Zoho submit failed while ensuring signer fields (${submitRes.status}): ${responseBody}`);
+  }
+}
+
+function normalizeSigningStatus(status: string | null | undefined): string {
+  const s = (status || "").trim().toLowerCase();
+  if (!s) return "sent";
+  if (s === "in_progress") return "viewed";
+  return s;
+}
+
+function isFinalizedStatus(status: string | null | undefined): boolean {
+  const s = normalizeSigningStatus(status);
+  return s === "signed" || s === "completed";
+}
+
+function mapZohoRequestStatusToDb(status: string | null | undefined): string {
+  const s = (status || "").trim().toLowerCase().replace(/\s+/g, "_");
+  if (!s) return "sent";
+  if (s.includes("complete")) return "completed";
+  if (/declin|reject|recall|expir/.test(s)) return "declined";
+  if (s.includes("view")) return "viewed";
+  if ((/\bsigned\b/.test(s) || s.includes("partially_signed")) && !s.includes("unsigned")) return "signed";
+  if (s.includes("awaiting_signature")) return "awaiting_signature";
+  if (s.includes("pending")) return "pending";
+  return "sent";
+}
+
+function isMissingColumnError(message: string): boolean {
+  return /column .* does not exist/i.test(message) || /could not find .* column .* in the schema cache/i.test(message);
+}
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
   if (req.method !== "POST") {
     return fail("cors", "Method not allowed. Use POST.", 405);
   }
 
-  logEnvAvailability();
-  const missingEnvVars: string[] = REQUIRED_ENVS.filter((name) => !getEnv(name));
-  if (!getZohoClientId()) missingEnvVars.push("ZOHO_SIGN_CLIENT_ID|ZOHO_CLIENT_ID");
-  if (!getZohoClientSecret()) missingEnvVars.push("ZOHO_SIGN_CLIENT_SECRET|ZOHO_CLIENT_SECRET");
-  if (!getZohoRefreshToken()) missingEnvVars.push("ZOHO_SIGN_REFRESH_TOKEN|ZOHO_REFRESH_TOKEN");
-  if (missingEnvVars.length > 0) {
-    return fail("env_validation", "Missing required environment variables", 500, {
-      missing: missingEnvVars,
-    });
+  const supabaseUrl = env("SUPABASE_URL");
+  const serviceRole = env("SUPABASE_SERVICE_ROLE_KEY");
+  if (!supabaseUrl || !serviceRole) {
+    return fail("env_validation", "Missing Supabase service role configuration.", 500);
+  }
+
+  const zohoApiBase = getZohoApiBase().replace(/\/$/, "");
+  const zohoAccountsHost = getZohoAccountsHost();
+  if (!zohoApiBase || !zohoAccountsHost) {
+    return fail("env_validation", "Missing Zoho host configuration.", 500);
   }
 
   let body: SendAgreementInput;
   try {
-    const raw = await req.text();
-    body = JSON.parse(raw || "{}") as SendAgreementInput;
-  } catch (error) {
-    console.error("[send-agreement] request parse error", error);
-    return fail("request_validation", "Invalid JSON body", 400);
+    body = (await req.json()) as SendAgreementInput;
+  } catch {
+    return fail("request_validation", "Invalid JSON body.", 400);
   }
-
-  console.log("[send-agreement] parsed request body", {
-    has_name: Boolean(body?.name?.trim()),
-    email: body?.email ? normalizeEmail(body.email) : "",
-    has_user_id: Boolean(body?.user_id),
-    has_project_id: Boolean(body?.project_id),
-  });
 
   const name = (body.name || "").trim();
   const email = normalizeEmail(body.email || "");
   const userId = body.user_id?.trim() || null;
   const projectId = body.project_id?.trim() || null;
+  const onboardingId = body.onboarding_id?.trim() || projectId || null;
+  const existingRequestId = body.request_id?.trim() || "";
+  const existingActionId = body.action_id?.trim() || "";
 
   if (!name || !email) {
     return fail("request_validation", "name and email are required", 400);
@@ -253,279 +446,459 @@ serve(async (req) => {
     return fail("request_validation", "email format is invalid", 400);
   }
 
-  const supabase = createClient(getEnv("SUPABASE_URL"), getEnv("SUPABASE_SERVICE_ROLE_KEY"));
+  let embedHost = "";
+  try {
+    embedHost = resolveEmbedHost(body.host);
+  } catch (error) {
+    return fail("request_validation", error instanceof Error ? error.message : "Invalid host", 400);
+  }
+
+  const supabase = createClient(supabaseUrl, serviceRole);
+
+  let accessToken = "";
+  try {
+    accessToken = await fetchZohoAccessToken();
+  } catch (error) {
+    console.error("[send-agreement] zoho token error", error);
+    return fail("zoho_token", "Failed to fetch Zoho access token", 502, {
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  if (existingRequestId && existingActionId) {
+    try {
+      const details = await getZohoRequestDetails({
+        requestId: existingRequestId,
+        accessToken,
+        zohoApiBase,
+        preferredActionId: existingActionId,
+        recipientEmail: email,
+      });
+      const resolvedActionId = details.actionId || existingActionId;
+      const resolvedStatus = details.requestStatus ? mapZohoRequestStatusToDb(details.requestStatus) : "sent";
+      if (!resolvedActionId) {
+        return fail("zoho_parse", "Could not resolve signer action_id for existing request.", 502);
+      }
+      if (isFinalizedStatus(resolvedStatus)) {
+        return jsonResponse({
+          success: true,
+          request_id: existingRequestId,
+          action_id: resolvedActionId,
+          sign_url: null,
+          signing_url: null,
+          status: resolvedStatus,
+          email,
+          name,
+        });
+      }
+      if (details.documentId) {
+        try {
+          await ensureSignerFields({
+            requestId: existingRequestId,
+            actionId: resolvedActionId,
+            documentId: details.documentId,
+            accessToken,
+            zohoApiBase,
+          });
+        } catch (ensureError) {
+          console.warn("[send-agreement] could not re-apply signer fields on existing request", {
+            request_id: existingRequestId,
+            action_id: resolvedActionId,
+            error: ensureError instanceof Error ? ensureError.message : String(ensureError),
+          });
+        }
+      }
+
+      const signUrl = await createEmbedSignUrl({
+        requestId: existingRequestId,
+        actionId: resolvedActionId,
+        host: embedHost,
+        accessToken,
+        zohoApiBase,
+      });
+      await supabase
+        .from("zoho_sign_requests")
+        .update({
+          action_id: resolvedActionId,
+          status: resolvedStatus,
+          sign_url: signUrl,
+          signing_url: signUrl,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("request_id", existingRequestId);
+
+      return jsonResponse({
+        success: true,
+        request_id: existingRequestId,
+        action_id: resolvedActionId,
+        sign_url: signUrl,
+        signing_url: signUrl,
+        status: resolvedStatus,
+        email,
+        name,
+      });
+    } catch (error) {
+      return fail("zoho_send", "Could not refresh embedded signing URL.", 502, {
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
 
   const { data: existingRows, error: dupLookupError } = await supabase
     .from("zoho_sign_requests")
-    .select("request_id,status,recipient_name,created_at")
+    .select("request_id,status")
     .eq("source", "onboarding")
     .eq("email", email)
-    .neq("status", "declined");
+    .neq("status", "declined")
+    .order("updated_at", { ascending: false })
+    .limit(1);
 
   if (dupLookupError) {
-    console.error("[send-agreement] duplicate email lookup failed", dupLookupError);
-    return fail("request_validation", "Could not verify whether this email is eligible for a new agreement", 500, {
+    return fail("request_validation", "Could not verify duplicate onboarding agreement.", 500, {
       message: dupLookupError.message,
     });
   }
 
   if (existingRows && existingRows.length > 0) {
     const first = existingRows[0];
-    return fail(
-      "duplicate_email",
-      "This email already has an onboarding agreement on file. Each address can only be used once unless the prior request was declined.",
-      409,
-      {
-        existing_request_id: first?.request_id,
-        status: first?.status,
-      },
-    );
-  }
+    const existingId = first.request_id?.trim() || "";
+    const existingStatus = normalizeSigningStatus(first.status || "sent");
+    const existingAction = "";
 
-  const templateName = "Onboarding Agreement";
-  const templateId = getEnv("ZOHO_SIGN_TEMPLATE_ID");
-  const zohoApiBases = getZohoApiBaseCandidates();
+    if (existingId) {
+      if (isFinalizedStatus(existingStatus)) {
+        return jsonResponse({
+          success: true,
+          request_id: existingId,
+          action_id: existingAction || null,
+          status: existingStatus,
+          email,
+          name,
+          sign_url: null,
+          signing_url: null,
+        });
+      }
 
-  let accessToken = "";
-  try {
-    const tokenResult = await fetchZohoAccessToken();
-    if (!tokenResult.ok || !tokenResult.accessToken) {
-      console.error("[send-agreement] zoho token failure body", tokenResult.body);
-      return fail("zoho_token", "Failed to fetch Zoho access token", 502, {
-        status: tokenResult.status,
-      });
-    }
-    accessToken = tokenResult.accessToken;
-  } catch (error) {
-    console.error("[send-agreement] zoho token exception", error);
-    return fail("zoho_token", "Failed to fetch Zoho access token", 502);
-  }
-
-  let signerActionId = "";
-  let activeZohoBase = zohoApiBases[0];
-  try {
-    let templateFound = false;
-    let lastZohoFailure: { base: string; status: number; message?: string; code?: unknown } | null = null;
-    let sawJsonFailure = false;
-    const templateAttemptDebug: Array<{
-      base: string;
-      status: number;
-      content_type: string | null;
-      body_preview: string;
-      parseable_json: boolean;
-    }> = [];
-    for (const candidateBase of zohoApiBases) {
-      const templateRes = await zohoRequest(
-        candidateBase,
-        `/api/v1/templates/${encodeURIComponent(templateId)}`,
-        accessToken,
-      );
-      const templateBody = await templateRes.text();
-      const contentType = templateRes.headers.get("content-type");
-      console.log("[send-agreement] zoho template response status", templateRes.status);
-      console.log("[send-agreement] zoho template response body", templateBody);
-
-      let templateJson: ZohoTemplateDetailsResponse = {};
-      let parseableJson = true;
       try {
-        templateJson = JSON.parse(templateBody) as ZohoTemplateDetailsResponse;
-      } catch {
-        parseableJson = false;
-        templateAttemptDebug.push({
-          base: candidateBase,
-          status: templateRes.status,
-          content_type: contentType,
-          body_preview: templateBody.slice(0, 180),
-          parseable_json: false,
+        const details = await getZohoRequestDetails({
+          requestId: existingId,
+          accessToken,
+          zohoApiBase,
+          preferredActionId: existingAction || undefined,
+          recipientEmail: email,
         });
-        continue;
-      }
-      templateAttemptDebug.push({
-        base: candidateBase,
-        status: templateRes.status,
-        content_type: contentType,
-        body_preview: templateBody.slice(0, 180),
-        parseable_json: parseableJson,
-      });
+        const resolvedActionId = details.actionId || existingAction;
+        if (!resolvedActionId) {
+          return fail("zoho_parse", "Could not resolve signer action_id for existing request.", 502);
+        }
 
-      if (!templateRes.ok || templateJson.status !== "success") {
-        sawJsonFailure = true;
-        const templateJsonWithCode = templateJson as ZohoTemplateDetailsResponse & { code?: unknown };
-        lastZohoFailure = {
-          base: candidateBase,
-          status: templateRes.status,
-          message: templateJson.message || "Unknown Zoho error",
-          code: templateJsonWithCode.code,
-        };
-        continue;
-      }
+        const resolvedStatus = details.requestStatus
+          ? mapZohoRequestStatusToDb(details.requestStatus)
+          : existingStatus;
+        if (isFinalizedStatus(resolvedStatus)) {
+          return jsonResponse({
+            success: true,
+            request_id: existingId,
+            action_id: resolvedActionId,
+            status: resolvedStatus,
+            email,
+            name,
+            sign_url: null,
+            signing_url: null,
+          });
+        }
 
-      const actions = templateJson.templates?.actions || [];
-      signerActionId =
-        actions.find(
-          (action) =>
-            (action.role || "").trim().toLowerCase() === "signer" &&
-            (action.action_type || "").trim().toUpperCase() === "SIGN",
-        )?.action_id?.trim() ||
-        "";
+        if (details.documentId) {
+          try {
+            await ensureSignerFields({
+              requestId: existingId,
+              actionId: resolvedActionId,
+              documentId: details.documentId,
+              accessToken,
+              zohoApiBase,
+            });
+          } catch (ensureError) {
+            console.warn("[send-agreement] could not ensure signer fields on existing active request", {
+              request_id: existingId,
+              action_id: resolvedActionId,
+              error: ensureError instanceof Error ? ensureError.message : String(ensureError),
+            });
+          }
+        }
 
-      if (!signerActionId) {
-        return fail(
-          "zoho_send",
-          'Template is missing SIGN action for role "Signer"',
-          400,
-        );
-      }
+        const signUrl = await createEmbedSignUrl({
+          requestId: existingId,
+          actionId: resolvedActionId,
+          host: embedHost,
+          accessToken,
+          zohoApiBase,
+        });
 
-      activeZohoBase = candidateBase;
-      templateFound = true;
-      break;
-    }
+        await supabase
+          .from("zoho_sign_requests")
+          .update({
+            action_id: resolvedActionId,
+            status: resolvedStatus,
+            sign_url: signUrl,
+            signing_url: signUrl,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("request_id", existingId);
 
-    if (!templateFound) {
-      if (sawJsonFailure && lastZohoFailure) {
-        return fail("zoho_send", "Zoho template lookup failed", 502, {
-          ...lastZohoFailure,
-          attempts: templateAttemptDebug,
+        return jsonResponse({
+          success: true,
+          request_id: existingId,
+          action_id: resolvedActionId,
+          sign_url: signUrl,
+          signing_url: signUrl,
+          status: resolvedStatus,
+          email,
+          name,
+        });
+      } catch (error) {
+        return fail("zoho_send", "Failed to continue embedded signing session for existing agreement.", 502, {
+          message: error instanceof Error ? error.message : String(error),
         });
       }
-      return fail("zoho_parse", "Failed to parse Zoho template response", 502, {
-        tried_bases: zohoApiBases,
-        attempts: templateAttemptDebug,
-      });
     }
-  } catch (error) {
-    console.error("[send-agreement] zoho template exception", error);
-    return fail("zoho_send", "Failed while validating Zoho template", 502);
   }
 
-  const zohoPayload = {
-    templates: {
-      request_name: `${templateName} - ${name}`,
-      notes: "",
-      field_data: {
-        field_text_data: {},
-        field_boolean_data: {},
-        field_date_data: {},
-      },
+  let agreementPdf: Uint8Array;
+  try {
+    agreementPdf = await loadAgreementPdf();
+  } catch (error) {
+    return fail("zoho_send", "Unable to load or generate agreement PDF.", 500, {
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  const requestPayload = {
+    requests: {
+      request_name: `Agreement - ${name}`,
+      is_sequential: true,
+      expiration_days: 10,
+      email_reminders: false,
       actions: [
         {
-          action_id: signerActionId,
-          role: "Signer",
-          action_type: "SIGN",
           recipient_name: name,
           recipient_email: email,
-          verify_recipient: false,
+          action_type: "SIGN",
+          is_embedded: true,
+          verify_recipient: true,
           verification_type: "EMAIL",
-          is_embedded: false,
         },
       ],
+      redirect_pages: buildRedirectPages(embedHost),
     },
   };
 
-  let zohoJson: ZohoCreateFromTemplateResponse = {};
+  let requestId = "";
+  let actionId = "";
+  let documentId: string | null = null;
+  let rawCreateResponse: ZohoCreateRequestResponse = {};
+
   try {
-    const createBody = new URLSearchParams({ data: JSON.stringify(zohoPayload) });
-    const zohoRes = await zohoRequest(
-      activeZohoBase,
-      `/api/v1/templates/${encodeURIComponent(templateId)}/createdocument?is_quicksend=true`,
+    const fd = new FormData();
+    fd.append("data", JSON.stringify(requestPayload));
+    fd.append("file", new Blob([agreementPdf], { type: "application/pdf" }), "Onboarding Agreement.pdf");
+
+    const createRes = await zohoRequest(zohoApiBase, "/api/v1/requests", accessToken, {
+      method: "POST",
+      body: fd,
+    });
+    const createText = await createRes.text();
+    try {
+      rawCreateResponse = JSON.parse(createText) as ZohoCreateRequestResponse;
+    } catch {
+      return fail("zoho_parse", "Zoho create request returned non-JSON.", 502);
+    }
+
+    if (!createRes.ok || rawCreateResponse.status !== "success") {
+      return fail("zoho_send", "Zoho request creation failed.", 502, {
+        status: createRes.status,
+        zoho_status: rawCreateResponse.status,
+        zoho_code: rawCreateResponse.code,
+        zoho_message: rawCreateResponse.message,
+      });
+    }
+
+    requestId = rawCreateResponse.requests?.request_id?.trim() || "";
+    const actions = rawCreateResponse.requests?.actions || [];
+    actionId =
+      actions.find((a) => (a.recipient_email || "").trim().toLowerCase() === email)?.action_id?.trim() ||
+      actions.find((a) => (a.action_type || "").trim().toUpperCase() === "SIGN")?.action_id?.trim() ||
+      actions[0]?.action_id?.trim() ||
+      "";
+    const docIds = rawCreateResponse.requests?.document_ids || [];
+    documentId =
+      rawCreateResponse.requests?.document_id?.trim() ||
+      docIds[0]?.document_id?.trim() ||
+      null;
+
+    if (!requestId || !actionId || !documentId) {
+      return fail("zoho_parse", "Zoho response missing request_id/action_id/document_id.", 502);
+    }
+  } catch (error) {
+    console.error("[send-agreement] zoho create exception", error);
+    return fail("zoho_send", "Failed creating Zoho sign request.", 502, {
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  try {
+    const submitPayload = {
+      requests: {
+        actions: [
+          {
+            action_id: actionId,
+            action_type: "SIGN",
+            fields: [
+              {
+                field_type_name: "Signature",
+                action_id: actionId,
+                document_id: documentId,
+                field_name: "sign_here",
+                field_label: "Sign Here",
+                field_category: "image",
+                page_no: 0,
+                x_value: "56.0",
+                y_value: "79.5",
+                width: "28.0",
+                height: "3.0",
+              },
+              {
+                field_type_name: "Date",
+                action_id: actionId,
+                document_id: documentId,
+                field_name: "date_signed",
+                field_label: "Date",
+                field_category: "text",
+                page_no: 0,
+                x_value: "56.0",
+                y_value: "84.2",
+                width: "28.0",
+                height: "2.5",
+              },
+            ],
+          },
+        ],
+      },
+    };
+
+    const submitRes = await zohoRequest(
+      zohoApiBase,
+      `/api/v1/requests/${encodeURIComponent(requestId)}/submit`,
       accessToken,
       {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: createBody.toString(),
+        body: new URLSearchParams({ data: JSON.stringify(submitPayload) }).toString(),
       },
     );
-    const zohoText = await zohoRes.text();
-
-    console.log("[send-agreement] zoho send response status", zohoRes.status);
-    console.log("[send-agreement] zoho send response body", zohoText);
-
-    try {
-      zohoJson = JSON.parse(zohoText) as ZohoCreateFromTemplateResponse;
-    } catch {
-      return fail("zoho_parse", "Failed to parse Zoho send response", 502);
-    }
-
-    if (!zohoRes.ok || zohoJson.status !== "success") {
-      return fail("zoho_send", "Zoho template send failed", 502, {
-        status: zohoRes.status,
-        zoho_status: zohoJson.status,
-        zoho_code: zohoJson.code,
-        zoho_message: zohoJson.message,
+    if (!submitRes.ok) {
+      return fail("zoho_send", "Zoho submit failed while adding signature fields.", 502, {
+        status: submitRes.status,
+        body: await submitRes.text(),
       });
     }
   } catch (error) {
-    console.error("[send-agreement] zoho send exception", error);
-    return fail("zoho_send", "Failed to send agreement to Zoho", 502);
+    return fail("zoho_send", "Failed to submit Zoho request.", 502, {
+      message: error instanceof Error ? error.message : String(error),
+    });
   }
 
-  const requestId = zohoJson.requests?.request_id?.trim();
-  if (!requestId) {
-    return fail("zoho_parse", "Zoho response missing request_id", 502);
+  let signUrl = "";
+  try {
+    signUrl = await createEmbedSignUrl({
+      requestId,
+      actionId,
+      host: embedHost,
+      accessToken,
+      zohoApiBase,
+    });
+  } catch (error) {
+    return fail("zoho_send", "Failed to generate embedded signing URL.", 502, {
+      message: error instanceof Error ? error.message : String(error),
+    });
   }
-
-  const reqBlock = zohoJson.requests || {};
-  const docIds = Array.isArray(reqBlock.document_ids) ? reqBlock.document_ids : [];
-  const zohoDocumentId =
-    (typeof reqBlock.document_id === "string" && reqBlock.document_id.trim()) ||
-    (typeof docIds[0]?.document_id === "string" && docIds[0].document_id.trim()) ||
-    null;
-  const actions = Array.isArray(reqBlock.actions) ? reqBlock.actions : [];
-  const firstAction = actions[0] || {};
-  const signingUrl =
-    (typeof firstAction.sign_url === "string" && firstAction.sign_url.trim()) ||
-    (typeof firstAction.action_url === "string" && firstAction.action_url.trim()) ||
-    null;
 
   try {
     const nowIso = new Date().toISOString();
-    const { error: insertError } = await supabase.from("zoho_sign_requests").upsert(
+    let { error: insertError } = await supabase.from("zoho_sign_requests").upsert(
       {
         request_id: requestId,
+        action_id: actionId,
         email,
         recipient_name: name,
         user_id: userId,
         project_id: projectId,
-        template_name: templateName,
+        onboarding_id: onboardingId,
+        template_name: "Onboarding Agreement",
         status: "sent",
         source: "onboarding",
-        zoho_document_id: zohoDocumentId,
-        signing_url: signingUrl,
-        raw_send_response: zohoJson,
+        zoho_document_id: documentId,
+        sign_url: signUrl,
+        signing_url: signUrl,
+        raw_send_response: rawCreateResponse,
         created_at: nowIso,
         updated_at: nowIso,
       },
       { onConflict: "request_id", ignoreDuplicates: false },
     );
 
+    // Backward compatibility for DBs that have not applied new columns yet.
+    if (insertError && isMissingColumnError(insertError.message || "")) {
+      const retry = await supabase.from("zoho_sign_requests").upsert(
+        {
+          request_id: requestId,
+          email,
+          recipient_name: name,
+          user_id: userId,
+          project_id: projectId,
+          template_name: "Onboarding Agreement",
+          status: "sent",
+          source: "onboarding",
+          zoho_document_id: documentId,
+          signing_url: signUrl,
+          raw_send_response: rawCreateResponse,
+          created_at: nowIso,
+          updated_at: nowIso,
+        },
+        { onConflict: "request_id", ignoreDuplicates: false },
+      );
+      insertError = retry.error;
+    }
+
     if (insertError) {
-      console.error("[send-agreement] supabase insert error", insertError);
       const msg = insertError.message || "";
       const code = (insertError as { code?: string }).code;
       if (code === "23505" || /duplicate key|unique constraint/i.test(msg)) {
         return fail(
           "duplicate_email",
-          "This email already has an onboarding agreement on file. Each address can only be used once unless the prior request was declined.",
+          "A signing session already exists for this agreement. Please continue with Click and Sign.",
           409,
           { message: msg },
         );
       }
       return fail("db_insert", "Failed to save record in zoho_sign_requests", 500, {
-        message: insertError.message,
+        message: msg,
       });
     }
   } catch (error) {
-    console.error("[send-agreement] supabase insert exception", error);
-    return fail("db_insert", "Database operation failed", 500);
+    return fail("db_insert", "Database operation failed", 500, {
+      message: error instanceof Error ? error.message : String(error),
+    });
   }
 
-  console.log("[send-agreement] final stage before return", "success");
   return jsonResponse({
     success: true,
     request_id: requestId,
+    action_id: actionId,
+    document_id: documentId,
     status: "sent",
     email,
     name,
+    sign_url: signUrl,
+    signing_url: signUrl,
   });
 });

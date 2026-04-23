@@ -1,5 +1,5 @@
 const DEFAULT_ACCOUNTS_HOST = "https://accounts.zoho.com";
-const DEFAULT_SIGN_API_BASE = "https://www.zoho.com";
+const DEFAULT_SIGN_API_BASE = "https://sign.zoho.com";
 declare const Deno: { env: { get: (name: string) => string | undefined } };
 
 type ZohoTokenResponse = {

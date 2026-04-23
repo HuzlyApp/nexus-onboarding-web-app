@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
 
     let query = supabase
       .from("zoho_sign_requests")
-      .select("request_id,email,recipient_name,status,created_at,updated_at")
+      .select("*")
       .order("updated_at", { ascending: false })
       .limit(1);
 
@@ -63,7 +63,7 @@ export async function GET(req: NextRequest) {
             if (!upErr) {
               const { data: refreshed } = await supabase
                 .from("zoho_sign_requests")
-                .select("request_id,email,recipient_name,status,created_at,updated_at")
+                .select("*")
                 .eq("request_id", ridForZoho)
                 .maybeSingle();
               if (refreshed) row = refreshed;
