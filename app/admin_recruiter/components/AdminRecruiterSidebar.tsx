@@ -55,7 +55,13 @@ export function AdminRecruiterSidebar() {
       <div className="relative h-full">
         <div className="absolute inset-y-0 left-0 w-20 bg-[#033c3a] text-[#d4efea] flex flex-col items-center py-3 pb-5">
           <div className="mt-1 mb-6">
-            <Image src="/icons/admin-recruiter/nexus-main-logo.svg" alt="Nexus logo" width={46} height={46} />
+            <Image
+              src="/icons/admin-recruiter/nexus-main-logo.svg"
+              alt="Nexus logo"
+              width={46}
+              height={46}
+              className="w-[46px] h-[46px]"
+            />
           </div>
 
           <div className="flex flex-col items-center">

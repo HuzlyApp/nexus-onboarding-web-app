@@ -3,11 +3,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import {
   Plus,
-  Search,
-  Filter,
-  RefreshCw,
   Mail,
   Phone,
   MapPin,
@@ -111,6 +109,7 @@ export default function CandidatesPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("All");
   const [jobRoleFilter, setJobRoleFilter] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
+  const [showFilterRows, setShowFilterRows] = useState(true);
   const [view, setView] = useState<"card" | "list">("card");
   const [listColumnOrder, setListColumnOrder] = useState<CandidateColumnId[]>(DEFAULT_CANDIDATE_COLUMNS);
   const [editColumnsOpen, setEditColumnsOpen] = useState(false);
@@ -255,7 +254,7 @@ export default function CandidatesPage() {
         </header>
 
         <div className="flex-1 p-4 sm:p-5 overflow-hidden flex flex-col">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-4">
+          <div className="flex flex-col gap-2 mb-4">
             <div>
               <h1
                 className="text-[#1d2739]"
@@ -271,182 +270,199 @@ export default function CandidatesPage() {
               </h1>
               <p className="mt-1 text-sm text-[#6f7683]">Manage applicants in one place</p>
             </div>
-
-            <div className="flex items-center gap-2 flex-wrap">
-              <button
-                type="button"
-                className="h-8 inline-flex items-center gap-1.5 bg-[#0c918a] hover:bg-[#0a7b75] text-white px-3 rounded-md transition text-xs font-semibold"
-              >
-                <Plus className="w-3.5 h-3.5" /> Create Candidate
-              </button>
-
-              <div className="flex h-8 items-center bg-white border border-[#dce6e3] rounded-md px-3 min-w-0 flex-1 sm:flex-initial sm:min-w-[220px]">
-                <Search className="w-3.5 h-3.5 text-[#8ca09e] mr-2 shrink-0" />
-                <input
-                  type="search"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search worker or candidate"
-                  className="bg-transparent outline-none flex-1 min-w-0 text-xs text-[#586766]"
-                />
-              </div>
-
-              <button
-                type="button"
-                onClick={() => void loadCandidates()}
-                className="h-8 inline-flex items-center gap-1.5 border border-[#dce6e3] bg-white hover:bg-zinc-50 px-3 rounded-md transition text-xs text-[#3d4a4a]"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} /> Refresh
-              </button>
-
-              <button
-                type="button"
-                className="h-8 inline-flex items-center gap-1.5 border border-[#dce6e3] bg-white hover:bg-zinc-50 px-3 rounded-md transition text-xs text-[#3d4a4a]"
-              >
-                <Filter className="w-3.5 h-3.5" /> Filters
-              </button>
-
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setMoreMenuOpen((v) => !v)}
-                  className="flex items-center justify-center w-8 h-8 border border-[#dce6e3] bg-white hover:bg-zinc-50 rounded-md transition"
-                  aria-label="More actions"
-                >
-                  <MoreHorizontal className="w-4 h-4 text-[#6f8380]" />
-                </button>
-                {moreMenuOpen ? (
-                  <>
-                    <button
-                      type="button"
-                      className="fixed inset-0 z-40 cursor-default"
-                      aria-label="Close menu"
-                      onClick={() => setMoreMenuOpen(false)}
-                    />
-                    <div className="absolute right-0 top-full mt-2 z-50 min-w-[200px] rounded-2xl border border-zinc-200 bg-white py-2 shadow-lg">
-                      <Link
-                        href="/admin_recruiter/advanced-search"
-                        className="block px-4 py-2.5 text-sm text-gray-600 hover:bg-zinc-50"
-                        onClick={() => setMoreMenuOpen(false)}
-                      >
-                        Advanced search
-                      </Link>
-                    </div>
-                  </>
-                ) : null}
-              </div>
-            </div>
           </div>
 
-          <div className="flex-1 min-h-0 bg-white border border-[#e3ecea] rounded-xl overflow-hidden flex flex-col">
-            <div className="px-4 py-3 border-b border-[#edf3f2] flex flex-wrap items-center gap-3">
-              <div className="flex items-center text-[#9aaba9]">
-                <Filter className="h-4 w-4" />
-              </div>
-              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                <label className="flex items-center gap-2">
-                  <span className="text-[11px] text-[#6f8380] whitespace-nowrap">Type</span>
-                  <select
-                    value={typeFilter}
-                    disabled
-                    className="h-8 text-xs px-2.5 rounded-md border border-[#dce6e3] bg-white text-[#435351] min-w-[120px]"
-                  >
-                    <option>Candidates</option>
-                  </select>
-                </label>
-                <label className="flex items-center gap-2">
-                  <span className="text-[11px] text-[#6f8380] whitespace-nowrap">Status</span>
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-                    className="h-8 text-xs px-2.5 rounded-md border border-[#dce6e3] bg-white hover:bg-zinc-50 min-w-[120px]"
-                  >
-                    {STATUS_FILTER.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="flex items-center gap-2">
-                  <span className="text-[11px] text-[#6f8380] whitespace-nowrap">Job Role</span>
-                  <select
-                    value={jobRoleFilter}
-                    onChange={(e) => setJobRoleFilter(e.target.value)}
-                    className="h-8 text-xs px-2.5 rounded-md border border-[#dce6e3] bg-white hover:bg-zinc-50 min-w-[140px]"
-                  >
-                    <option value="">All</option>
-                    {jobRoleOptions.map((role) => (
-                      <option key={role} value={role}>
-                        {role}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="flex items-center gap-2">
-                  <span className="text-[11px] text-[#6f8380] whitespace-nowrap">Location</span>
-                  <select
-                    value={locationFilter}
-                    onChange={(e) => setLocationFilter(e.target.value)}
-                    className="h-8 text-xs px-2.5 rounded-md border border-[#dce6e3] bg-white hover:bg-zinc-50 min-w-[140px]"
-                  >
-                    <option value="">All</option>
-                    {locationOptions.map((loc) => (
-                      <option key={loc} value={loc}>
-                        {loc}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-            </div>
-
-            <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-4 border-b border-[#edf3f2] bg-[#fbfdfd]">
-              <div className="text-xs text-[#5e7371]">
-                Total:{" "}
-                <span className="font-semibold text-[#203130]">
-                  {loading ? "—" : totalFromApi ?? filtered.length}
-                </span>{" "}
-                {loading ? "" : totalLabel}
-              </div>
-
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className={`text-[11px] font-medium ${view === "card" ? "text-[#0f6a65]" : "text-[#6f8380]"}`}>
-                  Card View
-                </span>
+          <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+            <div className="relative z-10 w-full shrink-0 rounded-md border border-[#E5E7EB] bg-white overflow-hidden flex flex-col">
+              <div className="h-[60px] border-b border-[#E5E7EB] p-[14px] flex items-center justify-between gap-3">
                 <button
                   type="button"
-                  role="switch"
-                  aria-checked={view === "list"}
-                  aria-label="Toggle list view"
-                  onClick={() => setView((v) => (v === "card" ? "list" : "card"))}
-                  className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
-                    view === "list" ? "bg-[#0c918a]" : "bg-zinc-300"
-                  }`}
+                  className="h-8 inline-flex items-center gap-1.5 bg-[#0c918a] hover:bg-[#0a7b75] text-white px-3 rounded-md transition text-xs font-semibold"
                 >
-                  <span
-                    className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition ${
-                      view === "list" ? "translate-x-5" : "translate-x-0.5"
-                    }`}
-                  />
+                  <Plus className="w-3.5 h-3.5" /> Create Candidate
                 </button>
-                <span className={`text-[11px] font-medium ${view === "list" ? "text-[#0f6a65]" : "text-[#6f8380]"}`}>
-                  List View
-                </span>
-                {view === "list" ? (
+
+                <div className="flex items-center gap-2 flex-wrap justify-end">
+                  <div className="flex h-8 items-center bg-white border border-[#dce6e3] rounded-md px-3 min-w-[180px] sm:min-w-[220px]">
+                    <Image src="/icons/admin-recruiter/candidates/search.svg" alt="" width={16} height={16} className="mr-2 shrink-0" />
+                    <input
+                      type="search"
+                      value={query}
+                      onChange={(e) => setQuery(e.target.value)}
+                      placeholder="Search worker or candidate"
+                      className="bg-transparent outline-none flex-1 min-w-0 text-xs leading-4 font-normal text-[#94A3B8] placeholder:text-[#94A3B8]"
+                    />
+                  </div>
+
                   <button
                     type="button"
-                    onClick={() => setEditColumnsOpen(true)}
-                    className="inline-flex items-center gap-2 rounded-md border border-[#dce6e3] bg-white px-3 py-1.5 text-[11px] font-medium text-[#506462] hover:bg-zinc-50"
+                    onClick={() => void loadCandidates()}
+                    className="h-8 inline-flex items-center gap-1.5 border border-[#dce6e3] bg-white hover:bg-zinc-50 px-3 rounded-md transition text-xs leading-4 font-semibold text-[#3d4a4a]"
                   >
-                    <Columns2 className="h-4 w-4" />
-                    Edit columns
+                    <Image src="/icons/admin-recruiter/candidates/refresh.svg" alt="" width={16} height={16} />
+                    Refresh
                   </button>
-                ) : null}
+
+                  {/* <button
+                    type="button"
+                    className="h-8 inline-flex items-center gap-1.5 border border-[#dce6e3] bg-white hover:bg-zinc-50 px-3 rounded-md transition text-xs text-[#3d4a4a]"
+                  >
+                    Filters
+                  </button> */}
+                  <button
+                    type="button"
+                    onClick={() => setShowFilterRows((v) => !v)}
+                    className="h-8 inline-flex items-center gap-1.5 border border-[#dce6e3] bg-white hover:bg-zinc-50 px-3 rounded-md transition text-xs leading-4 font-semibold text-[#3d4a4a]"
+                  >
+                  <Image src="/icons/admin-recruiter/candidates/filter.svg" alt="" width={16} height={16} />
+                    {showFilterRows ? "Hide View" : "View Filters"}
+                  </button>
+
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setMoreMenuOpen((v) => !v)}
+                      className="flex items-center justify-center w-8 h-8 border border-[#dce6e3] bg-white hover:bg-zinc-50 rounded-md transition"
+                      aria-label="More actions"
+                    >
+                      <Image src="/icons/admin-recruiter/candidates/three-dot.svg" alt="" width={16} height={16} />
+                    </button>
+                    {moreMenuOpen ? (
+                      <>
+                        <button
+                          type="button"
+                          className="fixed inset-0 z-40 cursor-default"
+                          aria-label="Close menu"
+                          onClick={() => setMoreMenuOpen(false)}
+                        />
+                        <div className="absolute right-0 top-full mt-2 z-50 min-w-[200px] rounded-2xl border border-zinc-200 bg-white py-2 shadow-lg">
+                          <Link
+                            href="/admin_recruiter/advanced-search"
+                            className="block px-4 py-2.5 text-sm text-gray-600 hover:bg-zinc-50"
+                            onClick={() => setMoreMenuOpen(false)}
+                          >
+                            Advanced search
+                          </Link>
+                        </div>
+                      </>
+                    ) : null}
+                  </div>
+                </div>
               </div>
+
+              {showFilterRows ? (
+                <>
+                  <div className="h-[60px] border-b border-[#E5E7EB] p-[14px] flex items-center justify-between gap-3">
+                    <div className="flex items-center text-[#9aaba9]">
+                      <Image src="/icons/admin-recruiter/candidates/filtered.svg.svg" alt="" width={20} height={20} />
+                    </div>
+                    <div className="flex flex-wrap items-center gap-4 sm:gap-8 flex-1">
+                    <label className="flex items-center gap-3">
+                      <span className="text-[11px] text-[#6f8380] whitespace-nowrap">Type</span>
+                      <select
+                        value={typeFilter}
+                        disabled
+                        className="h-8 text-xs px-2.5 rounded-md border border-[#dce6e3] bg-white text-[#435351] min-w-[120px]"
+                      >
+                        <option>Candidates</option>
+                      </select>
+                    </label>
+                    <label className="flex items-center gap-3">
+                      <span className="text-[11px] text-[#6f8380] whitespace-nowrap">Status</span>
+                      <select
+                        value={statusFilter}
+                        onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+                        className="h-8 text-xs px-2.5 rounded-md border border-[#dce6e3] bg-white hover:bg-zinc-50 min-w-[120px]"
+                      >
+                        {STATUS_FILTER.map((s) => (
+                          <option key={s} value={s}>
+                            {s}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="flex items-center gap-3">
+                      <span className="text-[11px] text-[#6f8380] whitespace-nowrap">Job Role</span>
+                      <select
+                        value={jobRoleFilter}
+                        onChange={(e) => setJobRoleFilter(e.target.value)}
+                        className="h-8 text-xs px-2.5 rounded-md border border-[#dce6e3] bg-white hover:bg-zinc-50 min-w-[140px]"
+                      >
+                        <option value="">All</option>
+                        {jobRoleOptions.map((role) => (
+                          <option key={role} value={role}>
+                            {role}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="flex items-center gap-3">
+                      <span className="text-[11px] text-[#6f8380] whitespace-nowrap">Location</span>
+                      <select
+                        value={locationFilter}
+                        onChange={(e) => setLocationFilter(e.target.value)}
+                        className="h-8 text-xs px-2.5 rounded-md border border-[#dce6e3] bg-white hover:bg-zinc-50 min-w-[140px]"
+                      >
+                        <option value="">All</option>
+                        {locationOptions.map((loc) => (
+                          <option key={loc} value={loc}>
+                            {loc}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    </div>
+                  </div>
+
+                  <div className="h-[56px] border-b border-[#E5E7EB] bg-white px-[14px] flex items-center justify-between gap-4">
+                    <div className="text-xs text-[#5e7371] shrink-0">
+                      Total:{" "}
+                      <span className="font-semibold text-[#203130]">
+                        {loading ? "—" : totalFromApi ?? filtered.length}
+                      </span>{" "}
+                      {loading ? "" : totalLabel}
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className={`text-[11px] font-medium ${view === "card" ? "text-[#0f6a65]" : "text-[#6f8380]"}`}>
+                        Card View
+                      </span>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={view === "list"}
+                        aria-label="Toggle list view"
+                        onClick={() => setView((v) => (v === "card" ? "list" : "card"))}
+                        className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+                          view === "list" ? "bg-[#0c918a]" : "bg-zinc-300"
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition ${
+                            view === "list" ? "translate-x-5" : "translate-x-0.5"
+                          }`}
+                        />
+                      </button>
+                      <span className={`text-[11px] font-medium ${view === "list" ? "text-[#0f6a65]" : "text-[#6f8380]"}`}>
+                        List View
+                      </span>
+                      {view === "list" ? (
+                        <button
+                          type="button"
+                          onClick={() => setEditColumnsOpen(true)}
+                          className="inline-flex items-center gap-2 rounded-md border border-[#dce6e3] bg-white px-3 py-1.5 text-[11px] font-medium text-[#506462] hover:bg-zinc-50"
+                        >
+                          <Columns2 className="h-4 w-4" />
+                          Edit columns
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                </>
+              ) : null}
             </div>
 
-            <div className="p-4 overflow-auto">
+            <div className="relative z-0 flex-1 min-h-0 px-4 pb-4 pt-6 overflow-auto bg-white [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
               {(() => {
                 const formatDate = formatDateShort;
 
@@ -560,7 +576,7 @@ export default function CandidatesPage() {
                     </div>
 
                     {visibleCount < filtered.length ? (
-                      <div className="flex justify-center mt-10 pb-2">
+                      <div className="flex justify-center mt-8 pb-3">
                         <button
                           type="button"
                           onClick={() => {
@@ -571,12 +587,10 @@ export default function CandidatesPage() {
                             }, 400);
                           }}
                           disabled={loadMoreLoading}
-                          className="inline-flex items-center gap-2 px-8 py-3 rounded-2xl border-2 border-zinc-200 bg-white text-sm font-medium text-gray-600 hover:bg-zinc-50 hover:border-teal-300 transition disabled:opacity-60"
+                          className="inline-flex items-center gap-2 px-2 py-1 text-sm font-semibold text-[#6B7280] hover:text-[#4B5563] transition disabled:opacity-70"
                         >
-                          {loadMoreLoading ? (
-                            <Loader2 className="w-4 h-4 animate-spin text-teal-600" />
-                          ) : null}
                           Load more
+                          <Loader2 className={`w-4 h-4 text-[#3B82F6] ${loadMoreLoading ? "animate-spin" : ""}`} />
                         </button>
                       </div>
                     ) : null}
