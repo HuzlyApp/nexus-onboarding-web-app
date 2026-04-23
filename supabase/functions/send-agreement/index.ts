@@ -115,27 +115,15 @@ function getEnv(name: (typeof REQUIRED_ENVS)[number]): string {
 }
 
 function getZohoClientId(): string {
-  return (
-    Deno.env.get("ZOHO_SIGN_CLIENT_ID")?.trim() ||
-    Deno.env.get("ZOHO_CLIENT_ID")?.trim() ||
-    ""
-  );
+  return Deno.env.get("ZOHO_SIGN_CLIENT_ID")?.trim() || "";
 }
 
 function getZohoClientSecret(): string {
-  return (
-    Deno.env.get("ZOHO_SIGN_CLIENT_SECRET")?.trim() ||
-    Deno.env.get("ZOHO_CLIENT_SECRET")?.trim() ||
-    ""
-  );
+  return Deno.env.get("ZOHO_SIGN_CLIENT_SECRET")?.trim() || "";
 }
 
 function getZohoRefreshToken(): string {
-  return (
-    Deno.env.get("ZOHO_SIGN_REFRESH_TOKEN")?.trim() ||
-    Deno.env.get("ZOHO_REFRESH_TOKEN")?.trim() ||
-    ""
-  );
+  return Deno.env.get("ZOHO_SIGN_REFRESH_TOKEN")?.trim() || "";
 }
 
 function getZohoAccountsHost(): string {
@@ -160,9 +148,9 @@ function logEnvAvailability() {
     ZOHO_SIGN_TEMPLATE_ID: Boolean(getEnv("ZOHO_SIGN_TEMPLATE_ID")),
     SUPABASE_URL: Boolean(getEnv("SUPABASE_URL")),
     SUPABASE_SERVICE_ROLE_KEY: Boolean(getEnv("SUPABASE_SERVICE_ROLE_KEY")),
-    ZOHO_SIGN_CLIENT_ID_OR_ZOHO_CLIENT_ID: Boolean(getZohoClientId()),
-    ZOHO_SIGN_CLIENT_SECRET_OR_ZOHO_CLIENT_SECRET: Boolean(getZohoClientSecret()),
-    ZOHO_SIGN_REFRESH_TOKEN_OR_ZOHO_REFRESH_TOKEN: Boolean(getZohoRefreshToken()),
+    ZOHO_SIGN_CLIENT_ID: Boolean(getZohoClientId()),
+    ZOHO_SIGN_CLIENT_SECRET: Boolean(getZohoClientSecret()),
+    ZOHO_SIGN_REFRESH_TOKEN: Boolean(getZohoRefreshToken()),
     ZOHO_ACCOUNTS_HOST_OR_ZOHO_ACCOUNTS_BASE_URL: Boolean(getZohoAccountsHost()),
     ZOHO_SIGN_API_BASE_OR_ZOHO_SIGN_BASE_URL: Boolean(getZohoApiBaseCandidates()[0]),
   };
@@ -230,9 +218,9 @@ serve(async (req) => {
 
   logEnvAvailability();
   const missingEnvVars: string[] = REQUIRED_ENVS.filter((name) => !getEnv(name));
-  if (!getZohoClientId()) missingEnvVars.push("ZOHO_SIGN_CLIENT_ID|ZOHO_CLIENT_ID");
-  if (!getZohoClientSecret()) missingEnvVars.push("ZOHO_SIGN_CLIENT_SECRET|ZOHO_CLIENT_SECRET");
-  if (!getZohoRefreshToken()) missingEnvVars.push("ZOHO_SIGN_REFRESH_TOKEN|ZOHO_REFRESH_TOKEN");
+  if (!getZohoClientId()) missingEnvVars.push("ZOHO_SIGN_CLIENT_ID");
+  if (!getZohoClientSecret()) missingEnvVars.push("ZOHO_SIGN_CLIENT_SECRET");
+  if (!getZohoRefreshToken()) missingEnvVars.push("ZOHO_SIGN_REFRESH_TOKEN");
   if (missingEnvVars.length > 0) {
     return fail("env_validation", "Missing required environment variables", 500, {
       missing: missingEnvVars,
@@ -354,8 +342,8 @@ serve(async (req) => {
   const templateId = getEnv("ZOHO_SIGN_TEMPLATE_ID");
   const zohoApiBases = getZohoApiBaseCandidates();
   // Log template usage
-  console.log(\"[send-agreement] using template-based signing\", {
-    templateId: templateId ? `${templateId.slice(0, 8)}***` : \"missing\",
+  console.log("[send-agreement] using template-based signing", {
+    templateId: templateId ? `${templateId.slice(0, 8)}***` : "missing",
     templateName,
     zohoApiBases: zohoApiBases.map(u => new URL(u).hostname),
   });
@@ -457,8 +445,14 @@ serve(async (req) => {
 
     if (!templateFound) {
       if (sawJsonFailure && lastZohoFailure) {
+        const scopeError =
+          Number(lastZohoFailure.code) === 9040 ||
+          /invalid oauth scope/i.test(String(lastZohoFailure.message || ""));
         return fail("zoho_send", "Zoho template lookup failed", 502, {
           ...lastZohoFailure,
+          remediation: scopeError
+            ? "ZOHO_SIGN_REFRESH_TOKEN does not include required Zoho Sign scopes. Generate a new Zoho Sign refresh token for this app (with template/document scopes) and update ZOHO_SIGN_CLIENT_ID, ZOHO_SIGN_CLIENT_SECRET, and ZOHO_SIGN_REFRESH_TOKEN."
+            : undefined,
           attempts: templateAttemptDebug,
         });
       }
