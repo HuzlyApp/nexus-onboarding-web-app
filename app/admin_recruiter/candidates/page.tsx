@@ -352,11 +352,12 @@ export default function CandidatesPage() {
 
               {showFilterRows ? (
                 <>
-                  <div className="h-[60px] border-b border-[#E5E7EB] p-[14px] flex items-center justify-between gap-3">
+                  <div className="h-[60px] border-b border-[#E5E7EB] p-[14px] flex items-center justify-between ">
                     <div className="flex items-center text-[#9aaba9]">
                       <Image src="/icons/admin-recruiter/candidates/filtered.svg.svg" alt="" width={20} height={20} />
                     </div>
-                    <div className="flex flex-wrap items-center gap-4 sm:gap-8 flex-1">
+                    <div className="flex flex-wrap items-center gap-4 sm:gap-8">
+                      
                     <label className="flex items-center gap-3">
                       <span className="text-[11px] text-[#6f8380] whitespace-nowrap">Type</span>
                       <select
@@ -481,13 +482,25 @@ export default function CandidatesPage() {
                 if (view === "list") {
                   const cols = listColumnOrder.length ? listColumnOrder : DEFAULT_CANDIDATE_COLUMNS;
                   return (
-                    <div className="bg-zinc-50/80 border border-zinc-200 rounded-2xl overflow-hidden">
+                    <div className="overflow-hidden rounded-xl border border-[#D9DEE5] bg-white">
                       <div className="overflow-auto">
-                        <table className="min-w-[720px] w-full bg-white">
-                          <thead>
-                            <tr className="text-left text-xs uppercase tracking-widest text-gray-600 border-b border-zinc-100">
+                        <table className="min-w-[760px] w-full border-collapse">
+                          <thead className="bg-[#F8FAFC]">
+                            <tr className="border-b border-[#E5E7EB]">
+                              <th className="w-12 bg-[#E5E7EB] px-3 py-3 text-center border-r border-[#E5E7EB]">
+                                <input
+                                  type="checkbox"
+                                  aria-label="Select all candidates"
+                                  className="h-4 w-4 rounded border border-[#C8D1DA] accent-[#0C9A92]"
+                                />
+                              </th>
                               {cols.map((colId) => (
-                                <th key={colId} className="px-4 py-4 font-medium first:pl-6 last:pr-6">
+                                <th
+                                  key={colId}
+                                  className={`px-4 py-3 bg-[#E5E7EB] text-left text-sm font-medium uppercase tracking-[0.08em] text-black first:pl-6 last:pr-6 border-r border-[#E5E7EB] last:border-r-0 ${
+                                    colId === "createdDate" ? "min-w-[140px] whitespace-nowrap" : ""
+                                  }`}
+                                >
                                   {columnLabel(colId)}
                                 </th>
                               ))}
@@ -495,9 +508,21 @@ export default function CandidatesPage() {
                           </thead>
                           <tbody>
                             {filtered.map((c) => (
-                              <tr key={c.id} className="border-b border-zinc-100 hover:bg-zinc-50/70">
+                              <tr key={c.id} className="border-b border-[#E9EDF3] hover:bg-[#F9FBFB]">
+                                <td className="w-12 px-3 py-4 text-center border-r border-[#EEF2F7] align-middle">
+                                  <input
+                                    type="checkbox"
+                                    aria-label={`Select ${c.name || "candidate"}`}
+                                    className="h-4 w-4 rounded border border-[#C8D1DA] accent-[#0C9A92]"
+                                  />
+                                </td>
                                 {cols.map((colId) => (
-                                  <td key={colId} className="px-4 py-4 first:pl-6 last:pr-6 align-top">
+                                  <td
+                                    key={colId}
+                                    className={`px-4 py-4 first:pl-6 last:pr-6 align-middle border-r border-[#EEF2F7] last:border-r-0 ${
+                                      colId === "createdDate" ? "min-w-[140px] whitespace-nowrap" : ""
+                                    }`}
+                                  >
                                     {renderListCell(colId, c, formatDate)}
                                   </td>
                                 ))}
@@ -520,55 +545,56 @@ export default function CandidatesPage() {
                         >
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex items-start gap-3 min-w-0">
-                              <div className="w-8 h-8 rounded-full bg-[#17a39b] text-white flex items-center justify-center text-[10px] font-semibold shrink-0">
+                              <div className="w-8 h-8 rounded-full bg-[linear-gradient(135deg,#27c8c0_0%,#16877f_100%)] text-white text-sm font-semibold text-white flex items-center justify-center font-semibold shrink-0">
                                 {initialsFromName(c.name || "NA")}
                               </div>
                               <div className="min-w-0">
-                                <div className="font-semibold text-[#2d3a39] truncate text-sm">{c.name || "Unnamed"}</div>
-                                <div className="text-[10px] text-[#8ca09e] mt-0.5">RN #{c.reference}</div>
+                                <div className="font-normal text-black truncate text-sm">{c.name || "Unnamed"}</div>
+                                <div className="text-[10px] text-[#6B7280] mt-0.5">RN #{c.reference}</div>
                               </div>
                             </div>
 
                             <div className="flex items-center gap-1.5 shrink-0">
                               <Link
                                 href={`/admin_recruiter/new/attachments/${c.id}`}
-                                className="w-6 h-6 rounded-md border border-[#dce6e3] hover:bg-teal-50 flex items-center justify-center text-[#4e6462] transition"
+                                className="w-6 h-6 rounded-md hover:bg-teal-50 flex items-center justify-center text-[#4e6462] transition"
                                 aria-label="View document"
                               >
-                                <FileText className="w-3 h-3" />
+                               <img src="/icons/admin-recruiter/save.svg" alt="Save" className="h-4 w-4" />
+                              
                               </Link>
                               <Link
                                 href={`/admin_recruiter/new/profile/${c.id}`}
-                                className="w-6 h-6 rounded-md border border-[#dce6e3] hover:bg-teal-50 flex items-center justify-center text-[#4e6462] transition"
+                                className="w-6 h-6 rounded-md hover:bg-teal-50 flex items-center justify-center text-[#4e6462] transition"
                                 aria-label="View profile"
                               >
-                                <Eye className="w-3 h-3" />
+                                <img src="/icons/admin-recruiter/eye.svg" alt="View" className="h-4 w-4" />
                               </Link>
                             </div>
                           </div>
 
-                          <div className="mt-3 flex items-center justify-between gap-2 flex-wrap">
+                          <div className="mt-3 flex items-center border-b border-[#E5E7EB] pb-3 justify-between gap-2 flex-wrap">
                             <div className="flex items-center gap-1.5 text-[11px] text-[#6f8380]">
-                              <CalendarDays className="w-3.5 h-3.5 text-[#16a39b] shrink-0" />
+                            <img src="/icons/admin-recruiter/calendar.svg" alt="View" className="h-4 w-4" />
                               <span>{formatDateTime(c.createdAt)}</span>
                             </div>
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-[10px] font-medium border border-[#8fd0c9] text-[#0d6e68] bg-[#effbfa]">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-[10px] font-semibold border border-[#0D9488] text-[#0D9488] ">
                               {c.status}
                             </span>
                           </div>
 
                           <div className="mt-3 space-y-1.5 text-[11px] text-[#4f6462]">
                             <div className="flex items-start gap-2.5">
-                              <Mail className="w-3.5 h-3.5 text-[#16a39b] shrink-0 mt-0.5" />
-                              <span className="truncate">{c.email || "—"}</span>
+                            <img src="/icons/admin-recruiter/alternate_email.svg" alt="View" className="h-4 w-4" />
+                              <span className="truncate text-black">{c.email || "—"}</span>
                             </div>
                             <div className="flex items-center gap-2.5">
-                              <Phone className="w-3.5 h-3.5 text-[#16a39b] shrink-0" />
-                              <span className="truncate">{c.phone || "—"}</span>
+                            <img src="/icons/admin-recruiter/phone.svg" alt="View" className="h-4 w-4" />
+                              <span className="truncate text-black">{c.phone || "—"}</span>
                             </div>
                             <div className="flex items-start gap-2.5">
-                              <MapPin className="w-3.5 h-3.5 text-[#16a39b] shrink-0 mt-0.5" />
-                              <span className="leading-snug">{c.address || "—"}</span>
+                            <img src="/icons/admin-recruiter/location-marker.svg" alt="View" className="h-4 w-4" />
+                              <span className="leading-snug text-black">{c.address || "—"}</span>
                             </div>
                           </div>
                         </div>
