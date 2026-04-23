@@ -59,6 +59,7 @@ export default function DocumentsPage() {
   const [signingUrl, setSigningUrl] = useState<string | null>(null)
   const [signingLoading, setSigningLoading] = useState(false)
   const [envelopeId, setEnvelopeId] = useState<string | null>(null)
+  const [zohoDocumentId, setZohoDocumentId] = useState<string | null>(null)
   const [isSigned, setIsSigned] = useState(false)
   const [signingCompleteManual, setSigningCompleteManual] = useState(false)
   const [signingPopupOpened, setSigningPopupOpened] = useState(false)
@@ -224,6 +225,7 @@ export default function DocumentsPage() {
       })
 
       setEnvelopeId(data.request_id)
+      setZohoDocumentId(data.zoho_document_id?.trim() || null)
       setSigningStatus(data.status || "sent")
       localStorage.setItem("signingRequestId", data.request_id)
       setOnboardingAgreementLocked(true)
@@ -272,6 +274,7 @@ export default function DocumentsPage() {
         const rowByEmail = await fetchZohoSignStatus({ email, reconcile: true })
         if (rowByEmail?.request_id) {
           setEnvelopeId(rowByEmail.request_id)
+          setZohoDocumentId(rowByEmail.zoho_document_id?.trim() || null)
           setSigningStatus(rowByEmail.status || "sent")
           localStorage.setItem("signingRequestId", rowByEmail.request_id)
           setOnboardingAgreementLocked(rowByEmail.status !== "declined")
@@ -286,6 +289,7 @@ export default function DocumentsPage() {
         const rowById = await fetchZohoSignStatus({ requestId: envelopeId, reconcile: true })
         if (rowById?.request_id) {
           setEnvelopeId(rowById.request_id)
+          setZohoDocumentId(rowById.zoho_document_id?.trim() || null)
           if (rowById.status) setSigningStatus(rowById.status)
           localStorage.setItem("signingRequestId", rowById.request_id)
           setOnboardingAgreementLocked(rowById.status !== "declined")
@@ -297,6 +301,7 @@ export default function DocumentsPage() {
         // Stored request_id is stale/missing in DB; clear and let email lookup recover.
         localStorage.removeItem("signingRequestId")
         setEnvelopeId(null)
+        setZohoDocumentId(null)
         setOnboardingAgreementLocked(false)
       }
     } catch {
@@ -313,6 +318,7 @@ export default function DocumentsPage() {
         const row = await fetchZohoSignStatus({ requestId: envelopeId, reconcile: true })
         if (!cancelled && row?.status) {
           setSigningStatus(row.status)
+          setZohoDocumentId(row.zoho_document_id?.trim() || null)
           setOnboardingAgreementLocked(row.status !== "declined")
           if (row.status === "signed" || row.status === "completed") setAgreed(true)
         }
@@ -325,6 +331,7 @@ export default function DocumentsPage() {
       requestId: envelopeId,
       onStatusChange: (next) => {
         setSigningStatus(next.status)
+        setZohoDocumentId(next.zoho_document_id?.trim() || null)
         if (next.status === "signed" || next.status === "completed") {
           setAgreed(true)
           setOnboardingAgreementLocked(true)
@@ -359,6 +366,7 @@ export default function DocumentsPage() {
           return
         }
         setEnvelopeId(row.request_id)
+        setZohoDocumentId(row.zoho_document_id?.trim() || null)
         setSigningStatus(row.status || "sent")
         localStorage.setItem("signingRequestId", row.request_id)
         setOnboardingAgreementLocked(row.status !== "declined")
@@ -495,14 +503,19 @@ export default function DocumentsPage() {
   const openZohoDocument = useCallback(
     (mode: "preview" | "download") => {
       if (!envelopeId) return
-      const url = `/api/zoho-sign/document?request_id=${encodeURIComponent(envelopeId)}&mode=${mode}`
+      const qs = new URLSearchParams({
+        request_id: envelopeId,
+        mode,
+      })
+      if (zohoDocumentId) qs.set("document_id", zohoDocumentId)
+      const url = `/api/zoho-sign/document?${qs.toString()}`
       if (mode === "download") {
         window.location.href = url
         return
       }
       window.open(url, "_blank", "noopener,noreferrer")
     },
-    [envelopeId]
+    [envelopeId, zohoDocumentId]
   )
 
   function IdentityFileCard({

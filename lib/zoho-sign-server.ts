@@ -110,9 +110,91 @@ async function refreshZohoAccessToken(): Promise<string> {
   return tokenJson.access_token;
 }
 
+/** `https://www.zoho.com` is not a Zoho Sign REST host; using it yields HTML 404 pages. */
+function isInvalidZohoSignApiBase(base: string): boolean {
+  const b = base.replace(/\/$/, "").toLowerCase();
+  return /^https?:\/\/(www\.)?zoho\.com$/i.test(b);
+}
+
+/**
+ * Map Zoho Accounts hostname → Zoho Sign API origin for the same data center.
+ * Do not call multiple Sign hosts with one access token — non-matching hosts return 9041 Invalid Oauth token.
+ */
+function signApiBaseFromAccountsUrl(accountsUrl: string): string | null {
+  let host: string;
+  try {
+    host = new URL(accountsUrl.trim()).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+  const map: Record<string, string> = {
+    "accounts.zoho.com": "https://sign.zoho.com",
+    "accounts.zoho.eu": "https://sign.zoho.eu",
+    "accounts.zoho.in": "https://sign.zoho.in",
+    "accounts.zoho.com.au": "https://sign.zoho.com.au",
+    "accounts.zoho.jp": "https://sign.zoho.jp",
+    "accounts.zohocloud.ca": "https://sign.zohocloud.ca",
+    "accounts.zoho.sa": "https://sign.zoho.sa",
+  };
+  return map[host] || null;
+}
+
+/**
+ * Single Sign REST origin for this app's OAuth token (must match Zoho Accounts DC).
+ * Priority: `ZOHO_SIGN_API_BASE` → derived from `ZOHO_ACCOUNTS_HOST` → US default.
+ */
+export function zohoSignApiBase(): string {
+  const configured = envValue("ZOHO_SIGN_API_BASE", "ZOHO_SIGN_BASE_URL").replace(/\/$/, "");
+  if (configured && !isInvalidZohoSignApiBase(configured)) return configured;
+  const accounts = envValue("ZOHO_ACCOUNTS_HOST", "ZOHO_ACCOUNTS_BASE_URL") || "https://accounts.zoho.com";
+  const derived = signApiBaseFromAccountsUrl(accounts);
+  if (derived) return derived;
+  return "https://sign.zoho.com";
+}
+
+/** @deprecated Prefer {@link zohoSignApiBase} — kept for call sites that iterate; returns one host. */
 export function zohoSignApiBaseCandidates(): string[] {
-  const configuredBase = envValue("ZOHO_SIGN_API_BASE", "ZOHO_SIGN_BASE_URL");
-  return [...new Set([configuredBase, "https://sign.zoho.com", "https://www.zoho.com"].filter(Boolean))];
+  return [zohoSignApiBase()];
+}
+
+type ResolveRequestAttempt = { base: string; status: number; body_preview: string };
+
+/**
+ * Finds which Sign API host knows this `request_id` (GET `/api/v1/requests/{id}`).
+ * Use before PDF download so we only hit one DC for heavy `/pdf` calls.
+ */
+export async function findZohoSignApiBaseForRequest(
+  accessToken: string,
+  requestId: string,
+): Promise<{ ok: true; base: string } | { ok: false; attempts: ResolveRequestAttempt[] }> {
+  const signBase = zohoSignApiBase().replace(/\/$/, "");
+  const rid = encodeURIComponent(requestId.trim());
+  const url = `${signBase}/api/v1/requests/${rid}`;
+  const res = await fetch(url, {
+    headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
+  });
+  const text = await res.text();
+  const attempt: ResolveRequestAttempt = {
+    base: signBase,
+    status: res.status,
+    body_preview: text.replace(/\s+/g, " ").slice(0, 240),
+  };
+
+  if (!res.ok) {
+    return { ok: false, attempts: [attempt] };
+  }
+
+  let root: Record<string, unknown> = {};
+  try {
+    root = JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    return { ok: false, attempts: [attempt] };
+  }
+  if (root.status !== "success") {
+    return { ok: false, attempts: [attempt] };
+  }
+
+  return { ok: true, base: signBase };
 }
 
 export type ZohoSignDbStatus = "sent" | "viewed" | "signed" | "completed" | "declined";
@@ -157,6 +239,7 @@ export async function fetchZohoRequestJson(requestId: string): Promise<{
     }
 
     const root = json && typeof json === "object" ? (json as Record<string, unknown>) : {};
+    if (root.status !== "success") continue;
     const requests = root.requests;
     let reqObj: Record<string, unknown>;
     if (Array.isArray(requests) && requests[0] && typeof requests[0] === "object") {

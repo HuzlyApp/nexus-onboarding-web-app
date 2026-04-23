@@ -16,6 +16,7 @@ export type ZohoSignRequestRecord = {
   status: ZohoSignDbStatus;
   created_at: string;
   updated_at: string;
+  zoho_document_id?: string | null;
 };
 
 export type SendAgreementPayload = {
@@ -127,7 +128,7 @@ export async function fetchZohoSignStatus(params: {
     // Fallback to direct client query for environments where server route is unavailable.
     let query = supabaseBrowser
       .from("zoho_sign_requests")
-      .select("request_id,email,recipient_name,status,created_at,updated_at")
+      .select("request_id,email,recipient_name,status,created_at,updated_at,zoho_document_id")
       .order("updated_at", { ascending: false })
       .limit(1);
     query = requestId ? query.eq("request_id", requestId) : query.eq("email", email!);

@@ -134,13 +134,48 @@ function getZohoAccountsHost(): string {
   );
 }
 
-function getZohoApiBaseCandidates(): string[] {
+function isInvalidZohoSignApiBase(base: string): boolean {
+  const b = base.replace(/\/$/, "").toLowerCase();
+  return /^https?:\/\/(www\.)?zoho\.com$/i.test(b);
+}
+
+/** Same mapping as `lib/zoho-sign-server.ts` — one Sign host per OAuth token (Zoho DC). */
+function signApiBaseFromAccountsUrl(accountsUrl: string): string | null {
+  let host: string;
+  try {
+    host = new URL(accountsUrl.trim()).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+  const map: Record<string, string> = {
+    "accounts.zoho.com": "https://sign.zoho.com",
+    "accounts.zoho.eu": "https://sign.zoho.eu",
+    "accounts.zoho.in": "https://sign.zoho.in",
+    "accounts.zoho.com.au": "https://sign.zoho.com.au",
+    "accounts.zoho.jp": "https://sign.zoho.jp",
+    "accounts.zohocloud.ca": "https://sign.zohocloud.ca",
+    "accounts.zoho.sa": "https://sign.zoho.sa",
+  };
+  return map[host] || null;
+}
+
+/** Single Sign REST origin for this token — do not probe every regional host (9041 on wrong DC). */
+function getZohoSignApiBase(): string {
   const configured = [
     Deno.env.get("ZOHO_SIGN_API_BASE")?.trim() || "",
     Deno.env.get("ZOHO_SIGN_BASE_URL")?.trim() || "",
-  ].filter(Boolean);
-  const defaults = ["https://sign.zoho.com", "https://www.zoho.com"];
-  return [...new Set([...configured, ...defaults])].map((value) => value.replace(/\/$/, ""));
+  ]
+    .filter(Boolean)
+    .map((value) => value.replace(/\/$/, ""))
+    .find((b) => !isInvalidZohoSignApiBase(b));
+  if (configured) return configured;
+  const derived = signApiBaseFromAccountsUrl(getZohoAccountsHost());
+  if (derived) return derived;
+  return "https://sign.zoho.com";
+}
+
+function getZohoApiBaseCandidates(): string[] {
+  return [getZohoSignApiBase()];
 }
 
 function logEnvAvailability() {
@@ -638,5 +673,6 @@ serve(async (req) => {
     email,
     name,
     signing_url: signingUrl,
+    zoho_document_id: zohoDocumentId,
   });
 });
