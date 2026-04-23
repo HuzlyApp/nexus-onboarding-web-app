@@ -227,7 +227,7 @@ export default function CandidatesPage() {
   return (
     <div className="flex h-screen bg-[#f3f5f5] overflow-hidden">
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-16 border-b border-[#e5ecea] bg-white flex items-center px-6 justify-between shrink-0">
+        <header className="sticky top-0 z-30 h-16 border-b border-[#e5ecea] bg-white flex items-center px-6 justify-between shrink-0">
           <div />
 
           <div className="flex items-center gap-4">
@@ -254,7 +254,7 @@ export default function CandidatesPage() {
           </div>
         </header>
 
-        <div className="flex-1 p-4 sm:p-5 overflow-auto">
+        <div className="flex-1 p-4 sm:p-5 overflow-hidden flex flex-col">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-4">
             <div>
               <h1
@@ -338,7 +338,7 @@ export default function CandidatesPage() {
             </div>
           </div>
 
-          <div className="bg-white border border-[#e3ecea] rounded-xl overflow-hidden">
+          <div className="flex-1 min-h-0 bg-white border border-[#e3ecea] rounded-xl overflow-hidden flex flex-col">
             <div className="px-4 py-3 border-b border-[#edf3f2] flex flex-wrap items-center gap-3">
               <div className="flex items-center text-[#9aaba9]">
                 <Filter className="h-4 w-4" />
@@ -446,7 +446,7 @@ export default function CandidatesPage() {
               </div>
             </div>
 
-            <div className="p-4">
+            <div className="p-4 overflow-auto">
               {(() => {
                 const formatDate = formatDateShort;
 

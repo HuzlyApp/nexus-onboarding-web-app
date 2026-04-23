@@ -8,7 +8,7 @@ export function AdminRecruiterHeader() {
   const router = useRouter();
 
   return (
-    <header className="w-full bg-white border-b border-[#E2E8F0]">
+    <header className="sticky top-0 z-40 w-full bg-white border-b border-[#E2E8F0]">
       <div className="flex h-[68px] w-full items-center justify-between px-5 py-4 lg:px-8">
         <button
           type="button"
