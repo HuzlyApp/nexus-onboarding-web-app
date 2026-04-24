@@ -129,6 +129,12 @@ function SearchableSelect({
     return () => document.removeEventListener("mousedown", onDocClick)
   }, [open])
 
+  useEffect(() => {
+    if (!open) {
+      setQuery("")
+    }
+  }, [open])
+
   return (
     <div ref={wrapperRef}>
       <label className="block text-[13px] font-medium text-gray-600 mb-1.5">
