@@ -101,8 +101,8 @@ export default function RecruiterDashboard() {
               <p className="text-sm text-[#6f7683]">Quick access to applicant pipelines and workers</p>
             </div>
 
-            <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div className="flex h-10 w-full max-w-[520px] items-center rounded-md border border-[#dce6e3] bg-white px-3">
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+              <div className="flex h-10 w-full sm:w-[420px] items-center rounded-md border border-[#dce6e3] bg-white px-3">
                 <Search className="mr-2 h-4 w-4 shrink-0 text-[#94A3B8]" />
                 <input
                   value={query}

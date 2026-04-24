@@ -90,7 +90,7 @@ export function AdminRecruiterSidebar() {
           </div>
 
           <nav className="flex-1 overflow-y-auto px-5 pb-5">
-            <div className="w-56 rounded-xl bg-transparent overflow-hidden">
+            <div className="w-56 rounded-xl bg-transparent">
               <div className="flex w-full items-center justify-between px-2 py-2 text-sm font-semibold text-[#1b5f5b]">
                 <span className="flex items-center gap-2">
                   <Image src="/icons/admin-recruiter/Member.svg" alt="" width={18} height={18} className="shrink-0" />
@@ -104,8 +104,8 @@ export function AdminRecruiterSidebar() {
                     <Link
                       key={item.href}
                       href={item.href}
-                      className={`flex h-8 w-56 items-center gap-2 rounded-md px-2 py-1.5 text-xs transition ${
-                        active ? "border border-[#88b3ad] bg-[#f5fbfa] text-[#0f514e]" : "text-[#3e5d5a] hover:bg-[#f2f8f7]"
+                      className={`box-border flex h-8 w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs transition ${
+                        active ? "border border-[#0c918a] bg-[#f5fbfa] text-[#0f514e]" : "text-[#3e5d5a] hover:bg-[#f2f8f7]"
                       }`}
                     >
                       {item.label}
@@ -130,8 +130,8 @@ export function AdminRecruiterSidebar() {
                     <Link
                       key={item.label}
                       href={item.href}
-                      className={`flex h-8 w-56 items-center rounded-md px-2 py-1.5 text-xs transition ${
-                        active ? "border border-[#88b3ad] bg-[#f5fbfa] text-[#0f514e]" : "text-[#3e5d5a] hover:bg-[#f2f8f7]"
+                      className={`box-border flex h-8 w-full items-center rounded-md px-2 py-1.5 text-xs transition ${
+                        active ? "border border-[#0c918a] bg-[#f5fbfa] text-[#0f514e]" : "text-[#3e5d5a] hover:bg-[#f2f8f7]"
                       }`}
                     >
                       {item.label}
