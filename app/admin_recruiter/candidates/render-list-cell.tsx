@@ -30,10 +30,23 @@ export function renderListCell(
         </div>
       )
     case "status":
+      const status = c.status.trim().toLowerCase()
       return (
-        <span className="inline-flex items-center rounded-md border border-[#E5E7EB]  px-2.5 py-0.5 text-sm font-medium text-black">
-          {c.status}
-        </span>
+        <div className="flex w-full justify-center">
+          <span
+            className={`inline-flex items-center rounded-md px-2.5 py-0.5 text-sm font-medium ${
+              status === "pending"
+                ? "border border-[#F59E0B] bg-[#F59E0B] text-white"
+                : status === "approved"
+                  ? "border border-[#22C55E] bg-[#22C55E] text-white"
+                  : status === "disapproved"
+                    ? "border border-[#FB7185] bg-[#FB7185] text-white"
+                : "border border-[#E5E7EB] text-black"
+            }`}
+          >
+            {c.status}
+          </span>
+        </div>
       )
     case "reference":
       return <span className="text-sm text-[#374151]">{c.reference}</span>
