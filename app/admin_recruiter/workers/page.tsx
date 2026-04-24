@@ -108,10 +108,10 @@ export default function WorkersPage() {
   }, [workers, query]);
 
   return (
-    <div className="p-4 sm:p-5">
+    <div className="p-4 sm:p-5"> 
       <div className="flex items-start justify-between gap-4 flex-wrap mb-4">
         <div>
-          <h1 className="text-[40px] font-semibold leading-[44px] text-[#1d2739]">Worker table</h1>
+          <h1 className="text-[36px] font-semibold leading-10 tracking-normal text-[#1d2739]">Worker table</h1>
           <div className="text-sm text-[#6f7683] mt-1">
             Data from <code className="bg-zinc-100 px-1 rounded">/api/workers</code> · Profile route{" "}
             <code className="bg-zinc-100 px-1 rounded">/admin_recruiter/workers/[id]/profile</code>

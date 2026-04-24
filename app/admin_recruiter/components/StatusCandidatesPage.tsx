@@ -226,16 +226,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
         <div className="flex-1 p-4 sm:p-5 overflow-hidden flex flex-col">
           <div className="flex flex-col gap-2 mb-4">
             <div>
-              <h1
-                className="text-[#1d2739]"
-                style={{
-                  fontFamily: "Inter, Arial, Helvetica, sans-serif",
-                  fontWeight: 600,
-                  fontSize: "36px",
-                  lineHeight: "40px",
-                  letterSpacing: "0",
-                }}
-              >
+              <h1 className="text-[36px] font-semibold leading-10 tracking-normal text-[#1d2739]">
                 Candidates
               </h1>
               <p className="mt-1 text-sm text-[#6f7683]">Manage applicants in one place</p>
@@ -244,7 +235,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
 
           <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
             <div className="relative z-10 w-full shrink-0 rounded-md border border-[#E5E7EB] bg-white overflow-hidden flex flex-col">
-              <div className="h-[60px] border-b border-[#E5E7EB] p-[14px] flex items-center justify-between gap-3">
+              <div className="min-h-[60px] border-b border-[#E5E7EB] p-[14px] flex flex-wrap items-center justify-between gap-3">
                 <button
                   type="button"
                   className="h-8 inline-flex items-center gap-1.5 bg-[#0c918a] hover:bg-[#0a7b75] text-white px-3 rounded-md transition text-xs font-semibold"
@@ -252,8 +243,8 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
                   <Plus className="w-3.5 h-3.5" /> Create Candidate
                 </button>
 
-                <div className="flex items-center gap-2 flex-wrap justify-end">
-                  <div className="flex h-8 items-center bg-white border border-[#dce6e3] rounded-md px-3 min-w-[180px] sm:min-w-[220px]">
+                <div className="flex flex-1 items-center gap-2 flex-wrap justify-start sm:justify-end">
+                  <div className="flex h-8 items-center bg-white border border-[#dce6e3] rounded-md px-3 w-full min-w-[180px] sm:w-auto sm:min-w-[220px]">
                     <Image src="/icons/admin-recruiter/candidates/search.svg" alt="" width={16} height={16} className="mr-2 shrink-0" />
                     <input
                       type="search"
@@ -316,39 +307,40 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
 
               {showFilterRows ? (
                 <>
-                  <div className="h-[60px] border-b border-[#E5E7EB] p-[14px] flex items-center justify-between ">
-                    <div className="flex items-center text-[#9aaba9]">
-                      <Image src="/icons/admin-recruiter/candidates/filtered.svg.svg" alt="" width={20} height={20} />
-                    </div>
-                    <div className="flex flex-wrap items-center gap-4 sm:gap-8">
-                      <label className="flex items-center gap-3">
+                  <div className="min-h-[60px] border-b border-[#E5E7EB] p-[14px] flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex w-full items-start gap-3">
+                      <div className="flex items-center pt-1 text-[#9aaba9]">
+                        <Image src="/icons/admin-recruiter/candidates/filtered.svg.svg" alt="" width={20} height={20} />
+                      </div>
+                      <div className="grid flex-1 min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4 lg:gap-3">
+                      <label className="flex items-center gap-2 min-w-0">
                         <span className="text-[11px] text-[#6f8380] whitespace-nowrap">Type</span>
                         <select
                           value={typeFilter}
                           disabled
-                          className="h-8 text-xs px-2.5 rounded-md border border-[#dce6e3] bg-white text-[#435351] min-w-[120px]"
+                          className="h-8 w-full min-w-0 text-xs px-2 rounded-md border border-[#dce6e3] bg-white text-[#435351] focus:outline-none focus:ring-0 focus:border-[#dce6e3]"
                         >
                           <option>Candidates</option>
                         </select>
                       </label>
 
-                      <label className="flex items-center gap-3">
+                      <label className="flex items-center gap-2 min-w-0">
                         <span className="text-[11px] text-[#6f8380] whitespace-nowrap">Status</span>
                         <select
                           value={statusLabel}
                           disabled
-                          className="h-8 text-xs px-2.5 rounded-md border border-[#dce6e3] bg-white text-[#435351] min-w-[120px]"
+                          className="h-8 w-full min-w-0 text-xs px-2 rounded-md border border-[#dce6e3] bg-white text-[#435351] focus:outline-none focus:ring-0 focus:border-[#dce6e3]"
                         >
                           <option>{statusLabel}</option>
                         </select>
                       </label>
 
-                      <label className="flex items-center gap-3">
+                      <label className="flex items-center gap-2 min-w-0">
                         <span className="text-[11px] text-[#6f8380] whitespace-nowrap">Job Role</span>
                         <select
                           value={jobRoleFilter}
                           onChange={(e) => setJobRoleFilter(e.target.value)}
-                          className="h-8 text-xs px-2.5 rounded-md border border-[#dce6e3] bg-white hover:bg-zinc-50 min-w-[140px]"
+                          className="h-8 w-full min-w-0 text-xs px-2 rounded-md border border-[#dce6e3] bg-white hover:bg-zinc-50 focus:outline-none focus:ring-0 focus:border-[#dce6e3]"
                         >
                           <option value="">All</option>
                           {jobRoleOptions.map((role) => (
@@ -358,12 +350,12 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
                           ))}
                         </select>
                       </label>
-                      <label className="flex items-center gap-3">
+                      <label className="flex items-center gap-2 min-w-0">
                         <span className="text-[11px] text-[#6f8380] whitespace-nowrap">Location</span>
                         <select
                           value={locationFilter}
                           onChange={(e) => setLocationFilter(e.target.value)}
-                          className="h-8 text-xs px-2.5 rounded-md border border-[#dce6e3] bg-white hover:bg-zinc-50 min-w-[140px]"
+                          className="h-8 w-full min-w-0 text-xs px-2 rounded-md border border-[#dce6e3] bg-white hover:bg-zinc-50 focus:outline-none focus:ring-0 focus:border-[#dce6e3]"
                         >
                           <option value="">All</option>
                           {locationOptions.map((loc) => (
@@ -373,6 +365,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
                           ))}
                         </select>
                       </label>
+                      </div>
                     </div>
                   </div>
 

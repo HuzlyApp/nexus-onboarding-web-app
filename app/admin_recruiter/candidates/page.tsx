@@ -256,16 +256,7 @@ export default function CandidatesPage() {
         <div className="flex-1 p-4 sm:p-5 overflow-hidden flex flex-col">
           <div className="flex flex-col gap-2 mb-4">
             <div>
-              <h1
-                className="text-[#1d2739]"
-                style={{
-                  fontFamily: "Inter, Arial, Helvetica, sans-serif",
-                  fontWeight: 600,
-                  fontSize: "36px",
-                  lineHeight: "40px",
-                  letterSpacing: "0",
-                }}
-              >
+              <h1 className="text-[36px] font-semibold leading-10 tracking-normal text-[#1d2739]">
                 Candidates
               </h1>
               <p className="mt-1 text-sm text-[#6f7683]">Manage applicants in one place</p>
@@ -364,7 +355,7 @@ export default function CandidatesPage() {
                         <select
                           value={typeFilter}
                           disabled
-                          className="h-8 w-full min-w-0 text-xs px-2 rounded-md border border-[#dce6e3] bg-white text-[#435351]"
+                          className="h-8 w-full min-w-0 text-xs px-2 rounded-md border border-[#dce6e3] bg-white text-[#435351] focus:outline-none focus:ring-0 focus:border-[#dce6e3]"
                         >
                           <option>Candidates</option>
                         </select>
@@ -374,7 +365,7 @@ export default function CandidatesPage() {
                         <select
                           value={statusFilter}
                           onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-                          className="h-8 w-full min-w-0 text-xs px-2 rounded-md border border-[#dce6e3] bg-white hover:bg-zinc-50"
+                          className="h-8 w-full min-w-0 text-xs px-2 rounded-md border border-[#dce6e3] bg-white hover:bg-zinc-50 focus:outline-none focus:ring-0 focus:border-[#dce6e3]"
                         >
                           {STATUS_FILTER.map((s) => (
                             <option key={s} value={s}>
@@ -388,7 +379,7 @@ export default function CandidatesPage() {
                         <select
                           value={jobRoleFilter}
                           onChange={(e) => setJobRoleFilter(e.target.value)}
-                          className="h-8 w-full min-w-0 text-xs px-2 rounded-md border border-[#dce6e3] bg-white hover:bg-zinc-50"
+                          className="h-8 w-full min-w-0 text-xs px-2 rounded-md border border-[#dce6e3] bg-white hover:bg-zinc-50 focus:outline-none focus:ring-0 focus:border-[#dce6e3]"
                         >
                           <option value="">All</option>
                           {jobRoleOptions.map((role) => (
@@ -403,7 +394,7 @@ export default function CandidatesPage() {
                         <select
                           value={locationFilter}
                           onChange={(e) => setLocationFilter(e.target.value)}
-                          className="h-8 w-full min-w-0 text-xs px-2 rounded-md border border-[#dce6e3] bg-white hover:bg-zinc-50"
+                          className="h-8 w-full min-w-0 text-xs px-2 rounded-md border border-[#dce6e3] bg-white hover:bg-zinc-50 focus:outline-none focus:ring-0 focus:border-[#dce6e3]"
                         >
                           <option value="">All</option>
                           {locationOptions.map((loc) => (
