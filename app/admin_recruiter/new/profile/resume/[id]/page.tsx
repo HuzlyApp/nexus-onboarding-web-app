@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import DetailedCandidateHeader from "../../../../components/DetailedCandidateHeader";
+import DetailedTabs from "../../../../components/DetailedTabs";
 import {
   Briefcase,
   Calendar,
@@ -235,8 +237,41 @@ export default function NewApplicantProfileResumePage() {
         </header>
 
         <div className="p-6">
+          <div className="max-w-[1320px] mx-auto mb-4">
+            <DetailedCandidateHeader
+              name={candidateName}
+              role={candidateRole}
+              loading={loading}
+            />
+            <DetailedTabs applicantId={applicantId} activeTab="Profile" />
+            <div className="mb-4 flex justify-center">
+              <div className="h-9 w-[327px] rounded-xl bg-[#F8FAFC] p-1">
+                <div className="grid h-full grid-cols-3 gap-1">
+                  <Link
+                    href={detailsHref}
+                    className="inline-flex items-center justify-center rounded-lg text-sm font-medium leading-5 text-[#374151] hover:bg-white"
+                  >
+                    Details
+                  </Link>
+                  <Link
+                    href={resumeHref}
+                    className="inline-flex items-center justify-center rounded-lg bg-[#0D9488] text-sm font-medium leading-5 text-white"
+                  >
+                    Resume
+                  </Link>
+                  <Link
+                    href={notesHref}
+                    className="inline-flex items-center justify-center rounded-lg text-sm font-medium leading-5 text-[#374151] hover:bg-white"
+                  >
+                    Notes
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div className="relative bg-gradient-to-r from-[#F7FAFF] via-white to-[#F7FAFF] border border-[#9CC3FF]/30 rounded-3xl overflow-hidden">
-            <div className="p-6 flex items-center justify-between">
+            <div className="hidden p-6 items-center justify-between">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-2xl bg-white border border-zinc-200 grid place-items-center text-gray-600">
                   {initials(candidateName)}
@@ -264,7 +299,7 @@ export default function NewApplicantProfileResumePage() {
               </button>
             </div>
 
-            <div className="px-6 py-4 border-b border-[#9CC3FF]/20 bg-white/30">
+            <div className="hidden px-6 py-4 border-b border-[#9CC3FF]/20 bg-white/30">
               <div className="flex flex-wrap gap-2">
                 {tabLink("Checklist", `${basePrefix}/checklist`, false)}
                 {tabLink("Profile", detailsHref, true)}
@@ -277,11 +312,28 @@ export default function NewApplicantProfileResumePage() {
               </div>
             </div>
 
-            <div className="px-6 py-4">
-              <div className="inline-flex items-center gap-2 bg-white/70 border border-zinc-200 rounded-3xl p-1">
-                {subTabLink("Details", detailsHref, false)}
-                {subTabLink("Resume", resumeHref, true)}
-                {subTabLink("Notes", notesHref, false)}
+            <div className="hidden py-4 justify-center">
+              <div className="h-9 w-[327px] rounded-xl bg-[#F8FAFC] p-1">
+                <div className="grid h-full grid-cols-3 gap-1">
+                  <Link
+                    href={detailsHref}
+                    className="inline-flex items-center justify-center rounded-lg text-sm font-medium leading-5 text-[#374151] hover:bg-white"
+                  >
+                    Details
+                  </Link>
+                  <Link
+                    href={resumeHref}
+                    className="inline-flex items-center justify-center rounded-lg bg-[#0D9488] text-sm font-medium leading-5 text-white"
+                  >
+                    Resume
+                  </Link>
+                  <Link
+                    href={notesHref}
+                    className="inline-flex items-center justify-center rounded-lg text-sm font-medium leading-5 text-[#374151] hover:bg-white"
+                  >
+                    Notes
+                  </Link>
+                </div>
               </div>
             </div>
 

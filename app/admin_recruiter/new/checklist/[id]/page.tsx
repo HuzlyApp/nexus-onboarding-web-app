@@ -8,6 +8,7 @@ import DetailedTabs from "../../../components/DetailedTabs";
 import {
   Briefcase,
   Calendar,
+  Check,
   CheckCircle2,
   LogOut,
   Menu,
@@ -66,13 +67,15 @@ type ChecklistPayload = {
 function badgeClasses(state: ItemState): string {
   switch (state) {
     case "uploaded":
+      return "bg-[#00B135] text-white border-[#00B135]";
     case "complete":
-    case "answered":
       return "bg-emerald-50 text-emerald-800 border-emerald-100";
+    case "answered":
+      return "bg-[#00B135] text-white border-[#00B135]";
     case "warning":
       return "bg-amber-50 text-amber-900 border-amber-100";
     case "not_reachable":
-      return "bg-red-50 text-red-800 border-red-100";
+      return "bg-[#FB7185] text-white border-[#FB7185]";
     case "not_applicable":
       return "bg-slate-50 text-gray-600 border-slate-100";
     default:
@@ -134,6 +137,13 @@ export default function NewApplicantChecklistPage() {
     const parts = [data?.worker?.city ?? "", data?.worker?.state ?? ""].filter(Boolean);
     return parts.length ? parts.join(", ") : "—";
   }, [data?.worker?.city, data?.worker?.state]);
+  const recentHistoryRows = [
+    "Nexus Med Pro Added Activity Test",
+    "Nexus Med Pro Added Activity Test",
+    "Nexus Med Pro Added Activity Test",
+    "Nexus Med Pro Added Activity Test",
+    "Nexus Med Pro Added Activity Test",
+  ];
 
   return (
     <div className="flex min-h-screen bg-zinc-50 overflow-hidden">
@@ -267,7 +277,7 @@ export default function NewApplicantChecklistPage() {
             />
             <DetailedTabs applicantId={applicantId} activeTab="Checklist" />
 
-            <div className="mx-auto flex h-[1762px] w-full max-w-[1300px] flex-col gap-[30px] overflow-hidden rounded-md border border-[#E5E7EB] bg-white p-5">
+            <div className="mx-auto flex w-full max-w-[1300px] flex-col gap-[30px] overflow-hidden rounded-md border border-[#E5E7EB] bg-white p-5">
               <div className="hidden p-3 sm:p-4 border-b border-[#9CC3FF]/30 bg-white/40">
                 <div className="mx-auto flex h-[92px] w-full max-w-[1300px] items-center justify-between rounded-md border border-[#D1D5DB] bg-white px-5">
                   <div className="flex items-center gap-3">
@@ -405,7 +415,7 @@ export default function NewApplicantChecklistPage() {
                                                 }`}
                                               >
                                                 {isVerified ? (
-                                                  <CheckCircle2 className="w-2 h-2 text-white" />
+                                                  <Check className="w-3 h-3 text-white" strokeWidth={3} />
                                                 ) : null}
                                               </div>
                                               <span className="text-sm leading-5 text-[#111827]">
@@ -419,6 +429,93 @@ export default function NewApplicantChecklistPage() {
                                     </div>
                                   </div>
                                 ) : null}
+                              </>
+                            ) : sectionIndex === 1 ? (
+                              <>
+                                {section.rows.map((row, rowIndex) => {
+                                  const isAnswered =
+                                    row.checked === true ||
+                                    row.state === "answered" ||
+                                    row.state === "complete" ||
+                                    row.state === "uploaded";
+                                  return (
+                                    <div key={row.id} className="p-0">
+                                      <div className="flex items-start justify-between gap-3">
+                                        <div className="min-w-0">
+                                          <div className="text-sm font-semibold leading-5 text-[#111827]">
+                                            {rowIndex + 1}. {row.title.replace(/^\d+\.\s*/, "")}
+                                          </div>
+                                        </div>
+                                        <RowBadge text={row.badge ?? "Pending"} state={row.state} />
+                                      </div>
+
+                                      <div className="mt-3 flex items-center gap-3 text-sm text-[#374151]">
+                                        <div
+                                          className={`h-4 w-4 rounded-[4px] border flex items-center justify-center ${
+                                            isAnswered ? "border-teal-600 bg-teal-600" : "border-zinc-300 bg-white"
+                                          }`}
+                                        >
+                                          {isAnswered ? (
+                                            <Check className="w-3 h-3 text-white" strokeWidth={3} />
+                                          ) : null}
+                                        </div>
+                                        <span>{(row.subtitle?.trim() || row.title).replace(/^\d+\.\s*/, "")}</span>
+                                      </div>
+
+                                      {row.detailLine ? (
+                                        <div className="mt-1 pl-7 text-[11px] text-[#94A3B8]">{row.detailLine}</div>
+                                      ) : null}
+                                    </div>
+                                  );
+                                })}
+                              </>
+                            ) : sectionIndex === 2 || sectionIndex === 3 || sectionIndex === 4 || sectionIndex === 5 ? (
+                              <>
+                                {section.rows.map((row, rowIndex) => {
+                                  const isChecked =
+                                    row.checked === true ||
+                                    row.state === "uploaded" ||
+                                    row.state === "complete" ||
+                                    row.state === "answered";
+                                  const cleanTitle = row.title.replace(/^\d+\.\s*/, "");
+                                  const subtitleIsMeta = (row.subtitle ?? "").startsWith("(");
+                                  const checkboxText = (() => {
+                                    if (row.id === "oig") return "For Verification";
+                                    if (row.id === "drug") return "For Drug Test";
+                                    if (row.id === "bg") return "For Background Check";
+                                    if (row.subtitle && !subtitleIsMeta) return row.subtitle;
+                                    return `For ${cleanTitle}`;
+                                  })();
+
+                                  return (
+                                    <div key={row.id} className="p-0">
+                                      <div className="flex items-start justify-between gap-3">
+                                        <div className="min-w-0">
+                                          <div className="text-sm font-semibold leading-5 text-[#111827]">
+                                            {rowIndex + 1}. {cleanTitle}
+                                            {subtitleIsMeta ? (
+                                              <span className="ml-2 font-normal text-[#6B7280]">{row.subtitle}</span>
+                                            ) : null}
+                                          </div>
+                                        </div>
+                                        <RowBadge text={row.badge ?? "Pending"} state={row.state} />
+                                      </div>
+
+                                      <div className="mt-3 flex items-center gap-3 text-sm text-[#6B7280]">
+                                        <div
+                                          className={`h-4 w-4 rounded-[4px] border flex items-center justify-center ${
+                                            isChecked ? "border-teal-600 bg-teal-600" : "border-zinc-300 bg-white"
+                                          }`}
+                                        >
+                                          {isChecked ? (
+                                            <Check className="w-3 h-3 text-white" strokeWidth={3} />
+                                          ) : null}
+                                        </div>
+                                        <span>{checkboxText}</span>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
                               </>
                             ) : (
                               <>
@@ -456,7 +553,7 @@ export default function NewApplicantChecklistPage() {
                                               }`}
                                             >
                                               {isVerified ? (
-                                                <CheckCircle2 className="w-2 h-2 text-white" />
+                                                <Check className="w-3 h-3 text-white" strokeWidth={3} />
                                               ) : null}
                                             </div>
                                           );
@@ -477,6 +574,28 @@ export default function NewApplicantChecklistPage() {
                       ))}
                     </div>
                   )}
+
+                  <section className="mt-4 rounded-lg border border-[#E5E7EB] bg-white p-5">
+                    <h3 className="text-[28px] font-semibold leading-7 text-[#111827]">Recent History</h3>
+                    <div className="mt-4">
+                      {recentHistoryRows.map((entry, index) => (
+                        <div
+                          key={`${entry}-${index}`}
+                          className="flex items-start gap-3 border-b border-[#E5E7EB] py-3 last:border-b-0"
+                        >
+                          <img
+                            src="/icons/admin-recruiter/history-icon.svg"
+                            alt=""
+                            className="mt-0.5 h-[30px] w-[30px] shrink-0"
+                          />
+                          <div className="min-w-0">
+                            <div className="text-sm font-medium leading-5 text-[#0D9488]">{entry}</div>
+                            <div className="text-xs leading-4 text-[#6B7280]">1 week ago • 02/3/2026 • 3:30PM</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
                 </main>
               </div>
             </div>

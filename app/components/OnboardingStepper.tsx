@@ -61,15 +61,23 @@ export default function OnboardingStepper({
               const completed =
                 stepNumber <= (completedThrough ?? currentStep - 1)
               const active = stepNumber === currentStep
+              const maxAccessibleStep = completedThrough ?? currentStep
+              const isClickable = stepNumber <= maxAccessibleStep
 
               return (
                 <button
                   key={step}
                   type="button"
-                  onClick={() => router.push(stepRoutes[index])}
-                  className="group flex w-24 flex-col items-center rounded-lg px-1.5 py-1 text-center cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1db4a3]/40"
-                  aria-label={`Go to ${step.replace("\n", " ")}`}
-                  title={`Go to ${step.replace("\n", " ")}`}
+                  onClick={() => {
+                    if (!isClickable) return
+                    router.push(stepRoutes[index])
+                  }}
+                  disabled={!isClickable}
+                  className={`group flex w-24 flex-col items-center rounded-lg px-1.5 py-1 text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1db4a3]/40 ${
+                    isClickable ? "cursor-pointer" : "cursor-not-allowed"
+                  }`}
+                  aria-label={`${isClickable ? "Go to" : "Locked"} ${step.replace("\n", " ")}`}
+                  title={`${isClickable ? "Go to" : "Locked"} ${step.replace("\n", " ")}`}
                 >
                   <div
                     className={`
@@ -99,7 +107,7 @@ export default function OnboardingStepper({
                           ? "text-[#1db4a3] font-medium"
                           : "text-gray-400"
                       }
-                    group-hover:text-[#1db4a3] group-hover:underline`}
+                    ${isClickable ? "group-hover:text-[#1db4a3] group-hover:underline" : ""}`}
                   >
                     {step}
                   </span>

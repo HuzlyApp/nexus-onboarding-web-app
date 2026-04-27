@@ -160,7 +160,7 @@ function SearchableSelect({
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder={`Search ${label}`}
-                className={`w-full rounded-md border border-slate-200 py-2 pl-9 pr-3 text-sm ${focusBorderClass}`}
+                className={`w-full rounded-md border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm font-medium text-[#111827] placeholder:text-slate-400 [color-scheme:light] ${focusBorderClass}`}
               />
             </div>
             <div className="max-h-44 overflow-y-auto py-1">

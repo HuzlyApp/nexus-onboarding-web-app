@@ -279,6 +279,30 @@ export default function NewApplicantProfilePage() {
               loading={loading}
             />
             <DetailedTabs applicantId={applicantId} activeTab="Profile" />
+            <div className="mb-4 flex justify-center">
+              <div className="h-9 w-[327px] rounded-xl bg-[#F8FAFC] p-1">
+                <div className="grid h-full grid-cols-3 gap-1">
+                  <Link
+                    href={`${base}/profile/${id}`}
+                    className="inline-flex items-center justify-center rounded-lg bg-[#0D9488] text-sm font-medium leading-5 text-white"
+                  >
+                    Details
+                  </Link>
+                  <Link
+                    href={`${base}/profile/resume/${id}`}
+                    className="inline-flex items-center justify-center rounded-lg text-sm font-medium leading-5 text-[#374151] hover:bg-white"
+                  >
+                    Resume
+                  </Link>
+                  <Link
+                    href={`${base}/profile/notes/${id}`}
+                    className="inline-flex items-center justify-center rounded-lg text-sm font-medium leading-5 text-[#374151] hover:bg-white"
+                  >
+                    Notes
+                  </Link>
+                </div>
+              </div>
+            </div>
 
             <div className="mx-auto w-full max-w-[1300px] rounded-md border border-[#E5E7EB] bg-white p-5">
               <div className="hidden p-6 items-start justify-between gap-6 border-b border-[#9CC3FF]/30 bg-white/40">
@@ -312,29 +336,6 @@ export default function NewApplicantProfilePage() {
               </div>
 
               <div className="border-b border-[#9CC3FF]/20 bg-white/30" />
-
-              <div className="px-6 py-4">
-                <div className="inline-flex items-center gap-2 bg-white/70 border border-zinc-200 rounded-3xl p-1">
-                  <Link
-                    href={`${base}/profile/${id}`}
-                    className="text-xs px-4 py-2 rounded-2xl bg-teal-700 text-white"
-                  >
-                    Details
-                  </Link>
-                  <Link
-                    href={`${base}/profile/resume/${id}`}
-                    className="text-xs px-4 py-2 rounded-2xl text-gray-600 hover:bg-white/60"
-                  >
-                    Resume
-                  </Link>
-                  <Link
-                    href={`${base}/profile/notes/${id}`}
-                    className="text-xs px-4 py-2 rounded-2xl text-gray-600 hover:bg-white/60"
-                  >
-                    Notes
-                  </Link>
-                </div>
-              </div>
 
               <div className="p-6 grid grid-cols-12 gap-6">
                 <section className="col-span-12 lg:col-span-4 space-y-6">
