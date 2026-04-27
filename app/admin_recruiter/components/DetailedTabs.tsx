@@ -57,15 +57,15 @@ function tabHref(tab: (typeof TABS)[number], applicantId?: string) {
 export default function DetailedTabs({ applicantId, activeTab }: DetailedTabsProps) {
   return (
     <div className="mb-4">
-      <div className="mx-auto h-[44px] w-full max-w-[1300px] rounded-lg border border-[#D1D5DB] bg-white p-1">
-        <div className="grid h-full w-full grid-cols-9 gap-1">
+      <div className="mx-auto w-full max-w-[1300px] rounded-lg   p-1">
+        <div className="flex h-[36px] items-center gap-4 overflow-hidden">
           {TABS.map((tab) => {
             const isActive = tab === activeTab;
             return (
               <Link
                 key={tab}
                 href={tabHref(tab, applicantId)}
-                className={`inline-flex items-center justify-center rounded-lg text-center text-sm font-normal leading-5 whitespace-nowrap transition ${
+                className={`inline-flex h-full shrink-0 items-center justify-center rounded-lg px-4 text-center text-sm font-normal leading-5 whitespace-nowrap transition ${
                   isActive
                     ? "bg-[#0D9488] text-white"
                     : "text-[#374151] hover:bg-[#F3F4F6]"
