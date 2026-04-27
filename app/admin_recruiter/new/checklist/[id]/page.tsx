@@ -3,13 +3,14 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
+import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader";
 import {
   Briefcase,
   Calendar,
   CheckCircle2,
   LogOut,
   Menu,
-  Plus,
+  MoreVertical,
   Settings,
   UserCheck,
   UserPlus,
@@ -60,14 +61,6 @@ type ChecklistPayload = {
   tracker: { labels: string[]; done: boolean[] };
   sections: ChecklistSection[];
 };
-
-function initials(name: string) {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "NA";
-  const first = parts[0]?.[0] ?? "";
-  const last = parts[parts.length - 1]?.[0] ?? "";
-  return (first + last).toUpperCase();
-}
 
 function badgeClasses(state: ItemState): string {
   switch (state) {
@@ -306,40 +299,46 @@ export default function NewApplicantChecklistPage() {
               </div>
             ) : null}
 
+            <DetailedCandidateHeader
+              name={candidateName}
+              role={candidateRole}
+              loading={loading}
+            />
+
             <div className="rounded-2xl border border-[#9CC3FF] overflow-hidden shadow-sm bg-[linear-gradient(90deg,rgba(59,130,246,0.06)_1px,transparent_1px),linear-gradient(0deg,rgba(59,130,246,0.04)_1px,transparent_1px)] bg-[size:34px_34px] bg-white/70">
-              <div className="p-6 flex items-start justify-between gap-6 border-b border-[#9CC3FF]/30 bg-white/40">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-full bg-teal-600 text-white flex items-center justify-center font-semibold text-sm">
-                    {initials(candidateName)}
-                  </div>
-                  <div>
-                    <div className="text-lg font-semibold text-gray-600">
-                      {loading ? "Loading..." : candidateName}
-                    </div>
-                    <div className="text-xs text-gray-600">{candidateRole}</div>
-                    <div className="text-xs text-gray-600">{candidateLocation}</div>
-                    {data?.worker?.status_label ? (
-                      <div className="mt-1 text-[11px] font-medium text-teal-800">{data.worker.status_label}</div>
-                    ) : null}
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <div className="text-right hidden sm:block">
-                    <div className="text-xs text-gray-600">Days in current stage</div>
-                    <div className="text-sm font-semibold text-gray-600">
-                      {data?.meta?.daysInStage ?? "—"}
-                      {data?.meta ? " days" : ""}
+              <div className="hidden p-3 sm:p-4 border-b border-[#9CC3FF]/30 bg-white/40">
+                <div className="mx-auto flex h-[92px] w-full max-w-[1300px] items-center justify-between rounded-md border border-[#D1D5DB] bg-white px-5">
+                  <div className="flex items-center gap-3">
+                    <img
+                      src="/icons/admin-recruiter/user.svg"
+                      alt="User"
+                      className="h-[52px] w-[52px] shrink-0"
+                    />
+                    <div>
+                      <div className="text-base font-semibold leading-6 text-[#0D9488]">
+                        {loading ? "John Doe" : candidateName || "John Doe"}
+                      </div>
+                      <div className="mt-0.5 text-xs font-normal leading-4 text-[#4B5563]">
+                        {candidateRole || "Licensed Practical Nurse , LPN"}
+                      </div>
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    className="bg-white/70 border border-[#9CC3FF] text-gray-600 px-5 py-2.5 rounded-2xl hover:bg-white transition text-sm"
-                  >
-                    <Plus className="inline-block w-4 h-4 mr-2" />
-                    New Appointment
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      className="inline-flex h-8 items-center justify-center rounded-md border border-[#D1D5DB] bg-white px-3 text-center text-xs font-semibold leading-4 text-[#111827] hover:bg-[#F9FAFB]"
+                    >
+                      New Applicant
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="More options"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-transparent text-[#6B7280] hover:bg-[#F3F4F6]"
+                    >
+                      <MoreVertical className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
 

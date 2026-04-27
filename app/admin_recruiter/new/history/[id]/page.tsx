@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useParams } from "next/navigation";
 import { useMemo, useState, useEffect } from "react";
+import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader";
 import {
   Briefcase,
   Calendar,
@@ -298,8 +299,14 @@ export default function NewApplicantHistoryPage() {
               </div>
             ) : null}
 
+            <DetailedCandidateHeader
+              name={candidateName}
+              role={candidateRole}
+              loading={loading}
+            />
+
             <div className="rounded-2xl border border-[#9CC3FF] overflow-hidden shadow-sm bg-[linear-gradient(90deg,rgba(59,130,246,0.06)_1px,transparent_1px),linear-gradient(0deg,rgba(59,130,246,0.04)_1px,transparent_1px)] bg-[size:34px_34px] bg-white/70">
-              <div className="p-6 flex items-start justify-between gap-6 border-b border-[#9CC3FF]/30 bg-white/40">
+              <div className="hidden p-6 items-start justify-between gap-6 border-b border-[#9CC3FF]/30 bg-white/40">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-full bg-teal-600 text-white flex items-center justify-center font-semibold text-sm">
                     {initials(candidateName)}
