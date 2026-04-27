@@ -184,6 +184,7 @@ export default function Step1Upload() {
         localStorage.setItem("parsedResume", JSON.stringify(parsed))
         localStorage.setItem("resumeName", uploadJson?.fileName || file.name)
         localStorage.setItem("step1TermsAccepted", "false")
+        localStorage.setItem("step1ReviewCompleted", "false")
         router.push("/application/step-1-success")
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Failed to parse resume"
@@ -207,6 +208,7 @@ export default function Step1Upload() {
     localStorage.removeItem("resumeStoragePath")
     localStorage.removeItem("parsedResume")
     localStorage.setItem("step1TermsAccepted", "false")
+    localStorage.setItem("step1ReviewCompleted", "false")
   }
 
   return (

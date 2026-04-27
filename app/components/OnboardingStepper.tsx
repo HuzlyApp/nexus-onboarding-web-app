@@ -2,7 +2,8 @@
 
 import Image from "next/image"
 import { Check } from "lucide-react"
-import { useRouter } from "next/navigation"
+import { useEffect, useMemo, useState } from "react"
+import { usePathname, useRouter } from "next/navigation"
 
 interface Props {
   currentStep: number
@@ -20,6 +21,7 @@ export default function OnboardingStepper({
   titleIconAlt
 }: Props) {
   const router = useRouter()
+  const pathname = usePathname()
   const steps = [
     "Add Resume",
     "Professional\nLicense",
@@ -36,6 +38,78 @@ export default function OnboardingStepper({
     "/application/step-5-add-references",
     "/application/step-6-summary",
   ]
+
+  const requestedStep = useMemo(() => {
+    const p = pathname || ""
+    if (p.includes("/application/step-6-summary")) return 6
+    if (p.includes("/application/step-5-")) return 5
+    if (
+      p.includes("/application/step-4-") ||
+      p.includes("/application/employee-agreement") ||
+      p.includes("/application/upload-form") ||
+      p.includes("/application/upload-19-form")
+    ) return 4
+    if (p.includes("/application/step-3-")) return 3
+    if (p.includes("/application/step-2-")) return 2
+    if (p.includes("/application/step-1-")) return 1
+    return 1
+  }, [pathname])
+
+  const [maxAllowedStep, setMaxAllowedStep] = useState<number>(1)
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+
+    const hasResume = Boolean(
+      localStorage.getItem("resumeName")?.trim() ||
+      localStorage.getItem("parsedResume")?.trim() ||
+      localStorage.getItem("resumeStoragePath")?.trim()
+    )
+    const step1ReviewCompletedFlag = localStorage.getItem("step1ReviewCompleted") === "true"
+    const step2FilesRaw = localStorage.getItem("step2_files")
+    let hasStep2Files = false
+    if (step2FilesRaw?.trim()) {
+      try {
+        const parsed = JSON.parse(step2FilesRaw)
+        hasStep2Files = Array.isArray(parsed) ? parsed.length > 0 : true
+      } catch {
+        hasStep2Files = true
+      }
+    }
+    const step4Done =
+      localStorage.getItem("step4Skipped") === "1" ||
+      localStorage.getItem("step4AuthorizationAgreed") === "true"
+    const step5Done = localStorage.getItem("step5Completed") === "true"
+    const step1ReviewCompleted = step1ReviewCompletedFlag || hasStep2Files
+
+    let allowedStep = 1
+    let redirectPath = "/application/step-1-upload"
+    if (hasResume) {
+      allowedStep = 2
+      redirectPath = "/application/step-1-review"
+    }
+    if (hasResume && step1ReviewCompleted) {
+      allowedStep = 3
+      redirectPath = "/application/step-2-license"
+    }
+    if (hasResume && step1ReviewCompleted && hasStep2Files) {
+      allowedStep = 4
+      redirectPath = "/application/step-3-skills"
+    }
+    if (hasResume && step1ReviewCompleted && hasStep2Files && step4Done) {
+      allowedStep = 5
+      redirectPath = "/application/step-4-documents"
+    }
+    if (hasResume && step1ReviewCompleted && hasStep2Files && step4Done && step5Done) {
+      allowedStep = 6
+      redirectPath = "/application/step-5-add-references"
+    }
+
+    setMaxAllowedStep(allowedStep)
+    if (requestedStep > allowedStep) {
+      router.replace(redirectPath)
+    }
+  }, [requestedStep, router])
 
   const progress =
     currentStep === steps.length
@@ -61,7 +135,7 @@ export default function OnboardingStepper({
               const completed =
                 stepNumber <= (completedThrough ?? currentStep - 1)
               const active = stepNumber === currentStep
-              const maxAccessibleStep = completedThrough ?? currentStep
+              const maxAccessibleStep = Math.min(completedThrough ?? currentStep, maxAllowedStep)
               const isClickable = stepNumber <= maxAccessibleStep
 
               return (

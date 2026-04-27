@@ -122,6 +122,7 @@ export default function ReferencesPage() {
     localStorage.setItem("referenceData", JSON.stringify(refs))
     localStorage.removeItem("referenceDataDraft")
     localStorage.setItem("referencesCount", String(refs.length))
+    localStorage.setItem("step5Completed", "false")
     router.push("/application/step-5-reference-review")
     setSaving(false)
   }

@@ -53,6 +53,7 @@ export default function ReferenceReviewPage() {
   }
 
   const handleContinue = () => {
+    localStorage.setItem("step5Completed", "true")
     router.push("/application/step-6-summary")
   }
 
@@ -73,7 +74,10 @@ export default function ReferenceReviewPage() {
               <h2 className="text-[26px] font-semibold leading-9 text-slate-800">References</h2>
               <button
               type="button"
-              onClick={() => router.push("/application/step-6-summary")}
+              onClick={() => {
+                localStorage.setItem("step5Completed", "true")
+                router.push("/application/step-6-summary")
+              }}
               className="cursor-pointer text-[12px] font-medium leading-5 text-[#0D9488] mt-1"
             >
               Skip for Now →

@@ -549,6 +549,7 @@ function Step1ReviewContent() {
           jobRole: form.jobRole,
         })
       )
+      localStorage.setItem("step1ReviewCompleted", "true")
 
       router.push("/application/step-2-license")
 
