@@ -5,6 +5,11 @@ import { useRouter } from "next/navigation"
 import Image from "next/image"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
 import OnboardingLoader from "@/app/components/OnboardingLoader"
+import {
+  evaluateResumeParseQuality,
+  normalizedResumeToStoredJson,
+  RESUME_PARSE_FAILED_USER_MESSAGE,
+} from "@/lib/resumeParseQuality"
 
 
 export default function Step1Upload() {
@@ -16,6 +21,7 @@ export default function Step1Upload() {
   const [dragActive, setDragActive] = useState(false)
   const [parsing, setParsing] = useState(false)
   const [parseError, setParseError] = useState<string | null>(null)
+  const [parseMissingFields, setParseMissingFields] = useState<string[]>([])
   const [fileRequiredError, setFileRequiredError] = useState<string | null>(null)
   const [savedResumeName, setSavedResumeName] = useState("")
   const [savedResumeSizeBytes, setSavedResumeSizeBytes] = useState<number | null>(null)
@@ -58,6 +64,8 @@ export default function Step1Upload() {
     if (!selected) return
 
     setFileRequiredError(null)
+    setParseError(null)
+    setParseMissingFields([])
 
     // ✅ SIZE VALIDATION
     if (selected.size > 10 * 1024 * 1024) {
@@ -83,6 +91,8 @@ export default function Step1Upload() {
     if (!dropped) return
 
     setFileRequiredError(null)
+    setParseError(null)
+    setParseMissingFields([])
 
     if (dropped.size > 10 * 1024 * 1024) {
       alert("Max file size is 10MB")
@@ -115,6 +125,38 @@ export default function Step1Upload() {
     if (!file) {
       if (hasSavedResume) {
         setFileRequiredError(null)
+        setParseError(null)
+        setParseMissingFields([])
+        try {
+          const raw = localStorage.getItem("parsedResume")?.trim()
+          if (raw) {
+            let parsed: unknown
+            try {
+              parsed = JSON.parse(raw) as unknown
+            } catch {
+              setParseError(RESUME_PARSE_FAILED_USER_MESSAGE)
+              setParseMissingFields([])
+              localStorage.removeItem("parsedResume")
+              return
+            }
+            const quality = evaluateResumeParseQuality(parsed)
+            if (!quality.ok) {
+              setParseError(quality.message)
+              setParseMissingFields(quality.missingFieldLabels)
+              localStorage.removeItem("parsedResume")
+              return
+            }
+            localStorage.setItem(
+              "parsedResume",
+              JSON.stringify(normalizedResumeToStoredJson(quality.normalized)),
+            )
+          }
+        } catch {
+          setParseError(RESUME_PARSE_FAILED_USER_MESSAGE)
+          setParseMissingFields([])
+          localStorage.removeItem("parsedResume")
+          return
+        }
         router.push("/application/step-1-success")
         return
       }
@@ -125,6 +167,7 @@ export default function Step1Upload() {
     ;(async () => {
       setParsing(true)
       setParseError(null)
+      setParseMissingFields([])
       try {
         // 1) Extract text from the uploaded PDF
         const fd = new FormData()
@@ -175,13 +218,31 @@ export default function Step1Upload() {
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ text }),
         })
+        if (processRes.status === 422) {
+          const data = (await processRes.json().catch(() => ({}))) as {
+            error?: string
+            missingFields?: string[]
+          }
+          setParseError(data?.error || RESUME_PARSE_FAILED_USER_MESSAGE)
+          setParseMissingFields(Array.isArray(data?.missingFields) ? data.missingFields : [])
+          return
+        }
         if (!processRes.ok) {
           const data = await processRes.json().catch(() => ({}))
           throw new Error(data?.error || "Failed to parse resume")
         }
         const parsed = await processRes.json()
+        const quality = evaluateResumeParseQuality(parsed)
+        if (!quality.ok) {
+          setParseError(quality.message)
+          setParseMissingFields(quality.missingFieldLabels)
+          return
+        }
 
-        localStorage.setItem("parsedResume", JSON.stringify(parsed))
+        localStorage.setItem(
+          "parsedResume",
+          JSON.stringify(normalizedResumeToStoredJson(quality.normalized)),
+        )
         localStorage.setItem("resumeName", uploadJson?.fileName || file.name)
         localStorage.setItem("step1TermsAccepted", "false")
         localStorage.setItem("step1ReviewCompleted", "false")
@@ -202,6 +263,7 @@ export default function Step1Upload() {
     setSavedResumeSizeBytes(null)
     setFileRequiredError(null)
     setParseError(null)
+    setParseMissingFields([])
     localStorage.removeItem("resumeName")
     localStorage.removeItem("resumeSizeBytes")
     localStorage.removeItem("resumeMimeType")
@@ -325,8 +387,18 @@ export default function Step1Upload() {
           ) : null}
 
           {parseError ? (
-            <div className="mt-4 text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3">
-              {parseError}
+            <div
+              role="alert"
+              className="mt-4 text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3"
+            >
+              <p className="font-medium">{parseError}</p>
+              {parseMissingFields.length > 0 ? (
+                <ul className="mt-2 list-disc pl-5 text-rose-800/90">
+                  {parseMissingFields.map((label) => (
+                    <li key={label}>{label}</li>
+                  ))}
+                </ul>
+              ) : null}
             </div>
           ) : null}
 

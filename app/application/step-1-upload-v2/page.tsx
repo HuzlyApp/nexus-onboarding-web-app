@@ -3,13 +3,23 @@
 import { useState } from "react"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import RightPanel from "@/app/components/RightPanel"
+import {
+  evaluateResumeParseQuality,
+  normalizedResumeToStoredJson,
+  RESUME_PARSE_FAILED_USER_MESSAGE,
+} from "@/lib/resumeParseQuality"
 
 export default function UploadPage() {
   const [fileName, setFileName] = useState("")
   const [isUploaded, setIsUploaded] = useState(false)
+  const [parseError, setParseError] = useState<string | null>(null)
+  const [parseMissingFields, setParseMissingFields] = useState<string[]>([])
 
   const handleUpload = async (file: File) => {
     setFileName(file.name)
+    setParseError(null)
+    setParseMissingFields([])
+    setIsUploaded(false)
 
     const text = await file.text()
 
@@ -18,9 +28,30 @@ export default function UploadPage() {
       body: JSON.stringify({ text }),
     })
 
-    const data = await res.json()
+    if (res.status === 422) {
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string
+        missingFields?: string[]
+      }
+      setParseError(data?.error || RESUME_PARSE_FAILED_USER_MESSAGE)
+      setParseMissingFields(Array.isArray(data?.missingFields) ? data.missingFields : [])
+      return
+    }
 
-    localStorage.setItem("parsedResume", JSON.stringify(data))
+    if (!res.ok) {
+      setParseError("Failed to parse resume")
+      return
+    }
+
+    const data = await res.json()
+    const quality = evaluateResumeParseQuality(data)
+    if (!quality.ok) {
+      setParseError(quality.message)
+      setParseMissingFields(quality.missingFieldLabels)
+      return
+    }
+
+    localStorage.setItem("parsedResume", JSON.stringify(normalizedResumeToStoredJson(quality.normalized)))
 
     setIsUploaded(true)
   }
@@ -70,6 +101,19 @@ export default function UploadPage() {
           )}
 
         </label>
+
+        {parseError ? (
+          <div role="alert" className="mt-4 w-full max-w-lg text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-4 py-3">
+            <p className="font-medium">{parseError}</p>
+            {parseMissingFields.length > 0 ? (
+              <ul className="mt-2 list-disc pl-5">
+                {parseMissingFields.map((label) => (
+                  <li key={label}>{label}</li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+        ) : null}
 
         {/* BUTTON */}
         {isUploaded && (

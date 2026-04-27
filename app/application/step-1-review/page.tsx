@@ -9,7 +9,11 @@ import { AlertTriangle, ChevronDown, Pencil, Search, X, XCircle } from "lucide-r
 import OnboardingStepper from "@/app/components/OnboardingStepper"
 import OnboardingLoader from "@/app/components/OnboardingLoader"
 import { formatPhoneNumber, normalizePhoneInput } from "@/lib/phone"
-import { sanitizeUsZipInput, usZipValidationMessage } from "@/lib/usZip"
+import {
+  isValidStep1Email,
+  validateStep1Form,
+  step1ZipInlineMessage,
+} from "@/lib/onboardingStep1Validation"
 import AutosaveStatus from "@/app/components/AutosaveStatus"
 
 type ContactConflictKind = "email" | "phone"
@@ -226,6 +230,8 @@ function Step1ReviewContent() {
     bannerVisible: boolean
   } | null>(null)
   const [genericError, setGenericError] = useState<string | null>(null)
+  /** After first "Save & continue", show incomplete-field message until the form is valid. */
+  const [submitAttempted, setSubmitAttempted] = useState(false)
 
   // Load parsed resume data from PDF
   useEffect(() => {
@@ -251,7 +257,9 @@ function Step1ReviewContent() {
         address2: parsed.address2 || "",
         city: parsed.city || parsed.City || "",
         state: parsed.state || parsed.State || "",
-        zipCode: parsed.zipCode || parsed.zip || "",
+        zipCode: String(parsed.zipCode || parsed.zip || "")
+          .replace(/\D/g, "")
+          .slice(0, 5),
         phone: normalizePhoneInput(parsed.phone || parsed.Phone || ""),
         email: parsed.email || parsed.Email || "",
         jobRole: urlJobTitle || parsed.job_role || parsed.JobRole || parsed.job_title || "",
@@ -270,16 +278,33 @@ function Step1ReviewContent() {
     }))
   }, [urlJobTitle])
 
-  const zipFieldError = useMemo(() => {
-    if (!form.zipCode.trim()) return null
-    return usZipValidationMessage(form.zipCode)
-  }, [form.zipCode])
+  const zipFieldError = useMemo(() => step1ZipInlineMessage(form.zipCode), [form.zipCode])
+
+  const emailFieldError = useMemo(() => {
+    if (!form.email.trim()) return null
+    return isValidStep1Email(form.email) ? null : "Enter a valid email address."
+  }, [form.email])
+
+  const phoneFieldError = useMemo(() => {
+    const digits = normalizePhoneInput(form.phone)
+    if (!digits) return null
+    return digits.length === 10 ? null : "Enter a valid 10-digit US phone number."
+  }, [form.phone])
+
+  const step1Issue = useMemo(() => validateStep1Form(form), [form])
+
+  const validationBannerText = useMemo(() => {
+    if (!step1Issue) return null
+    if (step1Issue.code !== "INCOMPLETE") return step1Issue.message
+    return submitAttempted ? step1Issue.message : null
+  }, [step1Issue, submitAttempted])
 
   const handleChange = (key: string, value: string | boolean) => {
+    setGenericError(null)
     if (key === "email" && fieldConflict?.kind === "email") setFieldConflict(null)
     if (key === "phone" && fieldConflict?.kind === "phone") setFieldConflict(null)
     if (key === "zipCode" && typeof value === "string") {
-      setForm((prev) => ({ ...prev, zipCode: sanitizeUsZipInput(value) }))
+      setForm((prev) => ({ ...prev, zipCode: value.replace(/\D/g, "").slice(0, 5) }))
       return
     }
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -288,9 +313,7 @@ function Step1ReviewContent() {
   const persistResumeDraft = useCallback(async (): Promise<boolean> => {
     const applicantId = localStorage.getItem("applicantId")?.trim() || ""
     if (!applicantId) return false
-    const zipErr = usZipValidationMessage(form.zipCode)
-    if (form.zipCode.trim() && zipErr) return false
-    if (!form.firstName.trim() || !form.lastName.trim() || !form.email.trim()) return false
+    if (validateStep1Form(form)) return false
 
     const payload = {
       applicantId,
@@ -339,8 +362,7 @@ function Step1ReviewContent() {
     const t = window.setTimeout(() => {
       void (async () => {
         const applicantId = localStorage.getItem("applicantId")?.trim() || ""
-        if (!applicantId || !form.firstName.trim() || !form.lastName.trim() || !form.email.trim()) return
-        if (form.zipCode.trim() && usZipValidationMessage(form.zipCode)) return
+        if (!applicantId || validateStep1Form(form)) return
         setAutosaveState("saving")
         const ok = await persistResumeDraft()
         if (ok) {
@@ -368,11 +390,12 @@ function Step1ReviewContent() {
   const handleSaveAndContinue = async () => {
     setFieldConflict(null)
     setGenericError(null)
-    const zipErr = usZipValidationMessage(form.zipCode)
-    if (zipErr) {
-      setGenericError(zipErr)
+    setSubmitAttempted(true)
+    const step1Err = validateStep1Form(form)
+    if (step1Err) {
       return
     }
+
     setLoading(true)
 
     try {
@@ -592,9 +615,12 @@ function Step1ReviewContent() {
               />
             </div>
 
-            {genericError && (
-              <div className="mb-5 p-4 bg-red-50 border border-red-200 text-red-800 text-sm rounded-lg">
-                {genericError}
+            {(genericError || validationBannerText) && (
+              <div
+                role="alert"
+                className="mb-5 p-4 bg-red-50 border border-red-200 text-red-800 text-sm rounded-lg"
+              >
+                {genericError || validationBannerText}
               </div>
             )}
 
@@ -633,6 +659,7 @@ function Step1ReviewContent() {
               {/* Address 2 */}
               <EditableInput
                 label="Address 2"
+                required
                 hint="Apt, Suite, Building, Floor, etc..."
                 value={form.address2}
                 onChange={(value) => handleChange("address2", value)}
@@ -719,7 +746,9 @@ function Step1ReviewContent() {
                       value={formatPhoneNumber(form.phone)}
                       onChange={(e) => handleChange("phone", normalizePhoneInput(e.target.value))}
                       className={`w-full pl-14 pr-11 h-[52px] sm:h-[56px] border rounded-md text-[#1e293b] text-sm bg-white ${
-                        phoneConflict ? "border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-200" : `border-gray-200 ${focusBorderClass}`
+                        phoneConflict || phoneFieldError
+                          ? "border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-200"
+                          : `border-gray-200 ${focusBorderClass}`
                       }`}
                       placeholder="(201) 512-2366"
                       inputMode="numeric"
@@ -741,6 +770,11 @@ function Step1ReviewContent() {
                       />
                     ) : null}
                   </div>
+                  {phoneFieldError && !phoneConflict ? (
+                    <p className="mt-1.5 text-xs text-red-600" role="alert">
+                      {phoneFieldError}
+                    </p>
+                  ) : null}
                 </div>
                 <div className="relative">
                   <div className="mb-1.5 flex items-start justify-between gap-2">
@@ -757,7 +791,7 @@ function Step1ReviewContent() {
                       value={form.email}
                       onChange={(e) => handleChange("email", e.target.value)}
                       className={`w-full px-4 pr-11 h-[52px] sm:h-[56px] border rounded-md text-[#1e293b] text-sm bg-white ${
-                        emailConflict
+                        emailConflict || emailFieldError
                           ? "border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-200 focus:outline-none"
                           : `border-gray-200 ${focusBorderClass}`
                       }`}
@@ -780,6 +814,11 @@ function Step1ReviewContent() {
                       />
                     ) : null}
                   </div>
+                  {emailFieldError && !emailConflict ? (
+                    <p className="mt-1.5 text-xs text-red-600" role="alert">
+                      {emailFieldError}
+                    </p>
+                  ) : null}
                 </div>
               </div>
 
@@ -796,7 +835,7 @@ function Step1ReviewContent() {
                         ? "border-red-400 focus:border-red-500 focus:ring-2 focus:ring-red-200 focus:outline-none"
                         : `border-gray-200 ${focusBorderClass}`
                     }`}
-                    placeholder="12345 or 12345-6789"
+                    placeholder="12345"
                     inputMode="numeric"
                   />
                   {zipFieldError ? (

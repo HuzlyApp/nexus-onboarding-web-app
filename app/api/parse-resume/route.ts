@@ -1,4 +1,9 @@
 import { NextResponse } from "next/server"
+import {
+  evaluateResumeParseQuality,
+  normalizedResumeToStoredJson,
+  RESUME_PARSE_FAILED_USER_MESSAGE,
+} from "@/lib/resumeParseQuality"
 
 export async function POST(req: Request) {
   const { text } = await req.json()
@@ -28,32 +33,40 @@ Rules:
   const response = await fetch("https://api.x.ai/v1/chat/completions", {
     method: "POST",
     headers: {
-      "Authorization": `Bearer ${process.env.GROK_API_KEY}`,
-      "Content-Type": "application/json"
+      Authorization: `Bearer ${process.env.GROK_API_KEY}`,
+      "Content-Type": "application/json",
     },
     body: JSON.stringify({
       model: "grok-beta",
       temperature: 0,
-      messages: [
-        { role: "user", content: prompt + text }
-      ]
-    })
+      messages: [{ role: "user", content: prompt + text }],
+    }),
   })
 
   const data = await response.json()
 
   const raw = data.choices?.[0]?.message?.content || ""
 
-  // ✅ CLEAN JSON (VERY IMPORTANT)
   const clean = raw.match(/\{[\s\S]*\}/)?.[0] || "{}"
 
-  let parsed = {}
-
+  let parsed: unknown = {}
   try {
     parsed = JSON.parse(clean)
   } catch {
     parsed = {}
   }
 
-  return NextResponse.json(parsed)
+  const quality = evaluateResumeParseQuality(parsed)
+  if (!quality.ok) {
+    return NextResponse.json(
+      {
+        parseStatus: quality.parseStatus,
+        error: quality.message ?? RESUME_PARSE_FAILED_USER_MESSAGE,
+        missingFields: quality.missingFieldLabels,
+      },
+      { status: 422 },
+    )
+  }
+
+  return NextResponse.json(normalizedResumeToStoredJson(quality.normalized))
 }

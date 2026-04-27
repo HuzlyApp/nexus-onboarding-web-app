@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { getSupabaseUrl } from "@/lib/supabase-env"
+import { validateStep1Form } from "@/lib/onboardingStep1Validation"
 
 export const runtime = "nodejs"
 
@@ -47,18 +48,38 @@ export async function POST(req: NextRequest) {
     // `user_id` is the stable onboarding key (matches localStorage applicantId, must be a UUID).
     const emailRaw = String(body.email ?? "").trim()
     const emailNorm = emailRaw.toLowerCase()
+    const step1Fields = {
+      firstName: String(body.firstName ?? ""),
+      lastName: String(body.lastName ?? ""),
+      address1: String(body.address1 ?? ""),
+      address2: String(body.address2 ?? ""),
+      city: String(body.city ?? ""),
+      state: String(body.state ?? ""),
+      zipCode: String(body.zipCode ?? ""),
+      phone: String(body.phone ?? ""),
+      email: String(body.email ?? ""),
+      jobRole: String(body.jobRole ?? ""),
+    }
+    const step1Err = validateStep1Form(step1Fields)
+    if (step1Err) {
+      return NextResponse.json(
+        { error: step1Err.message, code: "VALIDATION_ERROR", field: step1Err.code },
+        { status: 400 },
+      )
+    }
+
     const baseRow = {
       user_id: applicantId,
-      first_name: String(body.firstName ?? "").trim(),
-      last_name: String(body.lastName ?? "").trim(),
-      address1: String(body.address1 ?? "").trim(),
-      address2: String(body.address2 ?? "").trim(),
-      city: String(body.city ?? "").trim(),
-      state: String(body.state ?? "").trim(),
-      zip: String(body.zipCode ?? "").trim(),
-      phone: String(body.phone ?? "").trim(),
+      first_name: step1Fields.firstName.trim(),
+      last_name: step1Fields.lastName.trim(),
+      address1: step1Fields.address1.trim(),
+      address2: step1Fields.address2.trim(),
+      city: step1Fields.city.trim(),
+      state: step1Fields.state.trim(),
+      zip: step1Fields.zipCode.trim(),
+      phone: step1Fields.phone.trim(),
       email: emailNorm,
-      job_role: String(body.jobRole ?? "").trim(),
+      job_role: step1Fields.jobRole.trim(),
       updated_at: new Date().toISOString(),
     }
 
