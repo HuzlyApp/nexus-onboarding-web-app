@@ -267,7 +267,7 @@ export default function NewApplicantChecklistPage() {
             />
             <DetailedTabs applicantId={applicantId} activeTab="Checklist" />
 
-            <div className="rounded-2xl border border-[#9CC3FF] overflow-hidden shadow-sm bg-[linear-gradient(90deg,rgba(59,130,246,0.06)_1px,transparent_1px),linear-gradient(0deg,rgba(59,130,246,0.04)_1px,transparent_1px)] bg-[size:34px_34px] bg-white/70">
+            <div className="mx-auto flex h-[1762px] w-full max-w-[1300px] flex-col gap-[30px] overflow-hidden rounded-md border border-[#E5E7EB] bg-white p-5">
               <div className="hidden p-3 sm:p-4 border-b border-[#9CC3FF]/30 bg-white/40">
                 <div className="mx-auto flex h-[92px] w-full max-w-[1300px] items-center justify-between rounded-md border border-[#D1D5DB] bg-white px-5">
                   <div className="flex items-center gap-3">
@@ -304,57 +304,29 @@ export default function NewApplicantChecklistPage() {
                 </div>
               </div>
 
-              <div className="p-6 grid grid-cols-12 gap-6">
-                <aside className="col-span-12 lg:col-span-3 space-y-4">
-                  <div className="bg-white/80 border border-[#9CC3FF]/30 rounded-2xl p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="text-sm font-semibold text-gray-600">Progress Checklist Tracker</div>
-                      <span className="text-xs px-3 py-1 rounded-full bg-amber-100 text-amber-800 font-medium">
-                        In Progress
-                      </span>
+              <div className="flex flex-col gap-[30px]">
+                <div className="h-[110px] w-full max-w-[1260px] rounded-md border border-[#0D9488] bg-[#F8FAFC] px-6 py-5">
+                  <div className="flex items-center justify-between">
+                    <div className="text-[20px] font-semibold leading-7 text-[#1F2937]">Progress Checklist Tracker</div>
+                    <div className="text-[18px] font-normal leading-7 text-[#374151]">
+                      Days in current stage:{" "}
+                      <span className="font-semibold text-[#1F2937]">{data?.meta?.daysInStage ?? "—"} days</span>
                     </div>
-
-                    <div className="flex items-baseline justify-between mb-3">
-                      <div className="text-2xl font-semibold text-gray-600">
-                        {data?.meta?.completedItems ?? "—"}
-                      </div>
-                      <div className="text-xs text-gray-600">
-                        {data?.meta ? `of ${data.meta.totalItems} items` : ""}
-                      </div>
-                    </div>
-
-                    <div className="h-2 rounded-full bg-zinc-200 overflow-hidden mb-4">
+                  </div>
+                  <div className="mt-4 flex items-center gap-4">
+                    <div className="h-[10px] w-full max-w-[1168px] rounded-[100px] bg-[#ECF1F9] overflow-hidden">
                       <div
-                        className="h-full bg-teal-600 rounded-full transition-all"
+                        className="h-full rounded-[100px] bg-[#0D9488] transition-all"
                         style={{ width: `${data?.meta?.progressPercent ?? 0}%` }}
                       />
                     </div>
-
-                    <div className="text-[11px] text-gray-600 mb-2">
-                      Documents {data?.meta?.verifiedDocuments.done ?? 0}/
-                      {data?.meta?.verifiedDocuments.total ?? 4} · Quizzes {data?.meta?.skillAssessments.completed ?? 0}/
-                      {data?.meta?.skillAssessments.total ?? 0}
-                    </div>
-
-                    <div className="space-y-2">
-                      {(data?.tracker.labels ?? []).map((label, idx) => {
-                        const done = data?.tracker.done[idx];
-                        return (
-                          <div key={label} className="flex items-center gap-2 text-xs">
-                            {done ? (
-                              <CheckCircle2 className="w-4 h-4 text-teal-600 shrink-0" />
-                            ) : (
-                              <div className="w-4 h-4 border border-zinc-300 rounded-full shrink-0" />
-                            )}
-                            <span className={done ? "text-gray-600" : "text-gray-600"}>{label}</span>
-                          </div>
-                        );
-                      })}
+                    <div className="text-[18px] font-semibold leading-7 text-[#111827]">
+                      {data?.meta?.progressPercent ?? 0}%
                     </div>
                   </div>
-                </aside>
+                </div>
 
-                <main className="col-span-12 lg:col-span-9 space-y-4">
+                <main className="space-y-4">
                   {loading ? (
                     <div className="text-center py-16 text-gray-600">Loading checklist…</div>
                   ) : (
