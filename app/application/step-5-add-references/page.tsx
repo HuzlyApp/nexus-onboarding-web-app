@@ -6,8 +6,14 @@ import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
 import { formatPhoneNumber, normalizePhoneInput } from "@/lib/phone"
 import AutosaveStatus from "@/app/components/AutosaveStatus"
+import {
+  hasPartiallyFilledReference,
+  isReferenceComplete,
+  MIN_COMPLETE_REFERENCES,
+  type ReferenceRow,
+} from "@/lib/referencesValidation"
 
-type RefRow = { first: string; last: string; phone: string; email: string }
+type RefRow = ReferenceRow
 
 function loadRefsFromStorage(): RefRow[] {
   if (typeof window === "undefined") return [{ first: "", last: "", phone: "", email: "" }]
@@ -65,23 +71,27 @@ export default function ReferencesPage() {
     setRefs([...refs, { first: "", last: "", phone: "", email: "" }])
   }
 
-  function hasDuplicateNames() {
-    const names = refs
-      .map((r) => `${r.first}-${r.last}`.toLowerCase())
-      .filter((n) => n !== "-")
-    return new Set(names).size !== names.length
-  }
-
   async function saveReferences() {
     setError("")
     setSaving(true)
-    if (hasDuplicateNames()) { setError("Duplicate reference names are not allowed."); setSaving(false); return }
-    for (const r of refs) {
-      if (!r.first || !r.last || !r.phone || !r.email) {
-        setError("Please fill all required fields.")
-        setSaving(false)
-        return
-      }
+    if (hasPartiallyFilledReference(refs)) {
+      setError("Finish every reference you started, or clear unused rows, before saving.")
+      setSaving(false)
+      return
+    }
+    const completeRefs = refs.filter(isReferenceComplete)
+    const names = completeRefs
+      .map((r) => `${r.first.trim()}-${r.last.trim()}`.toLowerCase())
+      .filter((n) => n !== "-")
+    if (new Set(names).size !== names.length) {
+      setError("Duplicate reference names are not allowed.")
+      setSaving(false)
+      return
+    }
+    if (completeRefs.length < MIN_COMPLETE_REFERENCES) {
+      setError(`Add at least ${MIN_COMPLETE_REFERENCES} complete references (first name, last name, phone, and email each) before continuing.`)
+      setSaving(false)
+      return
     }
     const applicantId = typeof window !== "undefined" ? localStorage.getItem("applicantId")?.trim() || "" : ""
     if (!applicantId) {
@@ -95,7 +105,7 @@ export default function ReferencesPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         applicantId,
-        references: refs.map((r) => ({
+        references: completeRefs.map((r) => ({
           first: r.first,
           last: r.last,
           phone: r.phone,
@@ -119,9 +129,9 @@ export default function ReferencesPage() {
       return
     }
     // router.push("/application/step-6-summary")
-    localStorage.setItem("referenceData", JSON.stringify(refs))
+    localStorage.setItem("referenceData", JSON.stringify(completeRefs))
     localStorage.removeItem("referenceDataDraft")
-    localStorage.setItem("referencesCount", String(refs.length))
+    localStorage.setItem("referencesCount", String(completeRefs.length))
     localStorage.setItem("step5Completed", "false")
     router.push("/application/step-5-reference-review")
     setSaving(false)
@@ -147,18 +157,11 @@ export default function ReferencesPage() {
                   autosaveState === "saving" ? "saving" : autosaveState === "saved" ? "saved" : "idle"
                 }
               />
-              <button
-                type="button"
-                onClick={() => router.push("/application/step-5-reference-review")}
-                className="cursor-pointer text-[12px] font-medium leading-5 text-[#0D9488]"
-              >
-                Skip for Now →
-              </button>
             </div>
           </div>
           <p className="text-[13px] text-slate-500 mb-1">Trusted feedback, verified integrity.</p>
           <p className="text-[12px] text-slate-400 mb-6">
-            Note: You can add up to 3 references. Just click the add reference button.
+            Add at least {MIN_COMPLETE_REFERENCES} complete references (up to 3). Use + Add Reference for a third optional contact.
           </p>
 
           {/* References */}
@@ -167,7 +170,11 @@ export default function ReferencesPage() {
               <div key={index}>
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-[15px] font-bold text-slate-800">Reference {index + 1}</p>
-                  {index === 2 && <p className="text-[11px] text-slate-400">Optional</p>}
+                  {index < MIN_COMPLETE_REFERENCES ? (
+                    <p className="text-[11px] font-medium text-rose-600">Required</p>
+                  ) : (
+                    <p className="text-[11px] text-slate-400">Optional</p>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-4 mb-3">

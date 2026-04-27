@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { getSupabaseUrl } from "@/lib/supabase-env"
+import {
+  isReferenceComplete,
+  MIN_COMPLETE_REFERENCES,
+  type ReferenceRow,
+} from "@/lib/referencesValidation"
 
 export const runtime = "nodejs"
 
@@ -23,8 +28,15 @@ export async function POST(req: NextRequest) {
     if (!applicantId) {
       return NextResponse.json({ error: "Missing applicantId" }, { status: 400 })
     }
-    if (references.length === 0) {
-      return NextResponse.json({ error: "No references to save" }, { status: 400 })
+    const rowsInput = references as ReferenceRow[]
+    const completeOnly = rowsInput.filter(isReferenceComplete)
+    if (completeOnly.length < MIN_COMPLETE_REFERENCES) {
+      return NextResponse.json(
+        {
+          error: `At least ${MIN_COMPLETE_REFERENCES} complete references are required (first name, last name, phone, and email for each).`,
+        },
+        { status: 400 },
+      )
     }
 
     const url = getSupabaseUrl()
@@ -65,7 +77,7 @@ export async function POST(req: NextRequest) {
       throw delErr
     }
 
-    const rows = references.map((r) => ({
+    const rows = completeOnly.map((r) => ({
       worker_id: workerId,
       reference_first_name: String(r.first ?? "").trim(),
       reference_last_name: String(r.last ?? "").trim(),
