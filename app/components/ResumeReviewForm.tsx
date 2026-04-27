@@ -1,9 +1,11 @@
 // components/onboarding/ResumeReviewForm.tsx
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ResumeData as ParsedResumeData } from "@/lib/resumeSchema";
+import { sanitizeUsZipInput, usZipValidationMessage } from "@/lib/usZip";
+import OnboardingCheckbox from "@/app/components/OnboardingCheckbox";
 
 export interface FormResumeData {
   full_name?: string;
@@ -97,16 +99,34 @@ export default function ResumeReviewForm({ initialData = {}, onSave }: Props) {
   );
 
   const [sameAddress, setSameAddress] = useState(true);
+  const [zipSubmitError, setZipSubmitError] = useState<string | null>(null);
+
+  const zipFieldError = useMemo(() => {
+    const z = (formData.zip_code || "").trim();
+    if (!z) return null;
+    return usZipValidationMessage(z);
+  }, [formData.zip_code]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
     const { name, value } = e.target;
+    if (name === "zip_code") {
+      setFormData((prev) => ({ ...prev, zip_code: sanitizeUsZipInput(value) }));
+      setZipSubmitError(null);
+      return;
+    }
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const ze = usZipValidationMessage(formData.zip_code || "");
+    if (ze) {
+      setZipSubmitError(ze);
+      return;
+    }
+    setZipSubmitError(null);
 
     // Optional: reconstruct full_name for backend
     const dataToSave = {
@@ -202,20 +222,18 @@ export default function ResumeReviewForm({ initialData = {}, onSave }: Props) {
           </div>
 
           <div className="pt-8">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={sameAddress}
-                onChange={(e) => {
-                  setSameAddress(e.target.checked);
-                  if (e.target.checked) {
-                    setFormData((prev) => ({ ...prev, address2: "" }));
-                  }
-                }}
-                className="h-4 w-4 text-teal-600 focus:ring-teal-500 border-gray-300 rounded"
-              />
+            <OnboardingCheckbox
+              checked={sameAddress}
+              onChange={(next) => {
+                setSameAddress(next);
+                if (next) {
+                  setFormData((prev) => ({ ...prev, address2: "" }));
+                }
+              }}
+              className="cursor-pointer"
+            >
               <span className="text-sm text-gray-700">Same as address 1</span>
-            </label>
+            </OnboardingCheckbox>
           </div>
         </div>
 
@@ -260,8 +278,17 @@ export default function ResumeReviewForm({ initialData = {}, onSave }: Props) {
               name="zip_code"
               value={formData.zip_code || ""}
               onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+              inputMode="numeric"
+              className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 ${
+                zipFieldError || zipSubmitError ? "border-red-400" : "border-gray-300"
+              }`}
+              placeholder="12345 or 12345-6789"
             />
+            {(zipFieldError || zipSubmitError) && (
+              <p className="mt-1 text-xs text-red-600" role="alert">
+                {zipSubmitError || zipFieldError}
+              </p>
+            )}
           </div>
         </div>
 

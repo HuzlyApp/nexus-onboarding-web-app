@@ -1,7 +1,7 @@
 "use client"
 
 import type { HTMLAttributes, ReactNode } from "react"
-import { Suspense, useEffect, useMemo, useRef, useState } from "react"
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { supabaseBrowser as supabase } from "@/lib/supabase-browser"
 import Image from "next/image"
@@ -9,6 +9,8 @@ import { AlertTriangle, ChevronDown, Pencil, Search, X, XCircle } from "lucide-r
 import OnboardingStepper from "@/app/components/OnboardingStepper"
 import OnboardingLoader from "@/app/components/OnboardingLoader"
 import { formatPhoneNumber, normalizePhoneInput } from "@/lib/phone"
+import { sanitizeUsZipInput, usZipValidationMessage } from "@/lib/usZip"
+import AutosaveStatus from "@/app/components/AutosaveStatus"
 
 type ContactConflictKind = "email" | "phone"
 
@@ -217,6 +219,7 @@ function Step1ReviewContent() {
   })
 
   const [loading, setLoading] = useState(false)
+  const [autosaveState, setAutosaveState] = useState<"idle" | "saving" | "saved">("idle")
   /** Duplicate contact conflict: banner + field highlight (matches design mock). */
   const [fieldConflict, setFieldConflict] = useState<{
     kind: ContactConflictKind
@@ -267,11 +270,89 @@ function Step1ReviewContent() {
     }))
   }, [urlJobTitle])
 
+  const zipFieldError = useMemo(() => {
+    if (!form.zipCode.trim()) return null
+    return usZipValidationMessage(form.zipCode)
+  }, [form.zipCode])
+
   const handleChange = (key: string, value: string | boolean) => {
     if (key === "email" && fieldConflict?.kind === "email") setFieldConflict(null)
     if (key === "phone" && fieldConflict?.kind === "phone") setFieldConflict(null)
+    if (key === "zipCode" && typeof value === "string") {
+      setForm((prev) => ({ ...prev, zipCode: sanitizeUsZipInput(value) }))
+      return
+    }
     setForm((prev) => ({ ...prev, [key]: value }))
   }
+
+  const persistResumeDraft = useCallback(async (): Promise<boolean> => {
+    const applicantId = localStorage.getItem("applicantId")?.trim() || ""
+    if (!applicantId) return false
+    const zipErr = usZipValidationMessage(form.zipCode)
+    if (form.zipCode.trim() && zipErr) return false
+    if (!form.firstName.trim() || !form.lastName.trim() || !form.email.trim()) return false
+
+    const payload = {
+      applicantId,
+      firstName: form.firstName,
+      lastName: form.lastName,
+      address1: form.address1,
+      address2: form.address2,
+      city: form.city,
+      state: form.state,
+      zipCode: form.zipCode,
+      phone: form.phone,
+      email: form.email,
+      jobRole: form.jobRole,
+    }
+
+    const saveRes = await fetch("/api/onboarding/save-worker", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    })
+    if (!saveRes.ok) return false
+
+    localStorage.setItem(
+      "parsedResume",
+      JSON.stringify({
+        first_name: form.firstName,
+        last_name: form.lastName,
+        address1: form.address1,
+        address2: form.address2,
+        city: form.city,
+        state: form.state,
+        zipCode: form.zipCode,
+        phone: form.phone,
+        email: form.email,
+        job_role: form.jobRole,
+        firstName: form.firstName,
+        lastName: form.lastName,
+        jobRole: form.jobRole,
+      })
+    )
+    return true
+  }, [form])
+
+  useEffect(() => {
+    if (loading) return
+    const t = window.setTimeout(() => {
+      void (async () => {
+        const applicantId = localStorage.getItem("applicantId")?.trim() || ""
+        if (!applicantId || !form.firstName.trim() || !form.lastName.trim() || !form.email.trim()) return
+        if (form.zipCode.trim() && usZipValidationMessage(form.zipCode)) return
+        setAutosaveState("saving")
+        const ok = await persistResumeDraft()
+        if (ok) {
+          setAutosaveState("saved")
+          window.setTimeout(() => setAutosaveState("idle"), 1400)
+        } else {
+          setAutosaveState("idle")
+        }
+      })()
+    }, 700)
+    return () => window.clearTimeout(t)
+  }, [form, loading, persistResumeDraft])
 
   function describeSaveError(err: unknown): string {
     if (err instanceof Error && err.message) return err.message
@@ -287,13 +368,18 @@ function Step1ReviewContent() {
   const handleSaveAndContinue = async () => {
     setFieldConflict(null)
     setGenericError(null)
+    const zipErr = usZipValidationMessage(form.zipCode)
+    if (zipErr) {
+      setGenericError(zipErr)
+      return
+    }
     setLoading(true)
 
     try {
       const applicantId = localStorage.getItem("applicantId") || ""
       if (!applicantId) throw new Error("Missing applicant ID")
 
-      const { error: upsertError } = await supabase
+      const { error: upsertBrowserError } = await supabase
         .from("worker")
         .upsert({
           applicant_id: applicantId,
@@ -309,6 +395,7 @@ function Step1ReviewContent() {
           job_role: form.jobRole.trim(),
           updated_at: new Date().toISOString(),
         }, { onConflict: "applicant_id" })
+      if (upsertBrowserError) console.warn("[step-1-review] worker upsert", upsertBrowserError)
       // Create a new worker record on each save by generating a fresh applicantId.
       // This prevents overwriting the previous worker row keyed by user_id.
       // const applicantId = globalThis.crypto?.randomUUID?.()
@@ -497,9 +584,12 @@ function Step1ReviewContent() {
               </div>
             </div>
 
-            <h2 className="text-xl sm:text-[22px] font-bold text-[#1e293b] mb-4 sm:mb-8 mt-4 sm:mt-6">
-              Review resume details
-            </h2>
+            <div className="mt-4 sm:mt-6 mb-4 sm:mb-8 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <h2 className="text-xl sm:text-[22px] font-bold text-[#1e293b]">Review resume details</h2>
+              <AutosaveStatus
+                state={autosaveState === "saving" ? "saving" : autosaveState === "saved" ? "saved" : "idle"}
+              />
+            </div>
 
             {genericError && (
               <div className="mb-5 p-4 bg-red-50 border border-red-200 text-red-800 text-sm rounded-lg">
@@ -694,15 +784,26 @@ function Step1ReviewContent() {
 
               {/* Zip & Job Role */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
-                <EditableInput
-                  label="Zip Code"
-                  required
-                  value={form.zipCode}
-                  onChange={(value) => handleChange("zipCode", value)}
-                  className={`w-full px-4 h-[56px] border border-gray-200 rounded-md text-[#1e293b] text-sm bg-white pr-10 ${focusBorderClass}`}
-                  placeholder="40170"
-                  inputMode="numeric"
-                />
+                <div>
+                  <EditableInput
+                    label="Zip Code"
+                    required
+                    value={form.zipCode}
+                    onChange={(value) => handleChange("zipCode", value)}
+                    className={`w-full px-4 h-[56px] border rounded-md text-[#1e293b] text-sm bg-white pr-10 ${
+                      zipFieldError
+                        ? "border-red-400 focus:border-red-500 focus:ring-2 focus:ring-red-200 focus:outline-none"
+                        : `border-gray-200 ${focusBorderClass}`
+                    }`}
+                    placeholder="12345 or 12345-6789"
+                    inputMode="numeric"
+                  />
+                  {zipFieldError ? (
+                    <p className="mt-1.5 text-xs text-red-600" role="alert">
+                      {zipFieldError}
+                    </p>
+                  ) : null}
+                </div>
                 <div>
                   <label className="block text-[13px] font-medium text-gray-600 mb-1.5">
                     Select Job Title<span className="text-red-500 ml-0.5">*</span>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { supabaseBrowser as supabase } from "@/lib/supabase-browser"
 import { MONITORING_CATEGORY_ID } from "@/lib/monitoring-category"
@@ -8,6 +8,9 @@ import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
 import OnboardingLoader from "@/app/components/OnboardingLoader"
 import { ChevronRight } from "lucide-react"
+import { fetchApplicantSkillAnswers } from "@/lib/skill-assessment-answer-rows"
+import { useQuizAutosave } from "@/lib/useQuizAutosave"
+import AutosaveStatus from "@/app/components/AutosaveStatus"
 
 /** `skill_assessments.worker_id` = auth user id; `category` matches `skill_categories.slug` */
 const CATEGORY_SLUG = "monitoring"
@@ -67,6 +70,16 @@ export default function MonitoringQuiz() {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
+  const answersRef = useRef<Record<string, number>>({})
+  useEffect(() => {
+    answersRef.current = answers
+  }, [answers])
+
+  const { scheduleSave, saveState, flushPending } = useQuizAutosave(supabase, {
+    categorySlug: CATEGORY_SLUG,
+    answersRef,
+  })
+
   const totalPages = useMemo(
     () => Math.max(1, Math.ceil(questions.length / PAGE_SIZE) || 1),
     [questions.length]
@@ -108,7 +121,10 @@ export default function MonitoringQuiz() {
 
       const { data: userData } = await supabase.auth.getUser()
       const user = userData?.user
-      if (!user) {
+      const applicantFromLs =
+        typeof window !== "undefined" ? localStorage.getItem("applicantId")?.trim() || null : null
+      const uid = user?.id ?? applicantFromLs
+      if (!uid) {
         setLoading(false)
         return
       }
@@ -116,9 +132,9 @@ export default function MonitoringQuiz() {
       const { data: worker } = await supabase
         .from("worker")
         .select("id")
-        .eq("user_id", user.id)
+        .eq("user_id", uid)
         .maybeSingle()
-      const workerId = worker?.id ? String(worker.id) : user.id
+      const workerId = worker?.id ? String(worker.id) : uid
 
       const { data: row } = await supabase
         .from("skill_assessments")
@@ -127,7 +143,9 @@ export default function MonitoringQuiz() {
         .eq("category", CATEGORY_SLUG)
         .maybeSingle()
 
-      setAnswers(normalizeAnswers(row?.answers ?? null, ordered))
+      const legacy = normalizeAnswers(row?.answers ?? null, ordered)
+      const merged = await fetchApplicantSkillAnswers(supabase, cat.id, legacy)
+      setAnswers(merged)
     } catch (e: unknown) {
       const msg =
         e instanceof Error
@@ -154,7 +172,12 @@ export default function MonitoringQuiz() {
   }, [totalPages])
 
   const selectAnswer = (questionId: string, value: number) => {
-    setAnswers((prev) => ({ ...prev, [questionId]: value }))
+    setAnswers((prev) => {
+      const next = { ...prev, [questionId]: value }
+      answersRef.current = next
+      return next
+    })
+    if (category?.id) scheduleSave(questionId, value, category.id)
   }
 
   const splitQuestionDetail = (question: string, description?: string | null) => {
@@ -178,32 +201,30 @@ export default function MonitoringQuiz() {
     }
   }
 
-  const pageComplete = () => {
-    for (let i = start; i < end; i++) {
-      const q = questions[i]
-      if (!q || answers[q.id] == null) return false
-    }
-    return true
+  function quizFullyComplete() {
+    return questions.length > 0 && questions.every((q) => answers[q.id] != null)
   }
 
   async function persist(completed: boolean) {
     const { data: userData, error: userError } = await supabase.auth.getUser()
-    if (userError || !userData?.user) {
+    const applicantFromLs =
+      typeof window !== "undefined" ? localStorage.getItem("applicantId")?.trim() || null : null
+    const uid = userData?.user?.id ?? applicantFromLs
+    if (userError || !uid) {
       if (completed) localStorage.setItem("monitoring_done", "true")
       return true
     }
-    const user = userData.user
     const { data: worker, error: wErr } = await supabase
       .from("worker")
       .select("id")
-      .eq("user_id", user.id)
+      .eq("user_id", uid)
       .maybeSingle()
 
     if (wErr) {
       alert("Could not load worker profile.")
       return false
     }
-    const workerId = worker?.id ? String(worker.id) : user.id
+    const workerId = worker?.id ? String(worker.id) : uid
     const cleanAnswers = JSON.parse(JSON.stringify(answers)) as Record<string, number>
 
     const { data: existing, error: findErr } = await supabase
@@ -262,6 +283,11 @@ export default function MonitoringQuiz() {
   }
 
   async function saveAndFinish() {
+    await flushPending()
+    if (!quizFullyComplete()) {
+      alert("Please answer all questions before finishing this section.")
+      return
+    }
     setSaving(true)
     try {
       const ok = await persist(true)
@@ -277,23 +303,14 @@ export default function MonitoringQuiz() {
       return
     }
 
-    if (!pageComplete()) {
-      alert("Please answer all questions on this page.")
-      return
-    }
+    await flushPending()
 
     if (page >= totalPages) {
       await saveAndFinish()
       return
     }
 
-    setSaving(true)
-    try {
-      const ok = await persist(false)
-      if (ok) setPage((p) => p + 1)
-    } finally {
-      setSaving(false)
-    }
+    setPage((p) => p + 1)
   }
 
   function back() {
@@ -362,13 +379,16 @@ export default function MonitoringQuiz() {
                 </p>
               ) : null}
             </div>
-            <button
-              type="button"
-              onClick={() => router.push("/application/step-4-documents")}
-              className="mt-1 cursor-pointer text-[12px] font-medium leading-5 text-[#0D9488]"
-            >
-              Skip for Now →
-            </button>
+            <div className="mt-1 flex flex-col items-end gap-1 sm:flex-row sm:items-center sm:gap-3">
+              <AutosaveStatus state={saveState} />
+              <button
+                type="button"
+                onClick={() => router.push("/application/step-4-documents")}
+                className="cursor-pointer text-[12px] font-medium leading-5 text-[#0D9488]"
+              >
+                Skip for Now →
+              </button>
+            </div>
           </div>
 
           <div className="mt-4 mb-1 flex items-center justify-between border-b border-slate-200 pb-2">
@@ -410,14 +430,14 @@ export default function MonitoringQuiz() {
                         key={n}
                         type="button"
                         onClick={() => selectAnswer(q.id, n)}
-                        className={`flex h-5 w-5 cursor-pointer items-center justify-center rounded-full border-2 transition ${
+                        className={`flex h-5 w-5 cursor-pointer items-center justify-center rounded-[5px] border-2 transition ${
                           answers[q.id] === n
                             ? "border-[#0D9488] bg-[#0D9488]"
                             : "border-slate-300 bg-white hover:border-[#0D9488]"
                         }`}
                       >
                         {answers[q.id] === n && (
-                          <span className="h-2 w-2 rounded-full bg-white" />
+                          <span className="h-2 w-2 rounded-[2px] bg-white" />
                         )}
                       </button>
                     ))}

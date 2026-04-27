@@ -10,7 +10,8 @@ import OnboardingLayout from "@/app/components/OnboardingLayout"
 type StatusView = "pending" | "approved"
 
 export default function ApplicationStatusPage() {
-  const [statusView, setStatusView] = useState<StatusView>("pending")
+  /** Default pending; replace with real status when wired. Browse Shift is disabled. */
+  const [statusView] = useState<StatusView>("pending")
 
   const isApproved = statusView === "approved"
 
@@ -108,10 +109,9 @@ export default function ApplicationStatusPage() {
               ) : (
                 <button
                   type="button"
-                  onClick={() => {
-                    setStatusView("approved")
-                  }}
-                  className="inline-flex h-11 w-[150px] items-center justify-center gap-2 rounded-lg bg-slate-100 px-4 py-2.5 text-[16px] font-semibold leading-6 text-slate-400 transition hover:bg-slate-200 hover:text-slate-500"
+                  disabled
+                  aria-disabled="true"
+                  className="inline-flex h-11 w-[150px] cursor-not-allowed items-center justify-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 text-[16px] font-semibold leading-6 text-slate-400 opacity-70"
                 >
                   Browse Shift
                 </button>

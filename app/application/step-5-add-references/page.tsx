@@ -1,17 +1,58 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
 import { formatPhoneNumber, normalizePhoneInput } from "@/lib/phone"
+import AutosaveStatus from "@/app/components/AutosaveStatus"
+
+type RefRow = { first: string; last: string; phone: string; email: string }
+
+function loadRefsFromStorage(): RefRow[] {
+  if (typeof window === "undefined") return [{ first: "", last: "", phone: "", email: "" }]
+  try {
+    const draft = localStorage.getItem("referenceDataDraft")
+    if (draft) {
+      const p = JSON.parse(draft) as RefRow[]
+      if (Array.isArray(p) && p.length) return p
+    }
+  } catch {
+    /* ignore */
+  }
+  try {
+    const saved = localStorage.getItem("referenceData")
+    if (saved) {
+      const p = JSON.parse(saved) as RefRow[]
+      if (Array.isArray(p) && p.length) return p
+    }
+  } catch {
+    /* ignore */
+  }
+  return [{ first: "", last: "", phone: "", email: "" }]
+}
 
 export default function ReferencesPage() {
   const router = useRouter()
 
-  const [refs, setRefs] = useState([{ first: "", last: "", phone: "", email: "" }])
+  const [refs, setRefs] = useState<RefRow[]>(() => loadRefsFromStorage())
   const [error, setError] = useState("")
   const [saving, setSaving] = useState(false)
+  const [autosaveState, setAutosaveState] = useState<"idle" | "saving" | "saved">("idle")
+
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      try {
+        setAutosaveState("saving")
+        localStorage.setItem("referenceDataDraft", JSON.stringify(refs))
+        setAutosaveState("saved")
+        window.setTimeout(() => setAutosaveState("idle"), 1200)
+      } catch {
+        setAutosaveState("idle")
+      }
+    }, 650)
+    return () => window.clearTimeout(t)
+  }, [refs])
 
   function update(index: number, field: string, value: string) {
     const updated = [...refs]
@@ -79,6 +120,7 @@ export default function ReferencesPage() {
     }
     // router.push("/application/step-6-summary")
     localStorage.setItem("referenceData", JSON.stringify(refs))
+    localStorage.removeItem("referenceDataDraft")
     localStorage.setItem("referencesCount", String(refs.length))
     router.push("/application/step-5-reference-review")
     setSaving(false)
@@ -96,15 +138,22 @@ export default function ReferencesPage() {
 
         <div className="flex flex-1 flex-col pt-8">
           {/* Header */}
-          <div className="flex items-start justify-between mb-1">
+          <div className="mb-1 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <h2 className="text-[24px] font-semibold leading-8 text-slate-800">Add References</h2>
-            <button
-              type="button"
-              onClick={() => router.push("/application/step-5-reference-review")}
-              className="cursor-pointer text-[12px] font-medium leading-5 text-[#0D9488] mt-1"
-            >
-              Skip for Now →
-            </button>
+            <div className="flex flex-col items-end gap-1 sm:flex-row sm:items-center sm:gap-3">
+              <AutosaveStatus
+                state={
+                  autosaveState === "saving" ? "saving" : autosaveState === "saved" ? "saved" : "idle"
+                }
+              />
+              <button
+                type="button"
+                onClick={() => router.push("/application/step-5-reference-review")}
+                className="cursor-pointer text-[12px] font-medium leading-5 text-[#0D9488]"
+              >
+                Skip for Now →
+              </button>
+            </div>
           </div>
           <p className="text-[13px] text-slate-500 mb-1">Trusted feedback, verified integrity.</p>
           <p className="text-[12px] text-slate-400 mb-6">

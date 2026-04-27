@@ -1,5 +1,7 @@
-// components/FileUploadBox.tsx
+"use client"
+
 import { Dispatch, SetStateAction } from "react"
+import DocumentFileThumbnail from "@/app/components/DocumentFileThumbnail"
 
 interface FileUploadBoxProps {
   file: File | null
@@ -25,18 +27,17 @@ export default function FileUploadBox({ file, setFile, accept, inputId = "file-u
       />
       <label htmlFor={inputId} className="cursor-pointer block">
         {file ? (
-          <div className="space-y-2">
-            <p className="text-teal-600 font-medium">{file.name}</p>
-            <p className="text-sm text-gray-500">
-              {(file.size / 1024 / 1024).toFixed(2)} MB
-            </p>
+          <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+            <DocumentFileThumbnail file={file} fileName={file.name} />
+            <div className="space-y-1 text-center sm:text-left">
+              <p className="text-teal-600 font-medium break-all">{file.name}</p>
+              <p className="text-sm text-gray-500">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+            </div>
           </div>
         ) : (
           <div className="space-y-2">
             <p className="text-gray-600 font-medium">Click to upload or drag & drop</p>
-            <p className="text-sm text-gray-400">
-              PNG, JPG, PDF up to 10MB
-            </p>
+            <p className="text-sm text-gray-400">PNG, JPG, PDF up to 10MB</p>
           </div>
         )}
       </label>

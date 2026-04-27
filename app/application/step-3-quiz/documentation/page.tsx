@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { supabaseBrowser as supabase } from "@/lib/supabase-browser"
 import { DOCUMENTATION_CATEGORY_ID } from "@/lib/documentation-category"
@@ -8,6 +8,13 @@ import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
 import OnboardingLoader from "@/app/components/OnboardingLoader"
 import { ChevronRight } from "lucide-react"
+import {
+  mergeQuestionCatalogWithDb,
+  remapLegacySyntheticAnswerKeys,
+} from "@/lib/merge-skill-quiz-catalog"
+import { fetchApplicantSkillAnswers } from "@/lib/skill-assessment-answer-rows"
+import { useQuizAutosave } from "@/lib/useQuizAutosave"
+import AutosaveStatus from "@/app/components/AutosaveStatus"
 
 /** `skill_assessments.worker_id` = auth user id; `category` matches `skill_categories.slug` */
 const CATEGORY_SLUG = "documentation"
@@ -113,27 +120,6 @@ function normalizeAnswers(
   return out
 }
 
-function completeDocumentationQuestions(rows: QuestionRow[]): QuestionRow[] {
-  const byQuizNumber = new Map<number, QuestionRow>()
-  for (const row of rows) {
-    if (row.quiz_number != null) {
-      byQuizNumber.set(row.quiz_number, row)
-    }
-  }
-
-  return DOCUMENTATION_QUESTION_CONTENT.map((item) => {
-    const existing = byQuizNumber.get(item.quiz_number)
-    return {
-      id:
-        existing?.id ??
-        `00000000-0000-4000-8000-${item.quiz_number.toString(16).padStart(12, "0")}`,
-      quiz_number: item.quiz_number,
-      question: item.question,
-      description: item.description,
-    }
-  })
-}
-
 function splitQuestionDetail(question: string, description?: string | null) {
   if (description) {
     const clean = description.trim()
@@ -164,6 +150,16 @@ export default function DocumentationQuiz() {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+
+  const answersRef = useRef<Record<string, number>>({})
+  useEffect(() => {
+    answersRef.current = answers
+  }, [answers])
+
+  const { scheduleSave, saveState, flushPending } = useQuizAutosave(supabase, {
+    categorySlug: CATEGORY_SLUG,
+    answersRef,
+  })
 
   const totalPages = useMemo(
     () => Math.max(1, Math.ceil(questions.length / PAGE_SIZE) || 1),
@@ -202,12 +198,24 @@ export default function DocumentationQuiz() {
 
       if (qErr) throw qErr
       const ordered = (qs ?? []) as QuestionRow[]
-      const displayQuestions = completeDocumentationQuestions(ordered)
+      let displayQuestions: QuestionRow[]
+      try {
+        displayQuestions = mergeQuestionCatalogWithDb(DOCUMENTATION_QUESTION_CONTENT, ordered)
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Could not load quiz questions from the database"
+        setLoadError(msg)
+        setQuestions([])
+        setLoading(false)
+        return
+      }
       setQuestions(displayQuestions)
 
       const { data: userData } = await supabase.auth.getUser()
       const user = userData?.user
-      if (!user) {
+      const applicantFromLs =
+        typeof window !== "undefined" ? localStorage.getItem("applicantId")?.trim() || null : null
+      const uid = user?.id ?? applicantFromLs
+      if (!uid) {
         setLoading(false)
         return
       }
@@ -215,9 +223,9 @@ export default function DocumentationQuiz() {
       const { data: worker } = await supabase
         .from("worker")
         .select("id")
-        .eq("user_id", user.id)
+        .eq("user_id", uid)
         .maybeSingle()
-      const workerId = worker?.id ? String(worker.id) : user.id
+      const workerId = worker?.id ? String(worker.id) : uid
 
       const { data: row } = await supabase
         .from("skill_assessments")
@@ -226,7 +234,10 @@ export default function DocumentationQuiz() {
         .eq("category", CATEGORY_SLUG)
         .maybeSingle()
 
-      setAnswers(normalizeAnswers(row?.answers ?? null, displayQuestions))
+      let legacy = normalizeAnswers(row?.answers ?? null, displayQuestions)
+      legacy = remapLegacySyntheticAnswerKeys(legacy, displayQuestions, "documentation")
+      const merged = await fetchApplicantSkillAnswers(supabase, cat.id, legacy)
+      setAnswers(merged)
     } catch (e: unknown) {
       const msg =
         e instanceof Error
@@ -253,35 +264,38 @@ export default function DocumentationQuiz() {
   }, [totalPages])
 
   const selectAnswer = (questionId: string, value: number) => {
-    setAnswers((prev) => ({ ...prev, [questionId]: value }))
+    setAnswers((prev) => {
+      const next = { ...prev, [questionId]: value }
+      answersRef.current = next
+      return next
+    })
+    if (category?.id) scheduleSave(questionId, value, category.id)
   }
 
-  const pageComplete = () => {
-    for (let i = start; i < end; i++) {
-      const q = questions[i]
-      if (!q || answers[q.id] == null) return false
-    }
-    return true
+  function quizFullyComplete() {
+    return questions.length > 0 && questions.every((q) => answers[q.id] != null)
   }
 
   async function persist(completed: boolean) {
     const { data: userData, error: userError } = await supabase.auth.getUser()
-    if (userError || !userData?.user) {
+    const applicantFromLs =
+      typeof window !== "undefined" ? localStorage.getItem("applicantId")?.trim() || null : null
+    const uid = userData?.user?.id ?? applicantFromLs
+    if (userError || !uid) {
       if (completed) localStorage.setItem("documentation_done", "true")
       return true
     }
-    const user = userData.user
     const { data: worker, error: wErr } = await supabase
       .from("worker")
       .select("id")
-      .eq("user_id", user.id)
+      .eq("user_id", uid)
       .maybeSingle()
 
     if (wErr) {
       alert("Could not load worker profile.")
       return false
     }
-    const workerId = worker?.id ? String(worker.id) : user.id
+    const workerId = worker?.id ? String(worker.id) : uid
     const cleanAnswers = JSON.parse(JSON.stringify(answers)) as Record<string, number>
 
     const { data: existing, error: findErr } = await supabase
@@ -340,6 +354,11 @@ export default function DocumentationQuiz() {
   }
 
   async function saveAndFinish() {
+    await flushPending()
+    if (!quizFullyComplete()) {
+      alert("Please answer all questions before finishing this section.")
+      return
+    }
     setSaving(true)
     try {
       const ok = await persist(true)
@@ -355,23 +374,14 @@ export default function DocumentationQuiz() {
       return
     }
 
-    if (!pageComplete()) {
-      alert("Please answer all questions on this page.")
-      return
-    }
+    await flushPending()
 
     if (page >= totalPages) {
       await saveAndFinish()
       return
     }
 
-    setSaving(true)
-    try {
-      const ok = await persist(false)
-      if (ok) setPage((p) => p + 1)
-    } finally {
-      setSaving(false)
-    }
+    setPage((p) => p + 1)
   }
 
   function back() {
@@ -436,13 +446,16 @@ export default function DocumentationQuiz() {
               </h2>
               <p className="mt-2 text-[13px] text-slate-500">{DISPLAY_SUBTITLE}</p>
             </div>
-            <button
-              type="button"
-              onClick={() => router.push("/application/step-4-documents")}
-              className="mt-1 cursor-pointer text-[12px] font-medium leading-5 text-[#0D9488]"
-            >
-              Skip for Now →
-            </button>
+            <div className="mt-1 flex flex-col items-end gap-1 sm:flex-row sm:items-center sm:gap-3">
+              <AutosaveStatus state={saveState} />
+              <button
+                type="button"
+                onClick={() => router.push("/application/step-4-documents")}
+                className="cursor-pointer text-[12px] font-medium leading-5 text-[#0D9488]"
+              >
+                Skip for Now →
+              </button>
+            </div>
           </div>
 
           <div className="mt-4 mb-1 flex items-center justify-between border-b border-slate-200 pb-2">
@@ -484,14 +497,14 @@ export default function DocumentationQuiz() {
                         key={n}
                         type="button"
                         onClick={() => selectAnswer(q.id, n)}
-                        className={`flex h-5 w-5 cursor-pointer items-center justify-center rounded-full border-2 transition ${
+                        className={`flex h-5 w-5 cursor-pointer items-center justify-center rounded-[5px] border-2 transition ${
                           answers[q.id] === n
                             ? "border-[#0D9488] bg-[#0D9488]"
                             : "border-slate-300 bg-white hover:border-[#0D9488]"
                         }`}
                       >
                         {answers[q.id] === n && (
-                          <span className="h-2 w-2 rounded-full bg-white" />
+                          <span className="h-2 w-2 rounded-[2px] bg-white" />
                         )}
                       </button>
                     ))}

@@ -4,6 +4,7 @@
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
+import AutosaveStatus from "@/app/components/AutosaveStatus"
 import { useDropzone } from "react-dropzone"
 import { ChevronRight, FileText, Trash2 } from "lucide-react"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
@@ -32,10 +33,14 @@ export default function Step2License() {
     }
   })
   const [error, setError] = useState<string | null>(null)
+  const [fileAutosave, setFileAutosave] = useState<"idle" | "saved">("idle")
   const hasAnyUpload = Boolean(files.license || files.tb || files.cpr)
 
   useEffect(() => {
     localStorage.setItem("step2_files", JSON.stringify(files))
+    setFileAutosave("saved")
+    const t = window.setTimeout(() => setFileAutosave("idle"), 1200)
+    return () => window.clearTimeout(t)
   }, [files])
 
   const handleUpload = (file: File, type: UploadType) => {
@@ -186,18 +191,21 @@ export default function Step2License() {
         <OnboardingStepper currentStep={2} />
 
         <div className="flex flex-1 flex-col pt-8">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="text-[24px] font-semibold leading-8 text-slate-800">
               Add Requirements
             </h2>
 
-            <button
-              type="button"
-              onClick={() => router.push("/application/step-3-skills")}
-              className="cursor-pointer text-[12px] font-medium leading-5 text-[#1db4a3]"
-            >
-              Skip for Now {"\u2192"}
-            </button>
+            <div className="flex flex-col items-end gap-1 sm:flex-row sm:items-center sm:gap-3">
+              <AutosaveStatus state={fileAutosave === "saved" ? "saved" : "idle"} />
+              <button
+                type="button"
+                onClick={() => router.push("/application/step-3-skills")}
+                className="cursor-pointer text-[12px] font-medium leading-5 text-[#1db4a3]"
+              >
+                Skip for Now {"\u2192"}
+              </button>
+            </div>
           </div>
 
           <div className="mt-6 flex flex-col gap-6">

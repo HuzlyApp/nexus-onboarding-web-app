@@ -139,7 +139,7 @@ export function EditColumnsModal({ open, onOpenChange, value, onSave }: Props) {
                         type="checkbox"
                         checked={checked}
                         onChange={() => toggle(col.id)}
-                        className="h-5 w-5 cursor-pointer rounded-md bg-white accent-teal-600"
+                        className="h-5 w-5 cursor-pointer rounded-[5px] border-2 border-slate-300 bg-white accent-teal-600"
                       />
                       <span className="text-sm text-slate-700">{col.label}</span>
                     </label>

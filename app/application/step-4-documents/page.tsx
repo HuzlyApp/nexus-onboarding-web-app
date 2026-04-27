@@ -1,13 +1,16 @@
 "use client"
 
-import { useEffect, useState, useCallback, useMemo } from "react"
+import { useEffect, useState, useCallback, useMemo, useRef } from "react"
 import { useRouter } from "next/navigation"
-import Image from "next/image"
 import { FileText, Trash2 } from "lucide-react"
 import { supabaseBrowser as supabase } from "@/lib/supabase-browser"
 import { WORKER_REQUIRED_FILES_BUCKET } from "@/lib/supabase-storage-buckets"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
+import OnboardingCheckbox from "@/app/components/OnboardingCheckbox"
+import AutosaveStatus from "@/app/components/AutosaveStatus"
+import DocumentFileThumbnail from "@/app/components/DocumentFileThumbnail"
+import { isPdfFile, resolveStoragePublicUrl } from "@/lib/document-upload-helpers"
 import {
   fetchZohoSignStatus,
   mapZohoStatusToLabel,
@@ -26,10 +29,6 @@ type IdentityPaths = {
 function fileLabel(path: string) {
   const seg = path.split("/").pop() || path
   return seg.length > 40 ? `${seg.slice(0, 18)}…${seg.slice(-12)}` : seg
-}
-
-function isPdfPath(path: string) {
-  return /\.pdf$/i.test(path)
 }
 
 export default function DocumentsPage() {
@@ -66,6 +65,7 @@ export default function DocumentsPage() {
   const [signingStatus, setSigningStatus] = useState<ZohoSignDbStatus>("sent")
   /** Email already has a non-declined onboarding Zoho row — do not call send-agreement again. */
   const [onboardingAgreementLocked, setOnboardingAgreementLocked] = useState(false)
+  const [docAutosave, setDocAutosave] = useState<"idle" | "saving" | "saved">("idle")
 
   const signedFromStatus = signingStatus === "signed" || signingStatus === "completed"
   const effectiveSigned = isSigned || signedFromStatus
@@ -82,6 +82,47 @@ export default function DocumentsPage() {
     if (typeof window === "undefined") return
     localStorage.setItem("step4AuthorizationAgreed", agreed ? "true" : "false")
   }, [agreed])
+
+  const docDraftTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    if (typeof window === "undefined" || !mounted) return
+    if (docDraftTimer.current) clearTimeout(docDraftTimer.current)
+    docDraftTimer.current = setTimeout(() => {
+      try {
+        setDocAutosave("saving")
+        localStorage.setItem(
+          "step4DocumentsDraft",
+          JSON.stringify({
+            signerEmail,
+            signerName,
+            updatedAt: Date.now(),
+          })
+        )
+        setDocAutosave("saved")
+        window.setTimeout(() => setDocAutosave("idle"), 1200)
+      } catch {
+        setDocAutosave("idle")
+      }
+    }, 650)
+    return () => {
+      if (docDraftTimer.current) clearTimeout(docDraftTimer.current)
+    }
+  }, [signerEmail, signerName, mounted])
+
+  const step4DraftHydrated = useRef(false)
+  useEffect(() => {
+    if (typeof window === "undefined" || !mounted || step4DraftHydrated.current) return
+    step4DraftHydrated.current = true
+    try {
+      const raw = localStorage.getItem("step4DocumentsDraft")
+      if (!raw) return
+      const d = JSON.parse(raw) as { signerEmail?: string; signerName?: string }
+      if (d.signerEmail?.trim()) setSignerEmail((prev) => prev.trim() || d.signerEmail!.trim())
+      if (d.signerName?.trim()) setSignerName((prev) => prev.trim() || d.signerName!.trim())
+    } catch {
+      /* ignore */
+    }
+  }, [mounted])
 
   const identityDocsComplete = useMemo(() => {
     const { ssnFront, dlFront } = identityPaths
@@ -464,8 +505,8 @@ export default function DocumentsPage() {
     setError(null)
 
     try {
-      const ssn_url = identityPaths.ssnFront ? publicUrl(identityPaths.ssnFront) : null
-      const drivers_license_url = identityPaths.dlFront ? publicUrl(identityPaths.dlFront) : null
+      const ssn_url = resolveStoragePublicUrl(identityPaths.ssnFront, publicUrl)
+      const drivers_license_url = resolveStoragePublicUrl(identityPaths.dlFront, publicUrl)
       const ssn_back_url = null
       const drivers_license_back_url = null
 
@@ -532,20 +573,24 @@ export default function DocumentsPage() {
         </div>
       )
     }
-    const url = publicUrl(path)
-    const pdf = isPdfPath(path)
+    const url = resolveStoragePublicUrl(path, publicUrl)
+    if (!url) {
+      return (
+        <div className="rounded-xl border-2 border-dashed border-gray-200 bg-gray-50/80 p-6 text-center text-sm text-gray-500">
+          Not uploaded
+        </div>
+      )
+    }
+    const pdf = isPdfFile(null, path, url)
 
     return (
       <div className="rounded-xl border border-teal-200 bg-white p-3 shadow-sm flex gap-3 items-center">
-        <div className="w-16 h-16 shrink-0 rounded-lg bg-gray-100 overflow-hidden flex items-center justify-center">
-          {pdf ? (
-            <FileText className="w-8 h-8 text-teal-600" />
-          ) : (
-            <Image src={url} alt="" width={64} height={64} className="object-cover w-full h-full" unoptimized />
-          )}
-        </div>
+        <DocumentFileThumbnail publicUrl={url} fileName={path} />
         <div className="min-w-0 flex-1">
           <p className="text-xs text-gray-500">{subtitle}</p>
+          {pdf ? (
+            <p className="text-[11px] font-medium text-teal-800">PDF Document</p>
+          ) : null}
           <p className="text-sm font-medium text-gray-900 truncate" title={fileLabel(path)}>
             {fileLabel(path)}
           </p>
@@ -606,17 +651,24 @@ export default function DocumentsPage() {
         <OnboardingStepper currentStep={4} completedThrough={3} />
 
         <div className="flex flex-1 flex-col pt-8">
-          <div className="flex items-center justify-between gap-4 mb-4">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h1 className="text-3xl font-semibold text-slate-900 leading-[1.1]">
               Authorizations &amp; Documents
             </h1>
-            <button
-              type="button"
-              onClick={handleSkipForNow}
-              className="text-[12px] font-medium leading-5 text-[#0D9488]"
-            >
-              Skip for Now →
-            </button>
+            <div className="flex flex-col items-end gap-1 sm:flex-row sm:items-center sm:gap-3">
+              <AutosaveStatus
+                state={
+                  docAutosave === "saving" ? "saving" : docAutosave === "saved" ? "saved" : "idle"
+                }
+              />
+              <button
+                type="button"
+                onClick={handleSkipForNow}
+                className="text-[12px] font-medium leading-5 text-[#0D9488]"
+              >
+                Skip for Now →
+              </button>
+            </div>
           </div>
 
           <div className="text-[13px] leading-6 text-slate-600 space-y-3 mb-8">
@@ -631,38 +683,16 @@ export default function DocumentsPage() {
             </p>
           </div>
 
-          <label
-            className={`mb-8 inline-flex items-center gap-3 ${
-              signedFromStatus ? "cursor-default" : "cursor-pointer"
-            }`}
-          >
-            <input
-              type="checkbox"
+          <div className="mb-8">
+            <OnboardingCheckbox
               checked={agreed}
               disabled={signedFromStatus}
-              onChange={(e) => setAgreed(e.target.checked)}
-              className="sr-only"
-            />
-            <span
-              className={`flex h-5 w-5 items-center justify-center rounded-full border-2 ${
-                agreed ? "border-[#1db4a3] bg-[#1db4a3] text-white" : "border-slate-300 bg-white"
-              } ${signedFromStatus ? "opacity-80" : ""}`}
-              aria-hidden
+              onChange={setAgreed}
+              className={signedFromStatus ? "cursor-default opacity-90" : ""}
             >
-              {agreed ? (
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M20 6L9 17L4 12"
-                    stroke="currentColor"
-                    strokeWidth="3"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              ) : null}
-            </span>
-            <span className="text-slate-800 font-medium">I Agree to the Authorization</span>
-          </label>
+              <span className="text-slate-800 font-medium">I Agree to the Authorization</span>
+            </OnboardingCheckbox>
+          </div>
 
           <div className="rounded-3xl border border-[#0D9488] bg-[#f0fffe] p-6 shadow-sm mb-8">
             <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
@@ -828,9 +858,9 @@ export default function DocumentsPage() {
             <button
               type="button"
               onClick={() => void handleSaveAndContinue()}
-              disabled={saving || !agreed || !identityDocsComplete}
+              disabled={saving || !agreed || !effectiveSigned || !identityDocsComplete}
               className={`rounded-lg px-6 py-2 text-[12px] font-medium text-white transition ${
-                saving || !agreed || !identityDocsComplete
+                saving || !agreed || !effectiveSigned || !identityDocsComplete
                   ? "bg-gray-400 cursor-not-allowed"
                   : "bg-[#0D9488] hover:bg-[#0b7a70]"
               }`}

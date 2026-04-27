@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/cn";
 import OnboardingLayout from "@/app/components/OnboardingLayout";
+import OnboardingCheckbox from "@/app/components/OnboardingCheckbox";
 import { supabase } from "@/lib/supabase/client";
 
 function AdminRecruiterLoginContent() {
@@ -145,24 +146,26 @@ function AdminRecruiterLoginContent() {
             </div>
 
             {/* Terms checkbox */}
-            <div className="flex items-start gap-3 pt-2">
-              <input
+            <div className="pt-2">
+              <OnboardingCheckbox
+                native
                 id="agree"
-                name="agree"
-                type="checkbox"
                 checked={form.agree}
-                onChange={handleChange}
-                className="cursor-pointer h-5 w-5 accent-teal-600"
-              />
-              <label htmlFor="agree" className="text-sm text-gray-600 leading-6">
-                By checking this box you agree to our{" "}
-                <a
-                  href="#"
-                  className="text-teal-600 hover:underline font-medium"
-                >
-                  Terms & Conditions
-                </a>
-              </label>
+                onChange={(checked) =>
+                  setForm((prev) => ({ ...prev, agree: checked }))
+                }
+                className="flex items-start gap-3"
+              >
+                <label htmlFor="agree" className="text-sm text-gray-600 leading-6">
+                  By checking this box you agree to our{" "}
+                  <a
+                    href="#"
+                    className="text-teal-600 hover:underline font-medium"
+                  >
+                    Terms & Conditions
+                  </a>
+                </label>
+              </OnboardingCheckbox>
             </div>
 
             {/* Buttons */}

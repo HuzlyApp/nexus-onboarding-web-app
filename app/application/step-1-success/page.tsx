@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
+import OnboardingCheckbox from "@/app/components/OnboardingCheckbox"
 
 export default function Step1Success() {
   const router = useRouter()
@@ -24,15 +25,30 @@ export default function Step1Success() {
     if (typeof window === "undefined") return false
     return localStorage.getItem("step1TermsAccepted") === "true"
   })
+  const [termsCheckboxVisible, setTermsCheckboxVisible] = useState(() => {
+    if (typeof window === "undefined") return false
+    return (
+      localStorage.getItem("step1TermsAccepted") === "true" ||
+      localStorage.getItem("step1TermsOpened") === "true"
+    )
+  })
   const [termsRequiredError, setTermsRequiredError] = useState<string | null>(null)
   useEffect(() => {
     if (typeof window === "undefined") return
     const refreshAgreeState = () => {
       setAgree(localStorage.getItem("step1TermsAccepted") === "true")
+      setTermsCheckboxVisible(
+        localStorage.getItem("step1TermsAccepted") === "true" ||
+          localStorage.getItem("step1TermsOpened") === "true",
+      )
     }
     window.addEventListener("focus", refreshAgreeState)
+    window.addEventListener("storage", refreshAgreeState)
     refreshAgreeState()
-    return () => window.removeEventListener("focus", refreshAgreeState)
+    return () => {
+      window.removeEventListener("focus", refreshAgreeState)
+      window.removeEventListener("storage", refreshAgreeState)
+    }
   }, [])
 
   function formatBytes(bytes: number | null) {
@@ -128,26 +144,36 @@ export default function Step1Success() {
             </button>
           </div>
 
-          <div className="mt-6 flex items-center gap-3 text-sm text-slate-700">
-            <span
-              className={`flex h-5 w-5 items-center justify-center rounded-full border-2 ${
-                agree ? "border-[#1db4a3] bg-[#1db4a3] text-white" : "border-slate-300 bg-white"
-              }`}
-              aria-hidden
-            >
-              {agree ? (
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-                  <path d="M20 6L9 17L4 12" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              ) : null}
-            </span>
-            <span className="text-[14px] leading-6">
-              Click this link to accept the{" "}
+          {!termsCheckboxVisible ? (
+            <p className="mt-6 text-[14px] leading-6 text-slate-700">
+              Open the{" "}
               <Link href="/application/terms-and-conditions" className="font-semibold text-teal-600 underline">
                 Terms & Conditions
-              </Link>
-            </span>
-          </div>
+              </Link>{" "}
+              to review them; the acceptance option will appear after you have reached the end of the document.
+            </p>
+          ) : (
+            <div className="mt-6">
+              <OnboardingCheckbox
+                checked={agree}
+                onChange={(next) => {
+                  setAgree(next)
+                  if (typeof window !== "undefined") {
+                    if (next) localStorage.setItem("step1TermsAccepted", "true")
+                    else localStorage.removeItem("step1TermsAccepted")
+                  }
+                }}
+                className="text-sm text-slate-700"
+              >
+                <span className="text-[14px] leading-6">
+                  I accept the{" "}
+                  <Link href="/application/terms-and-conditions" className="font-semibold text-teal-600 underline">
+                    Terms & Conditions
+                  </Link>
+                </span>
+              </OnboardingCheckbox>
+            </div>
+          )}
 
           {termsRequiredError ? (
             <div className="mt-2 text-sm text-rose-600" aria-live="polite">

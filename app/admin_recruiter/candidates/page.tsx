@@ -484,7 +484,7 @@ export default function CandidatesPage() {
                                 <input
                                   type="checkbox"
                                   aria-label="Select all candidates"
-                                  className="h-4 w-4 rounded border border-[#C8D1DA] accent-[#0C9A92]"
+                                  className="h-5 w-5 rounded-[5px] border-2 border-[#C8D1DA] accent-[#0C9A92]"
                                 />
                               </th>
                               {cols.map((colId) => (
@@ -506,7 +506,7 @@ export default function CandidatesPage() {
                                   <input
                                     type="checkbox"
                                     aria-label={`Select ${c.name || "candidate"}`}
-                                    className="h-4 w-4 rounded border border-[#C8D1DA] accent-[#0C9A92]"
+                                    className="h-5 w-5 rounded-[5px] border-2 border-[#C8D1DA] accent-[#0C9A92]"
                                   />
                                 </td>
                                 {cols.map((colId) => (

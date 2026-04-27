@@ -1,7 +1,8 @@
 "use client"
 
-import { useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
+import OnboardingCheckbox from "@/app/components/OnboardingCheckbox"
 
 type TermsSection = {
   title: string
@@ -29,11 +30,28 @@ export default function TermsAndConditionsPage() {
 
   const content = useMemo(() => TERMS_SECTIONS, [])
 
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const reachedBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 8
+    if (reachedBottom) {
+      setIsAtBottom(true)
+      if (typeof window !== "undefined") {
+        localStorage.setItem("step1TermsOpened", "true")
+      }
+    }
+  }, [])
+
   function handleScroll() {
     const el = scrollRef.current
     if (!el) return
     const reachedBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 8
-    if (reachedBottom) setIsAtBottom(true)
+    if (reachedBottom) {
+      setIsAtBottom(true)
+      if (typeof window !== "undefined") {
+        localStorage.setItem("step1TermsOpened", "true")
+      }
+    }
   }
 
   function handleAccept() {
@@ -67,26 +85,13 @@ export default function TermsAndConditionsPage() {
 
         {isAtBottom ? (
           <div className="mt-5">
-            <button
-              type="button"
-              onClick={() => setAgreed((prev) => !prev)}
-              className="flex items-center gap-3 text-left text-sm text-slate-700"
-              aria-pressed={agreed}
+            <OnboardingCheckbox
+              checked={agreed}
+              onChange={setAgreed}
+              className="text-sm text-slate-700"
             >
-              <span
-                className={`flex h-5 w-5 items-center justify-center rounded-full border-2 ${
-                  agreed ? "border-[#1db4a3] bg-[#1db4a3] text-white" : "border-slate-300 bg-white"
-                }`}
-                aria-hidden
-              >
-                {agreed ? (
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-                    <path d="M20 6L9 17L4 12" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                ) : null}
-              </span>
               <span>I accept the above terms and conditions.</span>
-            </button>
+            </OnboardingCheckbox>
 
             <div className="mt-4 flex justify-end">
               <button

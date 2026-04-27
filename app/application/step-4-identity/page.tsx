@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation"
 import Image from "next/image"
 import { ChevronRight } from "lucide-react"
 import { supabaseBrowser as supabase } from "@/lib/supabase-browser"
-import { WORKER_REQUIRED_FILES_BUCKET } from "@/lib/supabase-storage-buckets"
+import { isPdfFile } from "@/lib/document-upload-helpers"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
+import DocumentFileThumbnail from "@/app/components/DocumentFileThumbnail"
 
 type UploadSlot = { file: File | null; name?: string; url?: string }
 
@@ -158,11 +159,16 @@ export default function Step4Identity() {
       {slot.file || slot.name ? (
         <div className="mx-auto flex max-w-md items-center justify-between gap-3 rounded-lg border border-[#9fded8] bg-[#ecfffd] px-4 py-3">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-10 w-10 flex-none items-center justify-center rounded-md bg-[#dff7f3]">
-              <Image src="/icons/pdf-icon.svg" alt="File" width={20} height={20} className="h-5 w-5" />
-            </div>
+            <DocumentFileThumbnail
+              file={slot.file}
+              publicUrl={slot.url ?? null}
+              fileName={slot.file?.name || slot.name || ""}
+            />
             <div className="min-w-0 text-left">
               <p className="truncate text-[13px] font-semibold text-[#0D9488]">{slot.file?.name || slot.name}</p>
+              {isPdfFile(slot.file ?? null, slot.file?.name || slot.name || "", slot.url ?? null) && (
+                <p className="text-[10px] font-medium text-[#0f766e]">PDF Document</p>
+              )}
               {slot.file ? (
                 <p className="text-[11px] text-slate-400">
                   {(slot.file.size / 1024 / 1024).toFixed(2)} MB
@@ -177,8 +183,10 @@ export default function Step4Identity() {
             onClick={(e) => {
               e.preventDefault()
               e.stopPropagation()
-              setSlot({ file: null })
+              setSlot({ file: null, name: undefined, url: undefined })
               if (typeof window !== "undefined") {
+                const el = document.getElementById(id) as HTMLInputElement | null
+                if (el) el.value = ""
                 const storedIdentity = localStorage.getItem("identityDocuments")
                 if (!storedIdentity) return
                 try {

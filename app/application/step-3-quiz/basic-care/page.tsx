@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 // import Image from "next/image"
 import { supabaseBrowser as supabase } from "@/lib/supabase-browser"
@@ -12,6 +12,13 @@ import {
   BASIC_PATIENT_CARE_QUESTION_LIMIT,
 } from "@/lib/basic-patient-care-category"
 import { ChevronRight } from "lucide-react"
+import {
+  mergeQuestionCatalogWithDb,
+  remapLegacySyntheticAnswerKeys,
+} from "@/lib/merge-skill-quiz-catalog"
+import { fetchApplicantSkillAnswers } from "@/lib/skill-assessment-answer-rows"
+import { useQuizAutosave } from "@/lib/useQuizAutosave"
+import AutosaveStatus from "@/app/components/AutosaveStatus"
 
 const CATEGORY_SLUG = "basic-care"
 const PAGE_SIZE = 5
@@ -114,27 +121,6 @@ function normalizeAnswers(
   return out
 }
 
-function completeBasicCareQuestions(rows: QuestionRow[]): QuestionRow[] {
-  const byQuizNumber = new Map<number, QuestionRow>()
-  for (const row of rows) {
-    if (row.quiz_number != null) {
-      byQuizNumber.set(row.quiz_number, row)
-    }
-  }
-
-  return BASIC_CARE_QUESTION_CONTENT.map((item) => {
-    const existing = byQuizNumber.get(item.quiz_number)
-    return {
-      id:
-        existing?.id ??
-        `10000000-0000-4000-8000-${item.quiz_number.toString(16).padStart(12, "0")}`,
-      quiz_number: item.quiz_number,
-      question: item.question,
-      description: item.description,
-    }
-  })
-}
-
 export default function BasicCareQuiz() {
   const router = useRouter()
   const [category, setCategory] = useState<CategoryRow | null>(null)
@@ -144,6 +130,16 @@ export default function BasicCareQuiz() {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+
+  const answersRef = useRef<Record<string, number>>({})
+  useEffect(() => {
+    answersRef.current = answers
+  }, [answers])
+
+  const { scheduleSave, saveState, flushPending } = useQuizAutosave(supabase, {
+    categorySlug: CATEGORY_SLUG,
+    answersRef,
+  })
 
   const totalPages = useMemo(
     () => Math.max(1, Math.ceil(questions.length / PAGE_SIZE) || 1),
@@ -188,21 +184,40 @@ export default function BasicCareQuiz() {
 
       if (qErr) throw qErr
       const ordered = (qs ?? []) as QuestionRow[]
-      const displayQuestions = completeBasicCareQuestions(ordered)
+      let displayQuestions: QuestionRow[]
+      try {
+        displayQuestions = mergeQuestionCatalogWithDb(BASIC_CARE_QUESTION_CONTENT, ordered)
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Could not load quiz questions from the database"
+        setLoadError(msg)
+        setQuestions([])
+        setLoading(false)
+        return
+      }
       setQuestions(displayQuestions)
 
       const { data: userData } = await supabase.auth.getUser()
       const user = userData?.user
-      if (!user) {
+      const applicantFromLs =
+        typeof window !== "undefined" ? localStorage.getItem("applicantId")?.trim() || null : null
+      const uid = user?.id ?? applicantFromLs
+      if (!uid) {
         setLoading(false)
         return
       }
+
+      const { data: worker } = await supabase
+        .from("worker")
+        .select("id")
+        .eq("user_id", uid)
+        .maybeSingle()
+      const workerId = worker?.id ? String(worker.id) : uid
 
       let raw: unknown = null
       const { data: rowNew } = await supabase
         .from("skill_assessments")
         .select("answers")
-        .eq("user_id", user.id)
+        .eq("worker_id", workerId)
         .eq("category", CATEGORY_SLUG)
         .maybeSingle()
 
@@ -211,13 +226,16 @@ export default function BasicCareQuiz() {
         const { data: rowLegacy } = await supabase
           .from("skill_assessments")
           .select("answers")
-          .eq("user_id", user.id)
+          .eq("worker_id", workerId)
           .eq("category", "basic_care")
           .maybeSingle()
         if (rowLegacy?.answers) raw = rowLegacy.answers
       }
 
-      setAnswers(normalizeAnswers(raw, displayQuestions))
+      let legacy = normalizeAnswers(raw, displayQuestions)
+      legacy = remapLegacySyntheticAnswerKeys(legacy, displayQuestions, "basic-care")
+      const merged = await fetchApplicantSkillAnswers(supabase, cat.id, legacy)
+      setAnswers(merged)
     } catch (e: unknown) {
       const msg =
         e instanceof Error
@@ -244,7 +262,12 @@ export default function BasicCareQuiz() {
   }, [totalPages])
 
   const selectAnswer = (questionId: string, value: number) => {
-    setAnswers((prev) => ({ ...prev, [questionId]: value }))
+    setAnswers((prev) => {
+      const next = { ...prev, [questionId]: value }
+      answersRef.current = next
+      return next
+    })
+    if (category?.id) scheduleSave(questionId, value, category.id)
   }
 
   const splitQuestionDetail = (question: string, description?: string | null) => {
@@ -266,27 +289,36 @@ export default function BasicCareQuiz() {
     }
   }
 
-  const pageComplete = () => {
-    for (let i = start; i < end; i++) {
-      const q = questions[i]
-      if (!q || answers[q.id] == null) return false
-    }
-    return true
+  function quizFullyComplete() {
+    return questions.length > 0 && questions.every((q) => answers[q.id] != null)
   }
 
   async function persist(completed: boolean) {
     const { data: userData, error: userError } = await supabase.auth.getUser()
-    if (userError || !userData?.user) {
+    const applicantFromLs =
+      typeof window !== "undefined" ? localStorage.getItem("applicantId")?.trim() || null : null
+    const uid = userData?.user?.id ?? applicantFromLs
+    if (userError || !uid) {
       if (completed) localStorage.setItem("basic_care_done", "true")
       return true
     }
-    const user = userData.user
+
+    const { data: worker, error: wErr } = await supabase
+      .from("worker")
+      .select("id")
+      .eq("user_id", uid)
+      .maybeSingle()
+    if (wErr) {
+      alert("Could not load worker profile.")
+      return false
+    }
+    const workerId = worker?.id ? String(worker.id) : uid
     const cleanAnswers = JSON.parse(JSON.stringify(answers)) as Record<string, number>
 
     const { data: existing, error: findErr } = await supabase
       .from("skill_assessments")
       .select("id")
-      .eq("user_id", user.id)
+      .eq("worker_id", workerId)
       .eq("category", CATEGORY_SLUG)
       .maybeSingle()
 
@@ -312,7 +344,7 @@ export default function BasicCareQuiz() {
       }
     } else {
       const { error: insErr } = await supabase.from("skill_assessments").insert({
-        user_id: user.id,
+        worker_id: workerId,
         category: CATEGORY_SLUG,
         answers: cleanAnswers,
         completed,
@@ -332,6 +364,11 @@ export default function BasicCareQuiz() {
   }
 
   async function saveAndFinish() {
+    await flushPending()
+    if (!quizFullyComplete()) {
+      alert("Please answer all questions before finishing this section.")
+      return
+    }
     setSaving(true)
     try {
       const ok = await persist(true)
@@ -347,23 +384,14 @@ export default function BasicCareQuiz() {
       return
     }
 
-    if (!pageComplete()) {
-      alert("Please answer all questions on this page.")
-      return
-    }
+    await flushPending()
 
     if (page >= totalPages) {
       await saveAndFinish()
       return
     }
 
-    setSaving(true)
-    try {
-      const ok = await persist(false)
-      if (ok) setPage((p) => p + 1)
-    } finally {
-      setSaving(false)
-    }
+    setPage((p) => p + 1)
   }
 
   function back() {
@@ -385,24 +413,6 @@ export default function BasicCareQuiz() {
           className="underline font-medium"
         >
           Retry
-        </button>
-      </div>
-    )
-  }
-
-  if (!category) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-teal-600 p-6 text-center">
-        <p className="text-white mb-4">
-          No category found for slug <code className="bg-white/10 px-1 rounded">{CATEGORY_SLUG}</code>.
-          Add a row in <code className="bg-white/10 px-1 rounded">skill_categories</code>.
-        </p>
-        <button
-          type="button"
-          onClick={() => router.push("/application/step-3-assessment")}
-          className="text-white underline"
-        >
-          Back to categories
         </button>
       </div>
     )
@@ -452,13 +462,16 @@ export default function BasicCareQuiz() {
                 </p>
               )}
             </div>
-            <button
-              type="button"
-              onClick={() => router.push("/application/step-4-documents")}
-              className="cursor-pointer text-[12px] font-medium leading-5 text-[#0D9488] mt-1"
-            >
-              Skip for Now →
-            </button>
+            <div className="mt-1 flex flex-col items-end gap-1 sm:flex-row sm:items-center sm:gap-3">
+              <AutosaveStatus state={saveState} />
+              <button
+                type="button"
+                onClick={() => router.push("/application/step-4-documents")}
+                className="cursor-pointer text-[12px] font-medium leading-5 text-[#0D9488]"
+              >
+                Skip for Now →
+              </button>
+            </div>
           </div>
 
           <div className="mt-4 flex items-center justify-between border-b border-slate-200 pb-2 mb-1">
@@ -495,14 +508,14 @@ export default function BasicCareQuiz() {
                         key={n}
                         type="button"
                         onClick={() => selectAnswer(q.id, n)}
-                        className={`h-5 w-5 cursor-pointer rounded-full border-2 transition flex items-center justify-center ${
+                        className={`flex h-5 w-5 cursor-pointer items-center justify-center rounded-[5px] border-2 transition ${
                           answers[q.id] === n
                             ? "border-[#0D9488] bg-[#0D9488]"
                             : "border-slate-300 bg-white hover:border-[#0D9488]"
                         }`}
                       >
                         {answers[q.id] === n && (
-                          <span className="h-2 w-2 rounded-full bg-white" />
+                          <span className="h-2 w-2 rounded-[2px] bg-white" />
                         )}
                       </button>
                     ))}
