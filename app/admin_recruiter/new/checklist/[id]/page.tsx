@@ -76,14 +76,14 @@ function badgeClasses(state: ItemState): string {
     case "not_applicable":
       return "bg-slate-50 text-gray-600 border-slate-100";
     default:
-      return "bg-amber-50 text-amber-800 border-amber-100";
+      return "bg-white text-[#374151] border-[#D1D5DB]";
   }
 }
 
 function RowBadge({ text, state }: { text: string; state: ItemState }) {
   return (
     <span
-      className={`text-[11px] px-3 py-1 rounded-full font-medium border ${badgeClasses(state)}`}
+      className={`inline-flex h-6 min-w-16 items-center justify-center rounded-[4px] border px-2 py-1 text-center text-xs font-semibold leading-4 ${badgeClasses(state)}`}
     >
       {text}
     </span>
@@ -330,59 +330,148 @@ export default function NewApplicantChecklistPage() {
                   {loading ? (
                     <div className="text-center py-16 text-gray-600">Loading checklist…</div>
                   ) : (
-                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                      {(data?.sections ?? []).map((section) => (
+                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-[30px]">
+                      {(data?.sections ?? []).map((section, sectionIndex) => (
                         <div
                           key={section.id}
-                          className="bg-white/70 border border-[#9CC3FF]/30 rounded-2xl p-5"
+                          className={`rounded-lg border border-[#E5E7EB] bg-white ${
+                            sectionIndex < 2 ? "h-[426px]" : ""
+                          }`}
                         >
-                          <div className="flex items-start justify-between gap-3 mb-4">
-                            <div>
-                              <div className="text-sm font-semibold text-gray-600">{section.title}</div>
-                              {section.subtitle ? (
-                                <div className="text-xs text-gray-600 mt-0.5">{section.subtitle}</div>
-                              ) : null}
+                          <div className="flex h-16 items-center justify-between gap-3 border-b border-[#E5E7EB] pb-3 pl-5 pr-5 pt-5">
+                            <div className="flex items-center gap-3">
+                              <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-[#0D9488] bg-[#0D9488] text-sm font-semibold text-white">
+                                {sectionIndex + 1}
+                              </span>
+                              <div className="text-[18px] font-semibold leading-7 text-[#111827]">{section.title}</div>
                             </div>
+                            <button
+                              type="button"
+                              className="inline-flex h-8 w-[73px] items-center justify-center gap-1.5 rounded-[8px] border border-[#0D9488] px-4 py-2 text-xs font-semibold leading-4 text-[#0D9488]"
+                            >
+                              Details
+                            </button>
                           </div>
 
-                          <div className="space-y-3">
-                            {section.rows.map((row) => (
-                              <div
-                                key={row.id}
-                                className="rounded-xl border border-zinc-200/70 bg-white/60 p-4"
-                              >
-                                <div className="flex items-start justify-between gap-3">
-                                  <div className="min-w-0">
-                                    <div className="text-sm font-medium text-gray-600">{row.title}</div>
-                                    {row.subtitle ? (
-                                      <div className="text-xs text-gray-600 mt-0.5">{row.subtitle}</div>
+                          <div className="space-y-3 p-5 pt-4">
+                            {sectionIndex === 0 ? (
+                              <>
+                                {section.rows.slice(0, 2).map((row, rowIndex) => (
+                                  <div key={row.id} className="p-0">
+                                    <div className="flex items-start justify-between gap-3">
+                                      <div className="min-w-0">
+                                        <div className="text-sm font-semibold leading-5 text-[#111827]">
+                                          {rowIndex + 1}. {row.title}
+                                        </div>
+                                      </div>
+                                      <RowBadge text={row.badge ?? "Pending"} state={row.state} />
+                                    </div>
+
+                                    <div className="mt-3 flex items-center gap-3 text-sm text-[#6B7280]">
+                                      <div className="h-4 w-4 rounded-[4px] border border-zinc-300 bg-white" />
+                                      <span>{(row.subtitle?.trim() || row.title).replace(/^\d+\.\s*/, "")}</span>
+                                    </div>
+                                  </div>
+                                ))}
+
+                                {section.rows[2] ? (
+                                  <div className="p-0">
+                                    <div className="flex items-start justify-between gap-3">
+                                      <div className="min-w-0">
+                                        <div className="text-sm font-semibold leading-5 text-[#111827]">
+                                          3. {section.rows[2].title.replace(/^\d+\.\s*/, "")} :
+                                          <span className="ml-2 font-normal text-[#6B7280]">
+                                            {section.rows[2].subtitle}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    <div className="mt-3 space-y-3">
+                                      {section.rows.slice(3).map((row) => {
+                                        const isVerified =
+                                          row.checked === true ||
+                                          row.state === "uploaded" ||
+                                          row.state === "complete" ||
+                                          row.state === "answered";
+                                        return (
+                                          <div key={row.id} className="flex items-center justify-between gap-3">
+                                            <div className="flex items-center gap-3 min-w-0">
+                                              <div
+                                                className={`h-4 w-4 rounded-[4px] border flex items-center justify-center ${
+                                                  isVerified
+                                                    ? "border-teal-600 bg-teal-600"
+                                                    : "border-zinc-300 bg-white"
+                                                }`}
+                                              >
+                                                {isVerified ? (
+                                                  <CheckCircle2 className="w-2 h-2 text-white" />
+                                                ) : null}
+                                              </div>
+                                              <span className="text-sm leading-5 text-[#111827]">
+                                                {row.title.replace(/^\d+\.\s*/, "")}
+                                              </span>
+                                            </div>
+                                            <RowBadge text={row.badge ?? "Pending"} state={row.state} />
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                ) : null}
+                              </>
+                            ) : (
+                              <>
+                                {section.rows.map((row) => (
+                                  <div key={row.id} className="p-0">
+                                    <div className="flex items-start justify-between gap-3">
+                                      <div className="min-w-0">
+                                        <div className="text-sm font-semibold leading-5 text-[#111827]">{row.title}</div>
+                                        {row.subtitle ? (
+                                      <div className="mt-0.5 text-sm font-normal leading-5 text-[#6B7280]">
+                                            {row.subtitle}
+                                          </div>
+                                        ) : null}
+                                      </div>
+                                      <RowBadge text={row.badge ?? "Pending"} state={row.state} />
+                                    </div>
+
+                                    {typeof row.checked === "boolean" ||
+                                    row.state === "uploaded" ||
+                                    row.state === "complete" ||
+                                    row.state === "answered" ? (
+                                      <div className="mt-3 flex items-center gap-2 text-xs text-gray-600">
+                                        {(() => {
+                                          const isVerified =
+                                            row.checked === true ||
+                                            row.state === "uploaded" ||
+                                            row.state === "complete" ||
+                                            row.state === "answered";
+                                          return (
+                                            <div
+                                              className={`h-4 w-4 rounded-[4px] border flex items-center justify-center ${
+                                                isVerified
+                                                  ? "border-teal-600 bg-teal-600"
+                                                  : "border-zinc-300 bg-white"
+                                              }`}
+                                            >
+                                              {isVerified ? (
+                                                <CheckCircle2 className="w-2 h-2 text-white" />
+                                              ) : null}
+                                            </div>
+                                          );
+                                        })()}
+                                        <span>{(row.subtitle?.trim() || row.title).replace(/^\d+\.\s*/, "")}</span>
+                                      </div>
+                                    ) : null}
+
+                                    {row.detailLine ? (
+                                      <div className="mt-2 text-[11px] text-gray-600">{row.detailLine}</div>
                                     ) : null}
                                   </div>
-                                  <RowBadge text={row.badge ?? "Pending"} state={row.state} />
-                                </div>
-
-                                {typeof row.checked === "boolean" ? (
-                                  <div className="mt-3 flex items-center gap-2 text-xs text-gray-600">
-                                    <div
-                                      className={`w-3.5 h-3.5 rounded-sm border flex items-center justify-center ${
-                                        row.checked
-                                          ? "border-teal-600 bg-teal-600"
-                                          : "border-zinc-300 bg-white"
-                                      }`}
-                                    >
-                                      {row.checked ? (
-                                        <CheckCircle2 className="w-2.5 h-2.5 text-white" />
-                                      ) : null}
-                                    </div>
-                                    <span>{row.checked ? "On file" : "Missing"}</span>
-                                  </div>
-                                ) : null}
-
-                                {row.detailLine ? (
-                                  <div className="mt-2 text-[11px] text-gray-600">{row.detailLine}</div>
-                                ) : null}
-                              </div>
-                            ))}
+                                ))}
+                              </>
+                            )}
                           </div>
                         </div>
                       ))}
