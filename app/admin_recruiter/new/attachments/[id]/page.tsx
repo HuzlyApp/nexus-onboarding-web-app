@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader";
+import DetailedTabs from "../../../components/DetailedTabs";
 import {
   Briefcase,
   Calendar,
@@ -165,19 +166,6 @@ export default function NewApplicantAttachmentsFilledPage() {
 
   const candidateRole = applicant?.job_role || "N/A";
 
-  const tabLink = (label: string, href: string, active?: boolean) => (
-    <Link
-      href={href}
-      className={`text-xs px-3 py-1.5 rounded-xl border transition ${
-        active
-          ? "border-[#7AA6FF] bg-white text-gray-600"
-          : "border-zinc-200 bg-white/60 text-gray-600 hover:bg-white"
-      }`}
-    >
-      {label}
-    </Link>
-  );
-
   return (
     <div className="flex min-h-screen bg-zinc-50 overflow-hidden">
       {/* Sidebar */}
@@ -308,6 +296,7 @@ export default function NewApplicantAttachmentsFilledPage() {
               role={candidateRole}
               loading={loading}
             />
+            <DetailedTabs applicantId={applicantId} activeTab="Attachments" />
 
             <div className="rounded-2xl border border-[#9CC3FF] overflow-hidden shadow-sm bg-[linear-gradient(90deg,rgba(59,130,246,0.06)_1px,transparent_1px),linear-gradient(0deg,rgba(59,130,246,0.04)_1px,transparent_1px)] bg-[size:34px_34px] bg-white/70">
               {/* Top */}
@@ -336,27 +325,7 @@ export default function NewApplicantAttachmentsFilledPage() {
               </div>
 
               {/* Tabs */}
-              <div className="px-6 py-4 border-b border-[#9CC3FF]/20 bg-white/30">
-                <div className="flex flex-wrap gap-2">
-                  {tabLink("Checklist", `/admin_recruiter/new/checklist/${applicantId}`, false)}
-                  {tabLink("Profile", `/admin_recruiter/new/profile/${applicantId}`, false)}
-                  {tabLink("Attachments", `/admin_recruiter/new/attachments/${applicantId}`, true)}
-                  {tabLink(
-                    "Skill Assessments",
-                    `/admin_recruiter/new/skill-assessments/${applicantId}`,
-                    false
-                  )}
-                  {tabLink("Authorization", `/admin_recruiter/new/authorization/${applicantId}`, false)}
-                  {tabLink("Activities", `/admin_recruiter/new/activities/${applicantId}`, false)}
-                  {tabLink(
-                    "Facility Assignments",
-                    `/admin_recruiter/new/facility-assignments/${applicantId}`,
-                    false
-                  )}
-                  {tabLink("Agreement", `/admin_recruiter/new/agreement/${applicantId}`, false)}
-                  {tabLink("History", `/admin_recruiter/new/history/${applicantId}`, false)}
-                </div>
-              </div>
+              <div className="border-b border-[#9CC3FF]/20 bg-white/30" />
 
               <div className="p-6 grid grid-cols-12 gap-6">
                 {/* Left */}

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
 import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader";
+import DetailedTabs from "../../../components/DetailedTabs";
 import {
   Briefcase,
   Calendar,
@@ -95,9 +96,6 @@ export default function NewApplicantChecklistPage() {
   const applicantId = params?.id;
 
   const isWorkerRoute = pathname?.startsWith("/admin_recruiter/workers/") ?? false;
-  const basePrefix = isWorkerRoute
-    ? `/admin_recruiter/workers/${applicantId}`
-    : `/admin_recruiter/new`;
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -136,43 +134,6 @@ export default function NewApplicantChecklistPage() {
     const parts = [data?.worker?.city ?? "", data?.worker?.state ?? ""].filter(Boolean);
     return parts.length ? parts.join(", ") : "—";
   }, [data?.worker?.city, data?.worker?.state]);
-
-  const tabKeys = [
-    "Checklist",
-    "Profile",
-    "Attachments",
-    "Skill Assessments",
-    "Authorization",
-    "Activities",
-    "Facility Assignments",
-    "Agreement",
-    "History",
-  ] as const;
-
-  const tabHref = (key: (typeof tabKeys)[number]) => {
-    switch (key) {
-      case "Checklist":
-        return `${basePrefix}/checklist`;
-      case "Profile":
-        return `${basePrefix}/profile`;
-      case "Attachments":
-        return `/admin_recruiter/new/attachments/${applicantId}`;
-      case "Skill Assessments":
-        return `/admin_recruiter/new/skill-assessments/${applicantId}`;
-      case "Authorization":
-        return `/admin_recruiter/new/authorization/${applicantId}`;
-      case "Activities":
-        return `/admin_recruiter/new/activities/${applicantId}`;
-      case "Facility Assignments":
-        return `/admin_recruiter/new/facility-assignments/${applicantId}`;
-      case "Agreement":
-        return `/admin_recruiter/new/agreement/${applicantId}`;
-      case "History":
-        return `/admin_recruiter/new/history/${applicantId}`;
-      default:
-        return "#";
-    }
-  };
 
   return (
     <div className="flex min-h-screen bg-zinc-50 overflow-hidden">
@@ -304,6 +265,7 @@ export default function NewApplicantChecklistPage() {
               role={candidateRole}
               loading={loading}
             />
+            <DetailedTabs applicantId={applicantId} activeTab="Checklist" />
 
             <div className="rounded-2xl border border-[#9CC3FF] overflow-hidden shadow-sm bg-[linear-gradient(90deg,rgba(59,130,246,0.06)_1px,transparent_1px),linear-gradient(0deg,rgba(59,130,246,0.04)_1px,transparent_1px)] bg-[size:34px_34px] bg-white/70">
               <div className="hidden p-3 sm:p-4 border-b border-[#9CC3FF]/30 bg-white/40">
@@ -393,26 +355,6 @@ export default function NewApplicantChecklistPage() {
                 </aside>
 
                 <main className="col-span-12 lg:col-span-9 space-y-4">
-                  <div className="flex flex-wrap gap-2">
-                    {tabKeys.map((key) => {
-                      const href = tabHref(key);
-                      const isActive = key === "Checklist";
-                      return (
-                        <Link
-                          key={key}
-                          href={href}
-                          className={`text-xs px-3 py-1.5 rounded-xl border transition ${
-                            isActive
-                              ? "border-[#7AA6FF] bg-white text-gray-600"
-                              : "border-zinc-200 bg-white/60 text-gray-600 hover:bg-white"
-                          }`}
-                        >
-                          {key}
-                        </Link>
-                      );
-                    })}
-                  </div>
-
                   {loading ? (
                     <div className="text-center py-16 text-gray-600">Loading checklist…</div>
                   ) : (

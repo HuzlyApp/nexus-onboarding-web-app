@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader";
+import DetailedTabs from "../../../components/DetailedTabs";
 import {
   Briefcase,
   Calendar,
@@ -147,19 +148,6 @@ export default function NewApplicantProfilePage() {
     return parts.length ? parts.join(", ") : "—";
   }, [w?.city, w?.state, w?.zip]);
 
-  const tabLink = (label: string, href: string, active?: boolean) => (
-    <Link
-      href={href}
-      className={`text-xs px-3 py-1.5 rounded-xl border transition ${
-        active
-          ? "border-[#7AA6FF] bg-white text-gray-600"
-          : "border-zinc-200 bg-white/60 text-gray-600 hover:bg-white"
-      }`}
-    >
-      {label}
-    </Link>
-  );
-
   const id = applicantId ?? "";
 
   return (
@@ -290,6 +278,7 @@ export default function NewApplicantProfilePage() {
               role={candidateRole}
               loading={loading}
             />
+            <DetailedTabs applicantId={applicantId} activeTab="Profile" />
 
             <div className="rounded-2xl border border-[#9CC3FF] overflow-hidden shadow-sm bg-[linear-gradient(90deg,rgba(59,130,246,0.06)_1px,transparent_1px),linear-gradient(0deg,rgba(59,130,246,0.04)_1px,transparent_1px)] bg-[size:34px_34px] bg-white/70">
               <div className="hidden p-6 items-start justify-between gap-6 border-b border-[#9CC3FF]/30 bg-white/40">
@@ -322,19 +311,7 @@ export default function NewApplicantProfilePage() {
                 </div>
               </div>
 
-              <div className="px-6 py-4 border-b border-[#9CC3FF]/20 bg-white/30">
-                <div className="flex flex-wrap gap-2">
-                  {tabLink("Checklist", `${base}/checklist/${id}`, false)}
-                  {tabLink("Profile", `${base}/profile/${id}`, true)}
-                  {tabLink("Attachments", `${base}/attachments/${id}`, false)}
-                  {tabLink("Skill Assessments", `${base}/skill-assessments/${id}`, false)}
-                  {tabLink("Authorization", `${base}/authorization/${id}`, false)}
-                  {tabLink("Activities", `${base}/activities/${id}`, false)}
-                  {tabLink("Facility Assignments", `${base}/facility-assignments/${id}`, false)}
-                  {tabLink("Agreement", `${base}/agreement/${id}`, false)}
-                  {tabLink("History", `${base}/history/${id}`, false)}
-                </div>
-              </div>
+              <div className="border-b border-[#9CC3FF]/20 bg-white/30" />
 
               <div className="px-6 py-4">
                 <div className="inline-flex items-center gap-2 bg-white/70 border border-zinc-200 rounded-3xl p-1">
