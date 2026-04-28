@@ -527,7 +527,11 @@ export default function NewApplicantProfilePage() {
                   <div className="h-[160px] w-full bg-white pr-px">
                       <div className="flex h-11 items-center justify-between gap-2 border-b border-[#E5E7EB] px-5">
                         <div className="text-[20px] font-semibold leading-7 text-[#111827]">Education</div>
-                        <img src="/icons/admin-recruiter/plus-icon.svg" alt="" className="h-6 w-6" />
+                        <img
+                          src="/icons/admin-recruiter/plus-icon.svg"
+                          alt=""
+                          className="h-6 w-6 cursor-pointer"
+                        />
                       </div>
                       <div className="px-5 pt-4">
                       <div className="text-xs text-gray-600">
@@ -542,7 +546,11 @@ export default function NewApplicantProfilePage() {
                     <div className="h-[288px] w-full border-t border-[#E5E7EB] bg-white pr-px">
                       <div className="flex h-11 items-center justify-between gap-2 border-b border-[#E5E7EB] px-5">
                         <div className="text-[20px] font-semibold leading-7 text-[#111827]">Experience</div>
-                        <img src="/icons/admin-recruiter/plus-icon.svg" alt="" className="h-6 w-6" />
+                        <img
+                          src="/icons/admin-recruiter/plus-icon.svg"
+                          alt=""
+                          className="h-6 w-6 cursor-pointer"
+                        />
                       </div>
                       <div className="px-5 pt-4">
                       <div className="text-xs text-gray-600">Job role</div>
@@ -553,7 +561,11 @@ export default function NewApplicantProfilePage() {
                     <div className="h-[200px] min-h-[200px] w-full border-t border-[#E5E7EB] bg-white pr-px">
                       <div className="flex h-11 items-center justify-between gap-2 border-b border-[#E5E7EB] px-5">
                         <div className="text-[20px] font-semibold leading-7 text-[#111827]">Skills</div>
-                        <img src="/icons/admin-recruiter/plus-icon.svg" alt="" className="h-6 w-6" />
+                        <img
+                          src="/icons/admin-recruiter/plus-icon.svg"
+                          alt=""
+                          className="h-6 w-6 cursor-pointer"
+                        />
                       </div>
                       <div className="px-5 pt-4">
                       <div className="text-xs text-gray-600">
@@ -563,33 +575,52 @@ export default function NewApplicantProfilePage() {
                       </div>
                     </div>
 
-                    <div className="h-[160px] w-full border-t border-[#E5E7EB] bg-white pr-px">
+                    <div className="h-[200px] min-h-[200px] w-full border-t border-b border-[#E5E7EB] bg-white pr-px">
                       <div className="flex h-11 items-center justify-between gap-2 border-b border-[#E5E7EB] px-5">
                         <div className="text-[20px] font-semibold leading-7 text-[#111827]">Facilities Assigned</div>
-                        <img src="/icons/admin-recruiter/plus-icon.svg" alt="" className="h-6 w-6" />
+                        <img
+                          src="/icons/admin-recruiter/plus-icon.svg"
+                          alt=""
+                          className="h-6 w-6 cursor-pointer"
+                        />
                       </div>
-                      <div className="px-5 pt-4">
-                      <div className="text-xs text-gray-600">No facility assignments in database yet.</div>
+                      <div className="flex items-start justify-between px-5 pt-4">
+                        <div className="text-xs text-gray-600">No facility assignments in database yet.</div>
+                        <button
+                          type="button"
+                          className="inline-flex h-9 w-[78px] items-center justify-center gap-1.5 rounded-lg bg-[#0D9488] px-4 py-2 text-sm font-semibold text-white"
+                        >
+                          + Add
+                        </button>
                       </div>
                     </div>
 
-                    <div className="w-full border-t border-[#E5E7EB] bg-white pr-px">
+                    <div className="h-[422px] min-h-[200px] w-full border-t border-r border-[#E5E7EB] bg-white pr-px">
                       <div className="flex h-11 items-center justify-between gap-2 border-b border-[#E5E7EB] px-5">
                         <div className="text-[20px] font-semibold leading-7 text-[#111827]">Onboarding Progress</div>
-                        <span className="text-[11px] px-3 py-1 rounded-full bg-amber-100 text-amber-800 font-medium">
+                        <span className="rounded-md bg-[#00B135] px-3 py-1 text-[11px] font-medium text-white">
                           In Progress
                         </span>
                       </div>
 
                       <div className="p-5">
-                      <div className="space-y-3 text-xs text-gray-600">
+                      <div className="relative space-y-0 text-xs text-gray-600">
+                        <div className="absolute left-4 top-8 bottom-8 w-[2px] -translate-x-1/2 bg-[#14B8A6]" />
                         {(data?.onboardingSteps ?? []).map((s) => (
-                          <div key={s.id} className="flex items-center gap-3">
-                            <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${stepDotClass(s.state)}`} />
-                            <span className="flex-1">{s.label}</span>
-                            {s.detail ? (
-                              <span className="text-[11px] text-gray-600">{s.detail}</span>
-                            ) : null}
+                          <div key={s.id} className="flex min-h-[66px] items-center gap-4">
+                            <div className="relative flex h-[66px] w-8 shrink-0 items-center justify-center">
+                              <img
+                                src="/icons/admin-recruiter/Stepper indicator.svg"
+                                alt=""
+                                className="h-8 w-8"
+                              />
+                            </div>
+                            <div className="flex h-[66px] w-[290px] min-w-0 flex-col justify-center gap-1">
+                              <div className="text-[14px] font-semibold leading-5 text-[#111827]">{s.label}</div>
+                              {s.detail ? (
+                                <div className="text-[12px] leading-5 text-[#6B7280]">{s.detail}</div>
+                              ) : null}
+                            </div>
                           </div>
                         ))}
                         {loading ? (
