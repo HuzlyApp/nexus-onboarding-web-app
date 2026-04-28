@@ -8,7 +8,6 @@ import DetailedTabs from "../../../components/DetailedTabs";
 import {
   Briefcase,
   Calendar,
-  CheckCircle2,
   LogOut,
   Menu,
   Plus,
@@ -94,6 +93,22 @@ function formatRelative(iso: string | null | undefined) {
   return `${Math.floor(days / 30)} months ago`;
 }
 
+function formatDateTimeLabel(iso: string | null | undefined) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  const datePart = d.toLocaleDateString(undefined, {
+    month: "2-digit",
+    day: "2-digit",
+    year: "numeric",
+  });
+  const timePart = d.toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  return `${datePart} - ${timePart}`;
+}
+
 function stepDotClass(state: OnboardingStep["state"]) {
   if (state === "complete") return "bg-teal-600";
   if (state === "in_progress") return "bg-amber-500";
@@ -158,6 +173,18 @@ export default function NewApplicantProfilePage() {
   }, [w?.city, w?.state, w?.zip]);
 
   const id = applicantId ?? "";
+  const nursingLicenseRows = useMemo(() => {
+    const rows = [
+      {
+        tag: "L1",
+        registration: w?.ssn_last_four ? `RN${w.ssn_last_four}` : "—",
+        state: w?.state ?? "—",
+        expiry: "—",
+      },
+    ];
+
+    return rows;
+  }, [w?.ssn_last_four, w?.state]);
 
   return (
     <div className="flex min-h-screen bg-zinc-50 overflow-hidden">
@@ -313,7 +340,7 @@ export default function NewApplicantProfilePage() {
               </div>
             </div>
 
-            <div className="mx-auto w-full max-w-[1298px] rounded-md border border-[#E5E7EB] bg-white">
+            <div className="mx-auto w-full max-w-[1298px] overflow-hidden rounded-lg border border-[#D1D5DB] bg-white">
               <div className="hidden p-6 items-start justify-between gap-6 border-b border-[#9CC3FF]/30 bg-white/40">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-full bg-teal-600 text-white flex items-center justify-center font-semibold text-sm">
@@ -344,9 +371,9 @@ export default function NewApplicantProfilePage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-0 lg:grid-cols-[798px_500px] lg:items-start">
+              <div className="grid grid-cols-1 gap-0 lg:grid-cols-[798px_500px] lg:items-stretch">
                 <section className="space-y-4">
-                  <div className="overflow-hidden rounded-[6px] border border-[#E5E7EB] bg-white">
+                  <div className="overflow-hidden bg-white">
                     <div className="flex h-11 items-center gap-2 border-b border-[#E5E7EB] px-5">
                       <h2 className="text-[20px] font-semibold leading-7 text-[#111827]">Candidate Details</h2>
                     </div>
@@ -421,45 +448,59 @@ export default function NewApplicantProfilePage() {
 
                   <div className="rounded-2xl bg-white">
                     <div className="flex h-11 items-center justify-between gap-2 border-b border-[#E5E7EB] px-5">
-                      <div className="text-[20px] font-semibold leading-7 text-[#111827]">References</div>
+                      <div className="text-[20px] font-semibold leading-7 text-[#111827]">Nursing Licenses</div>
                     </div>
-                    <div className="p-5">
-                    {data && data.references.length > 0 ? (
-                      <div className="space-y-3">
-                        {data.references.map((r, i) => (
+                    <div className="flex flex-col px-4 py-3">
+                      <div className="overflow-hidden rounded-md border border-[#E5E7EB]">
+                        {nursingLicenseRows.map((row, rowIdx) => (
                           <div
-                            key={r.id}
-                            className="rounded-xl border border-zinc-200/70 bg-white/60 p-3 text-xs"
+                            key={row.tag}
+                            className={`grid grid-cols-[55px_723px] ${rowIdx > 0 ? "border-t border-[#E5E7EB]" : ""}`}
                           >
-                            <div className="font-medium text-gray-600">
-                              Reference {i + 1}: {r.name}
+                            <div className="flex h-[134px] items-center justify-center border-r border-[#E5E7EB] px-5 text-[12px] font-normal leading-4 text-[#6B7280]">
+                              {row.tag}
                             </div>
-                            <div className="text-gray-600 mt-1">{r.phone ?? "—"}</div>
-                            <div className="text-gray-600">{r.email ?? "—"}</div>
+                            <div className="h-[134px]">
+                              {(
+                                [
+                                  ["State Nursing License Registration #", row.registration],
+                                  ["State Nursing License", row.state],
+                                  ["License Expiry Date", row.expiry],
+                                ] as const
+                              ).map(([label, value], idx) => (
+                                <div
+                                  key={`${row.tag}-${label}`}
+                                  className={`grid grid-cols-[422px_300px] ${idx > 0 ? "border-t border-[#E5E7EB]" : ""}`}
+                                >
+                                  <div className="h-11 border-r border-[#E5E7EB] px-3 py-3 text-[14px] font-normal leading-5 text-[#374151]">
+                                    {label}
+                                  </div>
+                                  <div className="h-11 px-3 py-3 text-[14px] font-normal leading-5 text-[#111827]">
+                                    {label === "State Nursing License" && value !== "—" ? (
+                                      <span className="text-[#111827]">
+                                        <span className="mr-1 text-[#0D9488]">⌄</span>
+                                        {value}
+                                      </span>
+                                    ) : (
+                                      value
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         ))}
                       </div>
-                    ) : (
-                      <div className="text-xs text-gray-600">No references on file yet.</div>
-                    )}
-                    </div>
-                  </div>
 
-                  <div className="rounded-2xl bg-white">
-                    <div className="flex h-11 items-center justify-between gap-2 border-b border-[#E5E7EB] px-5">
-                      <div className="text-[20px] font-semibold leading-7 text-[#111827]">Nursing Licenses</div>
-                    </div>
-                    <div className="p-5">
-                    {data?.documents?.nursing_license_url ? (
-                      <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3 text-xs text-gray-600">
-                        Nursing license document on file. TB / CPR / ID flags:{" "}
-                        {[data.documents.tb_test_url && "TB", data.documents.cpr_certification_url && "CPR", data.documents.identity_uploaded && "ID"]
-                          .filter(Boolean)
-                          .join(", ") || "—"}
+                      <div className="mt-3 flex items-center justify-center border-t border-[#E5E7EB] py-4">
+                        <button
+                          type="button"
+                          className="inline-flex h-9 min-w-[175px] items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-[#0D9488] px-4 py-2 text-sm font-semibold text-[#0D9488]"
+                        >
+                          <span className="text-base leading-none">+</span>
+                          Add Nursing License
+                        </button>
                       </div>
-                    ) : (
-                      <div className="text-xs text-gray-600">No nursing license document uploaded yet.</div>
-                    )}
                     </div>
                   </div>
 
@@ -468,17 +509,24 @@ export default function NewApplicantProfilePage() {
                       <div className="text-[20px] font-semibold leading-7 text-[#111827]">Activity Logs</div>
                     </div>
                     <div className="p-5">
-                    <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div className="overflow-hidden rounded-md border border-[#E5E7EB] text-xs">
                       {(
                         [
                           ["Source", data?.activity.source ?? "—"],
-                          ["Created", formatDate(data?.activity.created_at)],
+                          ["Created date", formatDateTimeLabel(data?.activity.created_at)],
+                          ["Date resume added", formatDateTimeLabel(data?.activity.created_at)],
+                          ["Created by", "Nexus Med Pro"],
                           ["Last updated", formatRelative(data?.activity.updated_at)],
                         ] as const
-                      ).map(([k, v]) => (
-                        <div key={k} className="col-span-2 grid grid-cols-2 gap-3">
-                          <div className="text-gray-600">{k}</div>
-                          <div className="text-gray-600">{v}</div>
+                      ).map(([k, v], idx) => (
+                        <div
+                          key={k}
+                          className={`grid grid-cols-2 ${idx > 0 ? "border-t border-[#E5E7EB]" : ""}`}
+                        >
+                          <div className="border-r border-[#E5E7EB] px-4 py-3 text-[14px] leading-5 text-[#374151]">
+                            {k}
+                          </div>
+                          <div className="px-4 py-3 text-[14px] leading-5 text-[#111827]">{v}</div>
                         </div>
                       ))}
                     </div>
@@ -490,30 +538,38 @@ export default function NewApplicantProfilePage() {
                       <div className="text-[20px] font-semibold leading-7 text-[#111827]">Activity History</div>
                     </div>
                     <div className="p-5">
-                    <div className="space-y-3">
-                      <div className="flex items-start gap-3">
-                        <div className="w-8 h-8 rounded-full bg-teal-600/10 flex items-center justify-center shrink-0">
-                          <CheckCircle2 className="w-4 h-4 text-teal-700" />
-                        </div>
+                    <div>
+                      <div className="flex items-start gap-3 border-b border-[#E5E7EB] py-3">
+                        <img
+                          src="/icons/admin-recruiter/history-icon.svg"
+                          alt=""
+                          className="mt-0.5 h-6 w-6 shrink-0"
+                        />
                         <div className="min-w-0">
-                          <div className="text-xs text-gray-600">
+                          <div className="text-sm font-medium leading-5 text-[#0D9488]">
                             Record created for {candidateName}
                           </div>
-                          <div className="text-[11px] text-gray-600">
-                            {formatRelative(data?.activity.created_at)}
+                          <div className="text-xs leading-4 text-[#6B7280]">
+                            {formatRelative(data?.activity.created_at)} -{" "}
+                            {formatDateTimeLabel(data?.activity.created_at)}
                           </div>
                         </div>
                       </div>
                       {data?.activity.updated_at &&
                       data.activity.updated_at !== data.activity.created_at ? (
-                        <div className="flex items-start gap-3">
-                          <div className="w-8 h-8 rounded-full bg-teal-600/10 flex items-center justify-center shrink-0">
-                            <CheckCircle2 className="w-4 h-4 text-teal-700" />
-                          </div>
+                        <div className="flex items-start gap-3 py-3">
+                          <img
+                            src="/icons/admin-recruiter/history-icon.svg"
+                            alt=""
+                            className="mt-0.5 h-6 w-6 shrink-0"
+                          />
                           <div className="min-w-0">
-                            <div className="text-xs text-gray-600">Profile last updated</div>
-                            <div className="text-[11px] text-gray-600">
-                              {formatRelative(data.activity.updated_at)}
+                            <div className="text-sm font-medium leading-5 text-[#0D9488]">
+                              Profile last updated
+                            </div>
+                            <div className="text-xs leading-4 text-[#6B7280]">
+                              {formatRelative(data.activity.updated_at)} -{" "}
+                              {formatDateTimeLabel(data.activity.updated_at)}
                             </div>
                           </div>
                         </div>
@@ -523,7 +579,7 @@ export default function NewApplicantProfilePage() {
                   </div>
                 </section>
 
-                <section className="w-full max-w-[500px] space-y-0 border-l border-[#E5E7EB]">
+                <section className="h-full w-full max-w-[500px] space-y-0 border-l border-r border-[#D1D5DB]">
                   <div className="h-[160px] w-full bg-white pr-px">
                       <div className="flex h-11 items-center justify-between gap-2 border-b border-[#E5E7EB] px-5">
                         <div className="text-[20px] font-semibold leading-7 text-[#111827]">Education</div>
@@ -595,7 +651,7 @@ export default function NewApplicantProfilePage() {
                       </div>
                     </div>
 
-                    <div className="h-[422px] min-h-[200px] w-full border-t border-r border-[#E5E7EB] bg-white pr-px">
+                    <div className="h-[422px] min-h-[200px] w-full border-t border-r border-[#D1D5DB] bg-white pr-px">
                       <div className="flex h-11 items-center justify-between gap-2 border-b border-[#E5E7EB] px-5">
                         <div className="text-[20px] font-semibold leading-7 text-[#111827]">Onboarding Progress</div>
                         <span className="rounded-md bg-[#00B135] px-3 py-1 text-[11px] font-medium text-white">
@@ -606,14 +662,20 @@ export default function NewApplicantProfilePage() {
                       <div className="p-5">
                       <div className="relative space-y-0 text-xs text-gray-600">
                         <div className="absolute left-4 top-8 bottom-8 w-[2px] -translate-x-1/2 bg-[#14B8A6]" />
-                        {(data?.onboardingSteps ?? []).map((s) => (
+                        {(data?.onboardingSteps ?? []).map((s, idx) => (
                           <div key={s.id} className="flex min-h-[66px] items-center gap-4">
                             <div className="relative flex h-[66px] w-8 shrink-0 items-center justify-center">
-                              <img
-                                src="/icons/admin-recruiter/Stepper indicator.svg"
-                                alt=""
-                                className="h-8 w-8"
-                              />
+                              {s.state === "complete" ? (
+                                <img
+                                  src="/icons/admin-recruiter/Stepper indicator.svg"
+                                  alt=""
+                                  className="relative z-10 h-8 w-8"
+                                />
+                              ) : (
+                                <div className="relative z-10 flex h-8 w-8 items-center justify-center rounded-full border border-[#14B8A6] bg-white text-[14px] font-medium leading-none text-[#14B8A6]">
+                                  {idx + 1}
+                                </div>
+                              )}
                             </div>
                             <div className="flex h-[66px] w-[290px] min-w-0 flex-col justify-center gap-1">
                               <div className="text-[14px] font-semibold leading-5 text-[#111827]">{s.label}</div>
@@ -647,11 +709,23 @@ export default function NewApplicantProfilePage() {
                       <div className="text-[20px] font-semibold leading-7 text-[#111827]">Remarks</div>
                     </div>
                     <div className="p-5">
-                    <div className="text-xs text-gray-600 mb-4">Use pipeline actions from the New / Pending lists to approve or move applicants.</div>
+                    <div className="mb-4 text-xs text-[#6B7280]">For job recommendation</div>
                     <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        className="inline-flex h-9 items-center justify-center rounded-lg bg-[#0D9488] px-4 text-xs font-semibold text-white"
+                      >
+                        Approved for work
+                      </button>
+                      <button
+                        type="button"
+                        className="inline-flex h-9 items-center justify-center rounded-lg border border-[#99D8D3] bg-white px-4 text-xs font-semibold text-[#0D9488]"
+                      >
+                        Reactivate
+                      </button>
                       <Link
                         href="/admin_recruiter/new"
-                        className="text-xs px-4 py-2 rounded-2xl bg-teal-600 text-white hover:bg-teal-700 transition inline-block text-center"
+                        className="inline-flex h-9 items-center justify-center rounded-lg bg-[#0D9488] px-4 text-xs font-semibold text-white hover:bg-teal-700 transition"
                       >
                         Back to New list
                       </Link>
@@ -662,15 +736,17 @@ export default function NewApplicantProfilePage() {
                   <div className="w-full border-t border-[#E5E7EB] bg-white pr-px">
                     <div className="flex h-11 items-center justify-between gap-2 border-b border-[#E5E7EB] px-5">
                       <div className="text-[20px] font-semibold leading-7 text-[#111827]">Notes</div>
-                      <Link
-                        href={`${base}/profile/notes/${id}`}
-                        className="text-xs px-3 py-1.5 rounded-xl border border-zinc-200 bg-white/70 hover:bg-white transition"
-                      >
-                        Open notes
-                      </Link>
                     </div>
                     <div className="p-5">
-                    <div className="text-xs text-gray-600">Use the Notes tab for free-form recruiter notes.</div>
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-xs text-[#9CA3AF]">No notes added yet</div>
+                      <Link
+                        href={`${base}/profile/notes/${id}`}
+                        className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#0D9488] px-4 text-xs font-semibold text-white"
+                      >
+                        + Add
+                      </Link>
+                    </div>
                     </div>
                   </div>
                 </section>
