@@ -100,6 +100,15 @@ function stepDotClass(state: OnboardingStep["state"]) {
   return "bg-zinc-300";
 }
 
+function isMissingValue(value: unknown) {
+  if (value == null) return true;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed.length === 0 || trimmed === "—";
+  }
+  return false;
+}
+
 export default function NewApplicantProfilePage() {
   const pathname = usePathname();
   const params = useParams<{ id: string }>();
@@ -261,9 +270,9 @@ export default function NewApplicantProfilePage() {
           </div>
         </header>
 
-        <div className="flex-1 p-8 overflow-auto">
-          <div className="max-w-[1320px] mx-auto">
-            <div className="mb-5 text-xs text-gray-600">
+        <div className="flex-1 overflow-auto px-4 py-3 lg:px-5 lg:py-4">
+          <div className="w-full">
+            <div className="mb-2 text-xs text-gray-600">
               Admin - {isWorkerRoute ? "Worker" : "New Applicant"} Detailed Page - Details
             </div>
 
@@ -279,7 +288,7 @@ export default function NewApplicantProfilePage() {
               loading={loading}
             />
             <DetailedTabs applicantId={applicantId} activeTab="Profile" />
-            <div className="mb-4 flex justify-center">
+            <div className="mb-1 flex justify-center">
               <div className="h-9 w-[327px] rounded-xl bg-[#F8FAFC] p-1">
                 <div className="grid h-full grid-cols-3 gap-1">
                   <Link
@@ -304,7 +313,7 @@ export default function NewApplicantProfilePage() {
               </div>
             </div>
 
-            <div className="mx-auto w-full max-w-[1300px] rounded-md border border-[#E5E7EB] bg-white p-5">
+            <div className="mx-auto w-full max-w-[1298px] rounded-md border border-[#E5E7EB] bg-white">
               <div className="hidden p-6 items-start justify-between gap-6 border-b border-[#9CC3FF]/30 bg-white/40">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-full bg-teal-600 text-white flex items-center justify-center font-semibold text-sm">
@@ -335,38 +344,52 @@ export default function NewApplicantProfilePage() {
                 </div>
               </div>
 
-              <div className="border-b border-[#9CC3FF]/20 bg-white/30" />
+              <div className="grid grid-cols-1 gap-0 lg:grid-cols-[798px_500px] lg:items-start">
+                <section className="space-y-4">
+                  <div className="overflow-hidden rounded-[6px] border border-[#E5E7EB] bg-white">
+                    <div className="flex h-11 items-center gap-2 border-b border-[#E5E7EB] px-5">
+                      <h2 className="text-[20px] font-semibold leading-7 text-[#111827]">Candidate Details</h2>
+                    </div>
 
-              <div className="p-6 grid grid-cols-12 gap-6">
-                <section className="col-span-12 lg:col-span-4 space-y-6">
-                  <div className="bg-white/80 border border-[#9CC3FF]/30 rounded-2xl p-5">
-                    <div className="text-sm font-semibold text-gray-600 mb-4">Candidate Details</div>
-
-                    <div className="grid grid-cols-2 gap-4 text-xs">
+                    <div className="grid grid-cols-1 sm:grid-cols-2">
                       {(
                         [
                           ["First Name", w?.first_name ?? "—"],
                           ["Last Name", w?.last_name ?? "—"],
-                          ["Date of Birth", w?.date_of_birth ? formatDate(w.date_of_birth) : "—"],
+                          ["Date of Birth(MM/DD/YYYY)", w?.date_of_birth ? formatDate(w.date_of_birth) : "—"],
                           ["Email Address", w?.email ?? "—"],
                           [
-                            "Years of experience",
+                            "Total Years of Experience in Your Profession",
                             w?.years_experience != null ? `${w.years_experience} yrs` : "—",
                           ],
-                          ["Street address", w?.address1 ?? "—"],
+                          ["Address", w?.address1 ?? "—"],
                           ["City", w?.city ?? "—"],
-                          ["State", w?.state ?? "—"],
                           ["Zip Code", w?.zip ?? "—"],
                           ["Phone Number", w?.phone ?? "—"],
-                          ["Last four of SSN", w?.ssn_last_four ?? "—"],
-                          ["Hourly rate", w?.hourly_rate ? `$${w.hourly_rate}/hr` : "—"],
+                          ["Last Four Digits of SSN", w?.ssn_last_four ?? "—"],
+                          ["Work Status", w?.status_label ?? "—"],
+                          ["Hourly Rate", w?.hourly_rate ? `$ ${w.hourly_rate} / hr` : "—"],
+                          ["Reference 1 (Name, Email, Phone, Relationship)", data?.references?.[0]?.name ?? "—"],
+                          [
+                            "Reference 1 (Name, Email, Phone, Relationship)",
+                            data?.references?.[1]?.name ?? "—",
+                          ],
+                          [
+                            "Reference 2 (Name, Email, Phone, Relationship)",
+                            data?.references?.[2]?.name ?? "—",
+                          ],
+                          ["Primary Practice Setting", "—"],
+                          ["Primary Allied Health Role", "—"],
+                          ["Professional License / Certification Type", "—"],
+                          ["License Expiration Date", "—"],
+                          ["Which State are you applying for?", "—"],
                           [
                             "Resume file",
                             data?.requirements?.resume_url ? (
                               <Link
                                 key="resume-link"
                                 href={`${base}/profile/resume/${id}`}
-                                className="text-teal-700 font-medium hover:underline"
+                                className="text-[#0D9488] hover:underline"
                               >
                                 View / download
                               </Link>
@@ -375,19 +398,32 @@ export default function NewApplicantProfilePage() {
                             ),
                           ],
                         ] as const
-                      ).map(([k, v]) => (
-                        <div key={k} className="col-span-2 grid grid-cols-2 gap-3">
-                          <div className="text-gray-600">{k}</div>
-                          <div className="text-gray-600 break-all">{v}</div>
-                        </div>
-                      ))}
+                      ).map(([k, v], idx) => {
+                        const showAsAdd = typeof v === "string" && isMissingValue(v) && k !== "Work Status";
+                        const isEmail = k === "Email Address" && !isMissingValue(v);
+                        return (
+                          <div key={`${k}-${idx}`} className="contents">
+                            <div className="border-b border-r border-[#E5E7EB] px-5 py-3 text-[14px] font-normal leading-5 text-[#374151]">
+                              {k}
+                            </div>
+                            <div className="border-b border-[#E5E7EB] px-5 py-3 text-[14px] font-normal leading-5 break-all text-[#111827]">
+                              {showAsAdd ? (
+                                <span className="text-[#0D9488]">+ Add</span>
+                              ) : (
+                                <span className={isEmail ? "text-[#0D9488]" : ""}>{v}</span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
 
-                  <div className="bg-white/80 border border-[#9CC3FF]/30 rounded-2xl p-5">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="text-sm font-semibold text-gray-600">References</div>
+                  <div className="rounded-2xl bg-white">
+                    <div className="flex h-11 items-center justify-between gap-2 border-b border-[#E5E7EB] px-5">
+                      <div className="text-[20px] font-semibold leading-7 text-[#111827]">References</div>
                     </div>
+                    <div className="p-5">
                     {data && data.references.length > 0 ? (
                       <div className="space-y-3">
                         {data.references.map((r, i) => (
@@ -406,12 +442,14 @@ export default function NewApplicantProfilePage() {
                     ) : (
                       <div className="text-xs text-gray-600">No references on file yet.</div>
                     )}
+                    </div>
                   </div>
 
-                  <div className="bg-white/80 border border-[#9CC3FF]/30 rounded-2xl p-5">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="text-sm font-semibold text-gray-600">License &amp; documents</div>
+                  <div className="rounded-2xl bg-white">
+                    <div className="flex h-11 items-center justify-between gap-2 border-b border-[#E5E7EB] px-5">
+                      <div className="text-[20px] font-semibold leading-7 text-[#111827]">Nursing Licenses</div>
                     </div>
+                    <div className="p-5">
                     {data?.documents?.nursing_license_url ? (
                       <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3 text-xs text-gray-600">
                         Nursing license document on file. TB / CPR / ID flags:{" "}
@@ -422,10 +460,14 @@ export default function NewApplicantProfilePage() {
                     ) : (
                       <div className="text-xs text-gray-600">No nursing license document uploaded yet.</div>
                     )}
+                    </div>
                   </div>
 
-                  <div className="bg-white/80 border border-[#9CC3FF]/30 rounded-2xl p-5">
-                    <div className="text-sm font-semibold text-gray-600 mb-4">Activity</div>
+                  <div className="rounded-2xl bg-white">
+                    <div className="flex h-11 items-center gap-2 border-b border-[#E5E7EB] px-5">
+                      <div className="text-[20px] font-semibold leading-7 text-[#111827]">Activity Logs</div>
+                    </div>
+                    <div className="p-5">
                     <div className="grid grid-cols-2 gap-3 text-xs">
                       {(
                         [
@@ -440,10 +482,14 @@ export default function NewApplicantProfilePage() {
                         </div>
                       ))}
                     </div>
+                    </div>
                   </div>
 
-                  <div className="bg-white/80 border border-[#9CC3FF]/30 rounded-2xl p-5">
-                    <div className="text-sm font-semibold text-gray-600 mb-4">Activity History</div>
+                  <div className="rounded-2xl bg-white">
+                    <div className="flex h-11 items-center gap-2 border-b border-[#E5E7EB] px-5">
+                      <div className="text-[20px] font-semibold leading-7 text-[#111827]">Activity History</div>
+                    </div>
+                    <div className="p-5">
                     <div className="space-y-3">
                       <div className="flex items-start gap-3">
                         <div className="w-8 h-8 rounded-full bg-teal-600/10 flex items-center justify-center shrink-0">
@@ -473,52 +519,69 @@ export default function NewApplicantProfilePage() {
                         </div>
                       ) : null}
                     </div>
+                    </div>
                   </div>
                 </section>
 
-                <section className="col-span-12 lg:col-span-8 space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="bg-white/80 border border-[#9CC3FF]/30 rounded-2xl p-5">
-                      <div className="text-sm font-semibold text-gray-600 mb-2">Education</div>
+                <section className="w-full max-w-[500px] space-y-0 border-l border-[#E5E7EB]">
+                  <div className="h-[160px] w-full bg-white pr-px">
+                      <div className="flex h-11 items-center justify-between gap-2 border-b border-[#E5E7EB] px-5">
+                        <div className="text-[20px] font-semibold leading-7 text-[#111827]">Education</div>
+                        <img src="/icons/admin-recruiter/plus-icon.svg" alt="" className="h-6 w-6" />
+                      </div>
+                      <div className="px-5 pt-4">
                       <div className="text-xs text-gray-600">
                         {data?.requirements?.resume_path
                           ? "Structured education fields are not stored separately; see the uploaded resume."
                           : "From resume (not stored on worker yet)"}
                       </div>
                       <div className="mt-2 text-xs text-gray-600">—</div>
-                    </div>
-
-                    <div className="bg-white/80 border border-[#9CC3FF]/30 rounded-2xl p-5">
-                      <div className="text-sm font-semibold text-gray-600 mb-2">Experience</div>
-                      <div className="text-xs text-gray-600">Job role</div>
-                      <div className="mt-2 text-xs text-gray-600">{candidateRole}</div>
-                    </div>
+                      </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="bg-white/80 border border-[#9CC3FF]/30 rounded-2xl p-5">
-                      <div className="text-sm font-semibold text-gray-600 mb-2">Skills</div>
+                    <div className="h-[288px] w-full border-t border-[#E5E7EB] bg-white pr-px">
+                      <div className="flex h-11 items-center justify-between gap-2 border-b border-[#E5E7EB] px-5">
+                        <div className="text-[20px] font-semibold leading-7 text-[#111827]">Experience</div>
+                        <img src="/icons/admin-recruiter/plus-icon.svg" alt="" className="h-6 w-6" />
+                      </div>
+                      <div className="px-5 pt-4">
+                      <div className="text-xs text-gray-600">Job role</div>
+                      <div className="mt-2 text-xs text-gray-600">{candidateRole}</div>
+                      </div>
+                    </div>
+
+                    <div className="h-[200px] min-h-[200px] w-full border-t border-[#E5E7EB] bg-white pr-px">
+                      <div className="flex h-11 items-center justify-between gap-2 border-b border-[#E5E7EB] px-5">
+                        <div className="text-[20px] font-semibold leading-7 text-[#111827]">Skills</div>
+                        <img src="/icons/admin-recruiter/plus-icon.svg" alt="" className="h-6 w-6" />
+                      </div>
+                      <div className="px-5 pt-4">
                       <div className="text-xs text-gray-600">
                         Structured skills will appear when stored with the applicant profile.
                       </div>
                       <div className="mt-2 text-xs text-gray-600">—</div>
+                      </div>
                     </div>
 
-                    <div className="bg-white/80 border border-[#9CC3FF]/30 rounded-2xl p-5">
-                      <div className="text-sm font-semibold text-gray-600 mb-2">Facilities assigned</div>
+                    <div className="h-[160px] w-full border-t border-[#E5E7EB] bg-white pr-px">
+                      <div className="flex h-11 items-center justify-between gap-2 border-b border-[#E5E7EB] px-5">
+                        <div className="text-[20px] font-semibold leading-7 text-[#111827]">Facilities Assigned</div>
+                        <img src="/icons/admin-recruiter/plus-icon.svg" alt="" className="h-6 w-6" />
+                      </div>
+                      <div className="px-5 pt-4">
                       <div className="text-xs text-gray-600">No facility assignments in database yet.</div>
+                      </div>
                     </div>
-                  </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="bg-white/80 border border-[#9CC3FF]/30 rounded-2xl p-5">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="text-sm font-semibold text-gray-600">Onboarding Progress</div>
+                    <div className="w-full border-t border-[#E5E7EB] bg-white pr-px">
+                      <div className="flex h-11 items-center justify-between gap-2 border-b border-[#E5E7EB] px-5">
+                        <div className="text-[20px] font-semibold leading-7 text-[#111827]">Onboarding Progress</div>
                         <span className="text-[11px] px-3 py-1 rounded-full bg-amber-100 text-amber-800 font-medium">
                           In Progress
                         </span>
                       </div>
 
+                      <div className="p-5">
                       <div className="space-y-3 text-xs text-gray-600">
                         {(data?.onboardingSteps ?? []).map((s) => (
                           <div key={s.id} className="flex items-center gap-3">
@@ -533,19 +596,26 @@ export default function NewApplicantProfilePage() {
                           <div className="text-gray-600">Loading progress…</div>
                         ) : null}
                       </div>
+                      </div>
                     </div>
 
-                    <div className="bg-white/80 border border-[#9CC3FF]/30 rounded-2xl p-5">
-                      <div className="text-sm font-semibold text-gray-600 mb-3">Skill assessments</div>
+                    <div className="w-full border-t border-[#E5E7EB] bg-white pr-px">
+                      <div className="flex h-11 items-center gap-2 border-b border-[#E5E7EB] px-5">
+                        <div className="text-[20px] font-semibold leading-7 text-[#111827]">Skill assessments</div>
+                      </div>
+                      <div className="p-5">
                       <div className="text-xs text-gray-600">
                         Completed {data?.skillAssessments.completed ?? 0} of {data?.skillAssessments.total ?? 0}{" "}
                         tracked quizzes.
                       </div>
+                      </div>
                     </div>
-                  </div>
 
-                  <div className="bg-white/80 border border-[#9CC3FF]/30 rounded-2xl p-5">
-                    <div className="text-sm font-semibold text-gray-600 mb-3">Remarks</div>
+                  <div className="w-full border-t border-[#E5E7EB] bg-white pr-px">
+                    <div className="flex h-11 items-center gap-2 border-b border-[#E5E7EB] px-5">
+                      <div className="text-[20px] font-semibold leading-7 text-[#111827]">Remarks</div>
+                    </div>
+                    <div className="p-5">
                     <div className="text-xs text-gray-600 mb-4">Use pipeline actions from the New / Pending lists to approve or move applicants.</div>
                     <div className="flex flex-wrap gap-2">
                       <Link
@@ -555,11 +625,12 @@ export default function NewApplicantProfilePage() {
                         Back to New list
                       </Link>
                     </div>
+                    </div>
                   </div>
 
-                  <div className="bg-white/80 border border-[#9CC3FF]/30 rounded-2xl p-5">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="text-sm font-semibold text-gray-600">Notes</div>
+                  <div className="w-full border-t border-[#E5E7EB] bg-white pr-px">
+                    <div className="flex h-11 items-center justify-between gap-2 border-b border-[#E5E7EB] px-5">
+                      <div className="text-[20px] font-semibold leading-7 text-[#111827]">Notes</div>
                       <Link
                         href={`${base}/profile/notes/${id}`}
                         className="text-xs px-3 py-1.5 rounded-xl border border-zinc-200 bg-white/70 hover:bg-white transition"
@@ -567,7 +638,9 @@ export default function NewApplicantProfilePage() {
                         Open notes
                       </Link>
                     </div>
+                    <div className="p-5">
                     <div className="text-xs text-gray-600">Use the Notes tab for free-form recruiter notes.</div>
+                    </div>
                   </div>
                 </section>
               </div>
