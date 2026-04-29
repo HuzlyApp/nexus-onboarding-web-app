@@ -50,6 +50,18 @@ export default function RecruiterDashboard() {
         ]);
 
         const allJson = await allRes.json();
+        // In non-enforced UI mode, unauthenticated users can open this page
+        // while API routes still require staff auth. Treat auth failures as empty state.
+        const authError =
+          allRes.status === 401 ||
+          allRes.status === 403 ||
+          String(allJson?.error ?? "").toLowerCase() === "unauthorized" ||
+          String(allJson?.detail ?? "").toLowerCase().includes("staff role required");
+        if (authError) {
+          setWorkers([]);
+          setCounts({ new: 0, pending: 0, approved: 0, disapproved: 0 });
+          return;
+        }
         if (!allRes.ok) throw new Error(allJson?.error || "Failed to load workers");
         const list = Array.isArray(allJson)
           ? (allJson as WorkerRow[])

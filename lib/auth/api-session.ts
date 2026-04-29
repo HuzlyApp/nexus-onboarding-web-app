@@ -13,9 +13,27 @@ export type ApiAuthContext = {
   devBypass: boolean;
 };
 
+function isAdminRbacEnforced() {
+  return (
+    process.env.ADMIN_RBAC_ENFORCE === "true" ||
+    process.env.NEXT_PUBLIC_ADMIN_AUTH_REQUIRED === "true"
+  );
+}
+
 function devBypassAuth(): ApiAuthContext | null {
   if (process.env.NODE_ENV === "production") return null;
-  if (process.env.DEV_ADMIN_AUTH_BYPASS !== "true") return null;
+  /**
+   * Local DX default:
+   * - If RBAC is not explicitly enforced, allow recruiter/admin pages and APIs
+   *   to function without wiring a full auth+role seed.
+   * - You can still force strict behavior by setting ADMIN_RBAC_ENFORCE=true.
+   * - Explicit DEV_ADMIN_AUTH_BYPASS=false disables this fallback.
+   */
+  const bypassFlag = process.env.DEV_ADMIN_AUTH_BYPASS;
+  const allowByDefault = !isAdminRbacEnforced();
+  const enabled =
+    bypassFlag === "true" || (bypassFlag !== "false" && allowByDefault);
+  if (!enabled) return null;
   return {
     userId: DEV_BYPASS_USER,
     email: null,

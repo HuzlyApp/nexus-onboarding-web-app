@@ -57,6 +57,16 @@ export default function WorkersPage() {
         cache: "no-store",
       });
       const data = await res.json();
+      const authError =
+        res.status === 401 ||
+        res.status === 403 ||
+        String(data?.error ?? "").toLowerCase() === "unauthorized" ||
+        String(data?.detail ?? "").toLowerCase().includes("staff role required");
+      if (authError) {
+        setWorkers([]);
+        setTotalFromApi(0);
+        return;
+      }
       if (!res.ok) throw new Error(data?.error || "Failed to fetch workers");
 
       const list: WorkerProfile[] = Array.isArray(data?.workers)

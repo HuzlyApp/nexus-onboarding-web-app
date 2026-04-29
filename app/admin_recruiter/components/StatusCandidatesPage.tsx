@@ -107,6 +107,17 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
     try {
       const res = await fetch(fetchUrl, { cache: "no-store" });
       const data = await res.json();
+      const authError =
+        res.status === 401 ||
+        res.status === 403 ||
+        String(data?.error ?? "").toLowerCase() === "unauthorized" ||
+        String(data?.detail ?? "").toLowerCase().includes("staff role required");
+      if (authError) {
+        setCandidates([]);
+        setTotalFromApi(0);
+        setVisibleCount(PAGE_SIZE);
+        return;
+      }
       if (!res.ok) throw new Error(data?.error || "Failed to fetch workers");
 
       const rows: WorkerProfile[] = Array.isArray(data?.workers)

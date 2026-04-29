@@ -124,6 +124,12 @@ function isMissingValue(value: unknown) {
   return false;
 }
 
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value
+  );
+}
+
 export default function NewApplicantProfilePage() {
   const pathname = usePathname();
   const params = useParams<{ id: string }>();
@@ -140,6 +146,12 @@ export default function NewApplicantProfilePage() {
   useEffect(() => {
     async function run() {
       if (!applicantId) return;
+      if (!isUuid(applicantId)) {
+        setError("Invalid workerId");
+        setData(null);
+        setLoading(false);
+        return;
+      }
       setLoading(true);
       setError(null);
       try {
@@ -147,11 +159,19 @@ export default function NewApplicantProfilePage() {
           `/api/admin/worker-profile?workerId=${encodeURIComponent(applicantId)}`
         );
         const json = (await res.json()) as ProfilePayload & { error?: string };
+        if (!res.ok && json?.error === "Invalid workerId") {
+          setError("Invalid workerId");
+          setData(null);
+          return;
+        }
         if (!res.ok) throw new Error(json.error || "Failed to load profile");
         setData(json);
       } catch (e) {
-        console.error(e);
-        setError(e instanceof Error ? e.message : "Failed to load");
+        const message = e instanceof Error ? e.message : "Failed to load";
+        if (message !== "Invalid workerId") {
+          console.error(e);
+        }
+        setError(message);
         setData(null);
       } finally {
         setLoading(false);
