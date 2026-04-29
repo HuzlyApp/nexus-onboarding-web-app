@@ -8,11 +8,9 @@ import DetailedTabs from "../../../components/DetailedTabs";
 import {
   Briefcase,
   Calendar,
-  CheckCircle2,
   Download,
   LogOut,
   Menu,
-  Plus,
   Settings,
   UserCheck,
   UserPlus,
@@ -20,14 +18,6 @@ import {
   Users,
   X,
 } from "lucide-react";
-function initials(name: string) {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "NA";
-  const first = parts[0]?.[0] ?? "";
-  const last = parts[parts.length - 1]?.[0] ?? "";
-  return (first + last).toUpperCase();
-}
-
 type WorkerProfile = {
   id: string;
   first_name: string | null;
@@ -246,89 +236,55 @@ export default function NewApplicantSkillAssessmentsPage() {
             />
             <DetailedTabs applicantId={applicantId} activeTab="Skill Assessments" />
 
-            <div className="mx-auto w-full max-w-[1300px] rounded-md border border-[#E5E7EB] bg-white p-5">
-              {/* Top */}
-              <div className="hidden p-6 items-start justify-between gap-6 border-b border-[#9CC3FF]/30 bg-white/40">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-full bg-teal-600 text-white flex items-center justify-center font-semibold text-sm">
-                    {initials(candidateName)}
-                  </div>
-                  <div>
-                    <div className="text-lg font-semibold text-gray-600">
-                      {loading ? "Loading..." : candidateName}
-                    </div>
-                    <div className="text-xs text-gray-600">{candidateRole}</div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <span className="text-[11px] px-3 py-1 rounded-full bg-white/70 border border-zinc-200 text-gray-600 font-medium">
-                    New Applicant
-                  </span>
-                  <div className="hidden sm:block text-xs text-gray-600 font-medium">
+            <div className="mx-auto w-full max-w-[1300px]">
+              <div className="mb-5 flex items-center justify-between">
+                <h2 className="text-[20px] font-semibold leading-7 text-[#1F2937]">Skill Assessment</h2>
+                <div className="text-xs font-medium text-[#6B7280]">
+                  Completed{" "}
+                  <span className="font-semibold text-[#111827]">
                     {skillProgress && skillProgress.total > 0
-                      ? `Completed ${skillProgress.completed} of ${skillProgress.total}`
-                      : "Assessments —"}
-                  </div>
-                  <button className="bg-white/70 border border-[#9CC3FF] text-gray-600 px-5 py-2.5 rounded-2xl hover:bg-white transition text-sm">
-                    <Plus className="inline-block w-4 h-4 mr-2" />
-                    New Appointment
-                  </button>
+                      ? `${skillProgress.completed} of ${skillProgress.total}`
+                      : "0 of 0"}
+                  </span>
                 </div>
               </div>
 
-              {/* Tabs */}
-              <div className="border-b border-[#9CC3FF]/20 bg-white/30" />
-
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-5">
-                  <div>
-                    <div className="text-sm font-semibold text-gray-600">
-                      Skill Assessment
-                    </div>
-                    <div className="text-xs text-gray-600">
-                      Review completed assessment results
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  {assessments.map((a) => (
-                    <div
-                      key={a.title + a.score}
-                      className="rounded-2xl border border-[#9CC3FF]/40 bg-white/70 p-4"
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex items-start gap-3 min-w-0">
-                          <CheckCircle2 className="w-5 h-5 text-teal-700" />
-                          <div className="min-w-0">
-                            <div className="text-sm font-medium text-gray-600 truncate">
-                              {a.title}
-                            </div>
-                            <div className="text-[11px] text-gray-600 mt-1">
-                              Score: {a.score}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2 shrink-0">
-                          <button className="text-xs px-3 py-1.5 rounded-xl border border-zinc-200 bg-white/70 hover:bg-white transition">
-                            See Results
-                          </button>
-                          <button className="p-2 rounded-xl border border-zinc-200 bg-white/70 hover:bg-white transition">
-                            <Download className="w-4 h-4 text-teal-700" />
-                          </button>
-                        </div>
+              <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+                {assessments.map((a) => (
+                  <div
+                    key={a.title + a.score}
+                    className="flex h-[84px] w-full items-center justify-between gap-5 rounded-[8px] border border-[#99D8D3] bg-[#ECF4F3] px-4 py-5"
+                  >
+                    <div className="flex min-w-0 items-center gap-4">
+                      <img
+                        src="/icons/admin-recruiter/Stepper indicator.svg"
+                        alt=""
+                        className="h-8 w-8 shrink-0"
+                      />
+                      <div className="min-w-0">
+                        <div className="truncate text-[16px] font-semibold leading-6 text-[#1F2937]">{a.title}</div>
+                        <div className="mt-1 text-[14px] leading-5 text-[#475467]">{a.score}</div>
                       </div>
                     </div>
-                  ))}
-                </div>
 
-                <div className="flex justify-center mt-8">
-                  <button className="text-xs px-5 py-2.5 rounded-2xl border border-zinc-200 bg-white/70 hover:bg-white transition text-gray-600">
-                    Download skill assessment full results
-                  </button>
-                </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <button className="inline-flex h-10 items-center justify-center rounded-lg border border-[#0D9488] px-6 text-sm font-semibold text-[#0D9488]">
+                        See Results
+                      </button>
+                      <button className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#0D9488] px-4 text-sm font-semibold text-[#0D9488]">
+                        <img src="/icons/pdf-icon.svg" alt="" className="h-5 w-5" />
+                        Download
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-8 flex justify-center">
+                <button className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#0D9488] px-6 text-sm font-semibold text-[#0D9488]">
+                  <img src="/icons/pdf-icon.svg" alt="" className="h-4 w-4" />
+                  Download skill assessment full results
+                </button>
               </div>
             </div>
           </div>

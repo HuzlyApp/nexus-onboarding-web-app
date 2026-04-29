@@ -14,7 +14,6 @@ import {
   Menu,
   Plus,
   Settings,
-  Upload,
   UserCheck,
   UserPlus,
   UserX,
@@ -126,12 +125,14 @@ export default function NewApplicantAttachmentsFilledPage() {
       return basenameFromStoragePath(raw ?? null);
     })();
     return [
-      {
-        id: "resume",
-        title: "Resume",
-        url: req?.resume_url ?? null,
-        filename: resumeFileLabel,
-      },
+      // Resume row is intentionally hidden for now to match current Figma (3 rows only).
+      // Keep this block for future use.
+      // {
+      //   id: "resume",
+      //   title: "Resume",
+      //   url: req?.resume_url ?? null,
+      //   filename: resumeFileLabel,
+      // },
       {
         id: "license",
         title: "Nursing License",
@@ -298,7 +299,7 @@ export default function NewApplicantAttachmentsFilledPage() {
             />
             <DetailedTabs applicantId={applicantId} activeTab="Attachments" />
 
-            <div className="mx-auto w-full max-w-[1300px] rounded-md border border-[#E5E7EB] bg-white p-5">
+            <div className="mx-auto w-full max-w-[1300px]">
               {/* Top */}
               <div className="hidden p-6 items-start justify-between gap-6 border-b border-[#9CC3FF]/30 bg-white/40">
                 <div className="flex items-center gap-4">
@@ -327,112 +328,119 @@ export default function NewApplicantAttachmentsFilledPage() {
               {/* Tabs */}
               <div className="border-b border-[#9CC3FF]/20 bg-white/30" />
 
-              <div className="p-6 grid grid-cols-12 gap-6">
-                {/* Left */}
-                <section className="col-span-4 space-y-5">
-                  <button className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-2xl border border-zinc-200 bg-white/80 hover:bg-white transition text-sm">
-                    <Upload className="w-4 h-4" />
+              <div className="p-5">
+                <div className="flex h-[52px] w-full items-center justify-between rounded-md border border-[#D1D5DB] px-5 py-[14px]">
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-2 text-[16px] font-semibold leading-6 text-[#111827]"
+                  >
                     Upload Files
                   </button>
+                  <button
+                    type="button"
+                    className="inline-flex h-6 w-6 items-center justify-center"
+                    aria-label="Add upload"
+                  >
+                    <img src="/icons/admin-recruiter/plus-icon.svg" alt="" className="h-6 w-6" />
+                  </button>
+                </div>
 
-                  <div className="bg-white/80 border border-[#9CC3FF]/30 rounded-2xl p-5">
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm font-semibold text-gray-600">Requirements Submitted</div>
-                      <div className="text-xs text-gray-600">
-                        Uploaded <span className="font-medium text-gray-600">{uploadedCount}</span> of{" "}
-                        <span className="font-medium text-gray-600">{totalCount}</span>
-                      </div>
-                    </div>
+                <div className="mt-5">
+                  <div className="mb-4 flex items-center justify-between border-b border-[#E5E7EB] pb-4">
+                    <h3 className="text-[20px] font-semibold leading-7 text-[#111827]">Requirements Submitted</h3>
+                    <p className="text-sm font-medium text-[#6B7280]">
+                      Uploaded{" "}
+                      <span className="font-semibold text-[#111827]">{uploadedCount}</span> of{" "}
+                      <span className="font-semibold text-[#111827]">{totalCount}</span>
+                    </p>
+                  </div>
 
-                    <div className="mt-4 space-y-4">
-                      {loading ? (
-                        <div className="text-xs text-gray-600 py-2">Loading requirements…</div>
-                      ) : null}
-                      {!loading &&
-                        attachmentRows.map((r, idx) => (
-                        <div key={r.id} className="rounded-2xl border border-zinc-200 bg-white/70 p-4">
-                          <div className="text-sm font-semibold text-gray-600">
-                            {idx + 1}. {r.title}
-                          </div>
-                          <div className="mt-3 rounded-2xl border border-teal-200 bg-teal-50/60 p-3 flex items-center justify-between gap-3">
-                            <div className="min-w-0">
-                              <div className="text-xs font-medium text-teal-700 truncate">
-                                {r.url ? r.filename : "Not uploaded yet"}
-                              </div>
-                              <div className="text-[11px] text-gray-600">
-                                {r.url ? "On file" : "—"}
-                              </div>
+                  <div className="space-y-3">
+                    {loading ? (
+                      <div className="px-4 py-4 text-sm text-[#6B7280]">Loading requirements...</div>
+                    ) : (
+                      attachmentRows.map((r, idx) => (
+                        <div
+                          key={r.id}
+                          className="h-[128px] w-full rounded-md border border-[#D1D5DB]"
+                        >
+                          <div className="flex h-[44px] items-center justify-between px-5 pt-3 pb-2">
+                            <div className="text-[16px] font-semibold leading-6 text-[#111827]">
+                              {idx + 1}. {r.title}
                             </div>
-                            <div className="flex items-center gap-2 shrink-0">
+                            <div className="flex items-center gap-3">
                               <button
                                 type="button"
                                 disabled={!r.url}
                                 onClick={() => r.url && window.open(r.url, "_blank", "noopener,noreferrer")}
-                                className="w-9 h-9 rounded-2xl border border-zinc-200 bg-white/80 hover:bg-white transition flex items-center justify-center disabled:opacity-40 disabled:pointer-events-none"
+                                className="inline-flex h-5 w-5 items-center justify-center text-[#0D9488] disabled:opacity-40 disabled:pointer-events-none"
                                 aria-label={`View ${r.title}`}
                               >
-                                <Eye className="w-4 h-4 text-teal-700" />
+                                <Eye className="h-5 w-5" />
                               </button>
                               <a
                                 href={r.url ?? undefined}
                                 download
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className={`w-9 h-9 rounded-2xl border border-zinc-200 bg-white/80 hover:bg-white transition flex items-center justify-center ${
+                                className={`inline-flex h-5 w-5 items-center justify-center text-[#0D9488] ${
                                   !r.url ? "pointer-events-none opacity-40" : ""
                                 }`}
                                 aria-label={`Download ${r.title}`}
                               >
-                                <Download className="w-4 h-4 text-teal-700" />
+                                <Download className="h-5 w-5" />
                               </a>
                             </div>
                           </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </section>
 
-                {/* Right */}
-                <section className="col-span-8">
-                  <div className="bg-white/80 border border-[#9CC3FF]/30 rounded-2xl p-5">
-                    <div className="flex items-center justify-between mb-5">
-                      <div className="text-sm font-semibold text-gray-600">Review</div>
-                      <button className="w-9 h-9 rounded-2xl border border-zinc-200 bg-white/80 hover:bg-white transition flex items-center justify-center">
-                        <Plus className="w-4 h-4 text-teal-700" />
-                      </button>
-                    </div>
+                          <div className="flex items-center justify-between gap-4 px-5 py-3">
+                            <div className="flex h-[50px] w-[306px] min-w-[306px] max-w-[520px] items-center gap-2 rounded-[8px] border border-[#99D8D3] bg-[#F8FAFC] px-3 py-2">
+                              <img src="/icons/jpeg-icon.svg" alt="" className="h-6 w-6 shrink-0" />
+                              <div className="min-w-0">
+                                <div className="truncate text-xs font-semibold leading-4 tracking-[0.01em] text-[#0D9488]">
+                                  {r.url ? r.filename : "Not uploaded yet"}
+                                </div>
+                                <div className="text-xs font-normal leading-4 tracking-[0.01em] text-[#6B7280]">
+                                  {r.url ? "5.23 MB" : "—"}
+                                </div>
+                              </div>
+                            </div>
 
-                    <div className="space-y-6">
-                      {attachmentRows.map((r) => (
-                        <div key={`review-${r.id}`} className="flex items-center justify-between gap-4">
-                          <div className="text-xs text-gray-600">{r.title}</div>
-                          <div className="flex items-center gap-2 flex-wrap justify-end">
-                            <button
-                              type="button"
-                              className="text-xs px-4 py-2 rounded-2xl bg-teal-600 text-white hover:bg-teal-700 transition disabled:opacity-50"
-                              disabled={!r.url}
-                            >
-                              Approved
-                            </button>
-                            <button
-                              type="button"
-                              className="text-xs px-4 py-2 rounded-2xl border border-zinc-200 bg-white/70 hover:bg-white transition"
-                            >
-                              Reject
-                            </button>
-                            <button
-                              type="button"
-                              className="text-xs px-4 py-2 rounded-2xl border border-zinc-200 bg-white/70 hover:bg-white transition"
-                            >
-                              Request More
-                            </button>
+                            {r.url ? (
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  className="inline-flex h-8 items-center justify-center rounded-md bg-[#0D9488] px-4 text-xs font-semibold text-white"
+                                >
+                                  Approved
+                                </button>
+                                <button
+                                  type="button"
+                                  className="inline-flex h-8 items-center justify-center rounded-md border border-[#99D8D3] px-4 text-xs font-semibold text-[#0D9488]"
+                                >
+                                  Reject
+                                </button>
+                                <button
+                                  type="button"
+                                  className="inline-flex h-8 items-center justify-center rounded-md border border-[#99D8D3] px-4 text-xs font-semibold text-[#0D9488]"
+                                >
+                                  Request More
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                className="inline-flex h-8 items-center justify-center rounded-md bg-[#0D9488] px-5 text-xs font-semibold text-white"
+                              >
+                                Upload
+                              </button>
+                            )}
                           </div>
                         </div>
-                      ))}
-                    </div>
+                      ))
+                    )}
                   </div>
-                </section>
+                </div>
               </div>
             </div>
           </div>

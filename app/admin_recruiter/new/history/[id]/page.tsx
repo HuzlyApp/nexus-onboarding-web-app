@@ -8,7 +8,6 @@ import DetailedTabs from "../../../components/DetailedTabs";
 import {
   Briefcase,
   Calendar,
-  CheckCircle2,
   LogOut,
   Menu,
   Settings,
@@ -35,14 +34,6 @@ type ProfilePayload = {
     updated_at: string | null;
   };
 };
-
-function initials(name: string) {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "NA";
-  const first = parts[0]?.[0] ?? "";
-  const last = parts[parts.length - 1]?.[0] ?? "";
-  return (first + last).toUpperCase();
-}
 
 function formatRelative(iso: string): string {
   const d = new Date(iso);
@@ -171,8 +162,6 @@ export default function NewApplicantHistoryPage() {
   }, [applicant]);
 
   const candidateRole = applicant?.job_role || "N/A";
-  const statusLabel = applicant?.status_label?.trim() || "New Applicant";
-
   const historyItems: HistoryItem[] = useMemo(
     () => buildHistoryFromActivity(profile?.activity),
     [profile?.activity]
@@ -294,67 +283,40 @@ export default function NewApplicantHistoryPage() {
             />
             <DetailedTabs applicantId={applicantId} activeTab="History" />
 
-            <div className="mx-auto w-full max-w-[1300px] rounded-md border border-[#E5E7EB] bg-white p-5">
-              <div className="hidden p-6 items-start justify-between gap-6 border-b border-[#9CC3FF]/30 bg-white/40">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-full bg-teal-600 text-white flex items-center justify-center font-semibold text-sm">
-                    {initials(candidateName)}
-                  </div>
-                  <div>
-                    <div className="text-lg font-semibold text-gray-600">
-                      {loading ? "Loading..." : candidateName}
-                    </div>
-                    <div className="text-xs text-gray-600">{candidateRole}</div>
-                  </div>
+            <div className="mx-auto h-[896px] w-full max-w-[1300px] rounded-md border border-[#D1D5DB] p-5">
+              <div className="flex flex-col gap-5">
+                <div className="text-sm font-semibold text-[#374151]">
+                  Actions taken <span className="font-semibold text-[#111827]">{loading ? "—" : historyCount}</span>
                 </div>
-                <span className="text-[11px] px-3 py-1 rounded-full bg-white/70 border border-zinc-200 text-gray-600 font-medium">
-                  {loading ? "…" : statusLabel}
-                </span>
-              </div>
 
-              <div className="border-b border-[#9CC3FF]/20 bg-white/30" />
-
-              <div className="p-6 grid grid-cols-12 gap-6">
-                <section className="col-span-12">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="text-sm font-semibold text-gray-600">
-                      Actions taken{" "}
-                      <span className="text-gray-600">{loading ? "—" : historyCount}</span>
-                    </div>
+                {loading ? (
+                  <div className="py-6 text-sm text-[#6B7280]">Loading history...</div>
+                ) : historyCount === 0 ? (
+                  <div className="rounded-md border border-dashed border-[#D1D5DB] px-6 py-10 text-center text-sm text-[#6B7280]">
+                    No history events yet.
                   </div>
-
-                  {loading ? (
-                    <div className="text-sm text-gray-600 py-6">Loading history…</div>
-                  ) : historyCount === 0 ? (
-                    <div className="rounded-2xl border border-dashed border-zinc-200 bg-white/60 px-6 py-10 text-center text-sm text-gray-600">
-                      No history events yet. When a dedicated activity log is stored per worker, entries will
-                      appear here. For now, record creation and profile updates are shown when timestamps are
-                      available.
-                    </div>
-                  ) : (
-                    <div className="mt-2 space-y-3">
-                      {historyItems.map((h) => (
-                        <div
-                          key={h.id}
-                          className="grid grid-cols-12 gap-4 items-center border-b border-zinc-100 pb-3 last:border-b-0 last:pb-0"
-                        >
-                          <div className="col-span-6 sm:col-span-7 flex items-start gap-3">
-                            <div className="w-8 h-8 rounded-full bg-teal-600/10 flex items-center justify-center shrink-0">
-                              <CheckCircle2 className="w-4 h-4 text-teal-700" />
-                            </div>
-                            <div className="text-xs text-gray-600">{h.action}</div>
-                          </div>
-                          <div className="col-span-6 sm:col-span-5 text-right sm:text-right">
-                            <div className="text-[11px] text-gray-600">
-                              {h.ago} <span className="text-gray-600">•</span> {h.date}{" "}
-                              <span className="text-gray-600">•</span> {h.time}
-                            </div>
-                          </div>
+                ) : (
+                  <div className="space-y-0">
+                    {historyItems.map((h) => (
+                      <div
+                        key={h.id}
+                        className="flex items-center justify-between border-b border-[#E5E7EB] py-4 last:border-b-0"
+                      >
+                        <div className="flex min-w-0 items-center gap-3">
+                          <img
+                            src="/icons/admin-recruiter/history-icon.svg"
+                            alt=""
+                            className="h-[30px] w-[30px] shrink-0"
+                          />
+                          <div className="truncate text-sm text-[#4B5563]">{h.action}</div>
                         </div>
-                      ))}
-                    </div>
-                  )}
-                </section>
+                        <div className="shrink-0 text-xs text-[#6B7280]">
+                          {h.ago} <span>•</span> {h.date} <span>•</span> {h.time}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>

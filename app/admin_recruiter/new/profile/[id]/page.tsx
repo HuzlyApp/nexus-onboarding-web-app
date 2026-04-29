@@ -360,7 +360,7 @@ export default function NewApplicantProfilePage() {
               </div>
             </div>
 
-            <div className="mx-auto w-full max-w-[1298px] overflow-hidden rounded-lg border border-[#D1D5DB] bg-white">
+            <div className="mx-auto w-full max-w-[1298px] overflow-x-auto rounded-lg border border-[#D1D5DB] bg-white">
               <div className="hidden p-6 items-start justify-between gap-6 border-b border-[#9CC3FF]/30 bg-white/40">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-full bg-teal-600 text-white flex items-center justify-center font-semibold text-sm">
@@ -391,7 +391,7 @@ export default function NewApplicantProfilePage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-0 lg:grid-cols-[798px_500px] lg:items-stretch">
+              <div className="grid grid-cols-1 gap-0 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] lg:items-stretch">
                 <section className="space-y-4">
                   <div className="overflow-hidden bg-white">
                     <div className="flex h-11 items-center gap-2 border-b border-[#E5E7EB] px-5">
@@ -475,7 +475,7 @@ export default function NewApplicantProfilePage() {
                         {nursingLicenseRows.map((row, rowIdx) => (
                           <div
                             key={row.tag}
-                            className={`grid grid-cols-[55px_723px] ${rowIdx > 0 ? "border-t border-[#E5E7EB]" : ""}`}
+                            className={`grid grid-cols-[55px_minmax(0,1fr)] ${rowIdx > 0 ? "border-t border-[#E5E7EB]" : ""}`}
                           >
                             <div className="flex h-[134px] items-center justify-center border-r border-[#E5E7EB] px-5 text-[12px] font-normal leading-4 text-[#6B7280]">
                               {row.tag}
@@ -490,7 +490,7 @@ export default function NewApplicantProfilePage() {
                               ).map(([label, value], idx) => (
                                 <div
                                   key={`${row.tag}-${label}`}
-                                  className={`grid grid-cols-[422px_300px] ${idx > 0 ? "border-t border-[#E5E7EB]" : ""}`}
+                                  className={`grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] ${idx > 0 ? "border-t border-[#E5E7EB]" : ""}`}
                                 >
                                   <div className="h-11 border-r border-[#E5E7EB] px-3 py-3 text-[14px] font-normal leading-5 text-[#374151]">
                                     {label}
@@ -599,7 +599,7 @@ export default function NewApplicantProfilePage() {
                   </div>
                 </section>
 
-                <section className="h-full w-full max-w-[500px] space-y-0 border-l border-r border-[#D1D5DB]">
+                <section className="h-full w-full min-w-0 space-y-0 border-l border-r border-[#D1D5DB]">
                   <div className="h-[160px] w-full bg-white pr-px">
                       <div className="flex h-11 items-center justify-between gap-2 border-b border-[#E5E7EB] px-5">
                         <div className="text-[20px] font-semibold leading-7 text-[#111827]">Education</div>
@@ -672,9 +672,11 @@ export default function NewApplicantProfilePage() {
                     </div>
 
                     <div className="h-[422px] min-h-[200px] w-full border-t border-r border-[#D1D5DB] bg-white pr-px">
-                      <div className="flex h-11 items-center justify-between gap-2 border-b border-[#E5E7EB] px-5">
-                        <div className="text-[20px] font-semibold leading-7 text-[#111827]">Onboarding Progress</div>
-                        <span className="rounded-md bg-[#00B135] px-3 py-1 text-[11px] font-medium text-white">
+                      <div className="flex h-11 flex-nowrap items-center justify-between gap-2 border-b border-[#E5E7EB] px-5">
+                        <div className="min-w-0 truncate whitespace-nowrap text-[18px] font-semibold leading-6 text-[#111827]">
+                          Onboarding Progress
+                        </div>
+                        <span className="shrink-0 whitespace-nowrap rounded-md bg-[#00B135] px-3 py-1 text-[11px] font-medium text-white">
                           In Progress
                         </span>
                       </div>
