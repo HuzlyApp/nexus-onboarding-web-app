@@ -242,39 +242,30 @@ export default function NewApplicantActivitiesPage() {
             />
             <DetailedTabs applicantId={applicantId} activeTab="Activities" />
 
-            <div className="mx-auto w-full max-w-[1300px] rounded-md border border-[#E5E7EB] bg-white p-5">
-              {/* Top */}
-              <div className="hidden p-6 items-start justify-between gap-6 border-b border-[#9CC3FF]/30 bg-white/40">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-full bg-teal-600 text-white flex items-center justify-center font-semibold text-sm">
-                    {initials(candidateName)}
-                  </div>
-                  <div>
-                    <div className="text-lg font-semibold text-gray-600">
-                      {loading ? "Loading..." : candidateName}
-                    </div>
-                    <div className="text-xs text-gray-600">{candidateRole}</div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <span className="text-[11px] px-3 py-1 rounded-full bg-white/70 border border-zinc-200 text-gray-600 font-medium">
-                    {loading ? "…" : statusLabel}
-                  </span>
-                  <button className="bg-white/70 border border-[#9CC3FF] text-gray-600 px-5 py-2.5 rounded-2xl hover:bg-white transition text-sm">
-                    <Plus className="inline-block w-4 h-4 mr-2" />
-                    New Appointment
+            <div className="mx-auto mb-3 flex w-full max-w-[1300px] items-center justify-center gap-2">
+              {(["Calls", "Inbox", "Interview"] as const).map((t) => {
+                const isActive = active === t;
+                return (
+                  <button
+                    key={t}
+                    onClick={() => setActive(t)}
+                    className={`text-xs px-3 py-1.5 rounded-lg border transition ${
+                      isActive
+                        ? "border-[#0D9488] bg-[#0D9488] text-white"
+                        : "border-zinc-200 bg-transparent text-[#4B5563] hover:bg-zinc-50"
+                    }`}
+                  >
+                    {t}
                   </button>
-                </div>
-              </div>
+                );
+              })}
+            </div>
 
-              {/* Tabs */}
-              <div className="border-b border-[#9CC3FF]/20 bg-white/30" />
-
-              <div className="p-6 grid grid-cols-12 gap-6">
+            <div className="mx-auto w-full max-w-[1300px] rounded-md border border-[#D1D5DB] p-4">
+              <div className="grid grid-cols-12 gap-4">
                 {/* Left mini-nav */}
                 <aside className="col-span-3">
-                  <div className="bg-white/70 border border-[#9CC3FF]/25 rounded-2xl p-4 h-full">
+                  <div className="h-full border-r border-[#E5E7EB] pr-4">
                     <div className="space-y-2">
                       {(
                         [
@@ -287,14 +278,21 @@ export default function NewApplicantActivitiesPage() {
                           <button
                             key={k}
                             onClick={() => setLeftNav(k)}
-                            className={`w-full flex items-center justify-between gap-2 text-left px-3 py-2 rounded-xl border text-xs transition ${
+                            className={`w-full flex items-center justify-between gap-2 text-left px-3 py-2 rounded-md border text-xs transition ${
                               isActive
-                                ? "border-teal-200 bg-white text-gray-600"
-                                : "border-transparent text-gray-600 hover:bg-white"
+                                ? "border-[#99D8D3] bg-[#F8FAFC] text-[#374151]"
+                                : "border-transparent text-[#6B7280] hover:bg-[#F8FAFC]"
                             }`}
                           >
-                            <span>{k}</span>
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-zinc-100 text-gray-600 font-medium">
+                            <span className="inline-flex items-center gap-2">
+                              <img
+                                src={k === "Recent Logs" ? "/icons/admin-recruiter/phone.svg" : "/icons/admin-recruiter/history-icon.svg"}
+                                alt=""
+                                className="h-3.5 w-3.5"
+                              />
+                              {k}
+                            </span>
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-zinc-100 text-[#6B7280] font-medium">
                               {count}
                             </span>
                           </button>
@@ -307,43 +305,26 @@ export default function NewApplicantActivitiesPage() {
                 {/* Main */}
                 <main className="col-span-9">
                   <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2">
-                      {(["Calls", "Inbox", "Interview"] as const).map((t) => {
-                        const isActive = active === t;
-                        return (
-                          <button
-                            key={t}
-                            onClick={() => setActive(t)}
-                            className={`text-xs px-3 py-1.5 rounded-xl border transition ${
-                              isActive
-                                ? "border-teal-200 bg-white text-gray-600"
-                                : "border-zinc-200 bg-white/60 text-gray-600 hover:bg-white"
-                            }`}
-                          >
-                            {t}
-                          </button>
-                        );
-                      })}
-                    </div>
+                    <div />
 
                     <div className="flex items-center gap-2">
-                      <button className="text-xs px-4 py-2 rounded-2xl border border-zinc-200 bg-white/70 hover:bg-white transition">
+                      <button className="text-xs px-4 py-2 rounded-lg border border-[#99D8D3] bg-white text-[#0D9488] hover:bg-[#F8FAFC] transition">
                         + Add a call log
                       </button>
-                      <button className="text-xs px-4 py-2 rounded-2xl border border-zinc-200 bg-white/70 hover:bg-white transition flex items-center gap-2">
-                        <Phone className="w-4 h-4 text-teal-700" />
+                      <button className="text-xs px-4 py-2 rounded-lg border border-zinc-200 bg-zinc-100 text-[#9CA3AF] transition flex items-center gap-2">
+                        <img src="/icons/admin-recruiter/phone.svg" alt="" className="h-4 w-4 opacity-60" />
                         Call
                       </button>
                     </div>
                   </div>
 
                   {active !== "Calls" ? (
-                    <div className="bg-white/70 border border-[#9CC3FF]/25 rounded-2xl p-6 text-sm text-gray-600">
+                    <div className="rounded-md border border-[#D1D5DB] p-6 text-sm text-[#6B7280]">
                       {active} for {candidateName} — connect an inbox or interview data source to show items
                       here.
                     </div>
                   ) : leftNav === "History" ? (
-                    <div className="bg-white/70 border border-[#9CC3FF]/25 rounded-2xl p-6 text-sm text-gray-600">
+                    <div className="rounded-md border border-[#D1D5DB] p-6 text-sm text-[#6B7280]">
                       {historyCount > 0 ? (
                         <p>
                           Last profile update tracked from onboarding activity. Full history export can be
@@ -354,19 +335,22 @@ export default function NewApplicantActivitiesPage() {
                       )}
                     </div>
                   ) : (
-                    <div className="bg-white/70 border border-[#9CC3FF]/25 rounded-2xl p-5">
+                    <div className="rounded-md border border-[#D1D5DB] p-5">
                       <div className="flex items-center justify-between mb-4">
-                        <div className="text-sm font-semibold text-gray-600">Call History</div>
-                        <div className="text-xs text-gray-600">
+                        <div className="inline-flex items-center gap-2 text-[20px] font-semibold leading-7 text-[#1F2937]">
+                          <img src="/icons/admin-recruiter/phone.svg" alt="" className="h-5 w-5" />
+                          Call History
+                        </div>
+                        <div className="text-xs text-[#6B7280]">
                           Actions taken{" "}
-                          <span className="font-medium text-gray-600">{callLogs.length}</span>
+                          <span className="font-semibold text-[#111827]">{callLogs.length}</span>
                         </div>
                       </div>
 
                       {callLogs.length === 0 ? (
-                        <div className="text-sm text-gray-600 py-10 text-center border border-dashed border-zinc-200 rounded-2xl">
+                        <div className="text-sm text-[#6B7280] py-10 text-center border border-dashed border-[#D1D5DB] rounded-md">
                           No call logs recorded for{" "}
-                          <span className="font-medium text-gray-600">{candidateName}</span> yet. Call logs
+                          <span className="font-medium text-[#374151]">{candidateName}</span> yet. Call logs
                           can be stored in a future call-log table and loaded here.
                         </div>
                       ) : (
@@ -383,7 +367,7 @@ export default function NewApplicantActivitiesPage() {
                               >
                                 <div className="col-span-6 flex items-start gap-3">
                                   <div className="w-9 h-9 rounded-full bg-teal-600/10 flex items-center justify-center shrink-0">
-                                    <Phone className="w-4 h-4 text-teal-700" />
+                                    <img src="/icons/admin-recruiter/phone.svg" alt="" className="w-4 h-4" />
                                   </div>
                                   <div className="min-w-0">
                                     <div className="text-xs font-medium text-gray-600 truncate">
