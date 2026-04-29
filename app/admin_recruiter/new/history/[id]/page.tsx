@@ -283,7 +283,7 @@ export default function NewApplicantHistoryPage() {
             />
             <DetailedTabs applicantId={applicantId} activeTab="History" />
 
-            <div className="mx-auto h-[896px] w-full max-w-[1300px] rounded-md border border-[#D1D5DB] p-5">
+            <div className="mx-auto w-full max-w-[1300px] rounded-md border border-[#D1D5DB] p-5">
               <div className="flex flex-col gap-5">
                 <div className="text-sm font-semibold text-[#374151]">
                   Actions taken <span className="font-semibold text-[#111827]">{loading ? "—" : historyCount}</span>

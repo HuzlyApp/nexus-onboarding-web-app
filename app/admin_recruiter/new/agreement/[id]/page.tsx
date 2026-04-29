@@ -10,10 +10,8 @@ import {
   Calendar,
   Download,
   Eye,
-  FileText,
   LogOut,
   Menu,
-  Plus,
   Settings,
   UserCheck,
   UserPlus,
@@ -33,14 +31,6 @@ type WorkerProfile = {
 type WorkerProfileResponse = {
   worker: WorkerProfile;
 };
-
-function initials(name: string) {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "NA";
-  const first = parts[0]?.[0] ?? "";
-  const last = parts[parts.length - 1]?.[0] ?? "";
-  return (first + last).toUpperCase();
-}
 
 export default function NewApplicantAgreementPage() {
   const pathname = usePathname();
@@ -87,7 +77,6 @@ export default function NewApplicantAgreementPage() {
   }, [applicant]);
 
   const candidateRole = applicant?.job_role || "N/A";
-  const statusLabel = applicant?.status_label?.trim() || "New Applicant";
 
   return (
     <div className="flex min-h-screen bg-zinc-50 overflow-hidden">
@@ -218,175 +207,76 @@ export default function NewApplicantAgreementPage() {
             />
             <DetailedTabs applicantId={applicantId} activeTab="Agreement" />
 
-            <div className="mx-auto w-full max-w-[1300px] rounded-md border border-[#E5E7EB] bg-white p-5">
-              <div className="hidden p-6 items-start justify-between gap-6 border-b border-[#9CC3FF]/30 bg-white/40">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-full bg-teal-600 text-white flex items-center justify-center font-semibold text-sm">
-                    {initials(candidateName)}
-                  </div>
-                  <div>
-                    <div className="text-lg font-semibold text-gray-600">
-                      {loading ? "Loading..." : candidateName}
+            <div className="mx-auto w-full max-w-[1300px]">
+              <div className="space-y-6">
+                <section className="rounded-md border border-[#D1D5DB]">
+                  <div className="flex items-center justify-between border-b border-[#E5E7EB] px-5 py-3">
+                    <div className="text-[16px] font-semibold leading-6 text-[#111827]">
+                      1. Employee Agreement W2
                     </div>
-                    <div className="text-xs text-gray-600">{candidateRole}</div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <span className="text-[11px] px-3 py-1 rounded-full bg-white/70 border border-zinc-200 text-gray-600 font-medium">
-                    {loading ? "…" : statusLabel}
-                  </span>
-                  <button className="bg-white/70 border border-[#9CC3FF] text-gray-600 px-5 py-2.5 rounded-2xl hover:bg-white transition text-sm">
-                    <Plus className="inline-block w-4 h-4 mr-2" />
-                    New Appointment
-                  </button>
-                </div>
-              </div>
-
-              <div className="border-b border-[#9CC3FF]/20 bg-white/30" />
-
-              <div className="p-6 space-y-8 max-w-3xl">
-                {/* 1. Agreement 1 */}
-                <section>
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="text-sm font-semibold text-gray-600">1. Agreement 1</div>
-                    <div className="text-xs text-gray-600">
-                      Not uploaded <span className="font-medium text-gray-600">0</span> of{" "}
-                      <span className="font-medium text-gray-600">1</span>
+                    <div className="text-sm text-[#6B7280]">
+                      Signed <span className="font-semibold text-[#111827]">1</span> of{" "}
+                      <span className="font-semibold text-[#111827]">1</span>
                     </div>
                   </div>
-                  <div className="rounded-2xl border border-dashed border-zinc-200 bg-white/80 p-6">
-                    <div className="flex items-start gap-4">
-                      <div className="w-12 h-12 rounded-xl bg-teal-600/10 flex items-center justify-center shrink-0">
-                        <FileText className="w-6 h-6 text-teal-700" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium text-gray-600">Agreement 1</div>
-                        <p className="text-xs text-gray-600 mt-1">
-                          Placeholder for the first agreement package. Connect storage or e-sign when ready.
-                        </p>
-                        <div className="flex flex-wrap gap-2 mt-4">
-                          <button
-                            type="button"
-                            className="text-xs px-4 py-2 rounded-2xl bg-teal-600 text-white hover:bg-teal-700 transition"
-                          >
-                            Request to Upload
-                          </button>
-                          <button
-                            type="button"
-                            className="text-xs px-4 py-2 rounded-2xl border border-zinc-200 bg-white hover:bg-zinc-50 transition"
-                          >
-                            Reject
-                          </button>
+                  <div className="flex items-center justify-between gap-4 px-5 py-3">
+                    <div className="flex h-[50px] w-[306px] min-w-[306px] items-center gap-2 rounded-[8px] border border-[#99D8D3] bg-[#F8FAFC] px-3 py-2">
+                      <img src="/icons/jpeg-icon.svg" alt="" className="h-6 w-6 shrink-0" />
+                      <div className="min-w-0">
+                        <div className="truncate text-xs font-semibold leading-4 tracking-[0.01em] text-[#0D9488]">
+                          Employee Agreement W2.pdf
+                        </div>
+                        <div className="text-xs font-normal leading-4 tracking-[0.01em] text-[#6B7280]">
+                          7.23 MB
                         </div>
                       </div>
+                      <span className="ml-auto rounded-md bg-[#7BE2DB] px-2 py-1 text-[10px] font-semibold text-[#0D9488]">
+                        Signed
+                      </span>
                     </div>
-                  </div>
-                </section>
-
-                {/* 2. Employee Agreement W2 */}
-                <section>
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="text-sm font-semibold text-gray-600">2. Employee Agreement W2</div>
-                    <div className="text-xs text-gray-600">
-                      Signed <span className="font-medium text-gray-600">1</span> of{" "}
-                      <span className="font-medium text-gray-600">1</span>
-                    </div>
-                  </div>
-                  <div className="rounded-2xl border border-[#9CC3FF]/30 bg-white/90 p-5">
-                    <div className="rounded-2xl border border-teal-200 bg-teal-50/60 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                      <div className="flex items-start gap-3 min-w-0">
-                        <div className="w-10 h-10 rounded-lg bg-white border border-teal-200 flex items-center justify-center text-[10px] font-semibold text-teal-800 shrink-0">
-                          PDF
-                        </div>
-                        <div className="min-w-0">
-                          <div className="text-xs font-medium text-teal-800 truncate">
-                            Employee Agreement W2.pdf
-                          </div>
-                          <div className="text-[11px] text-gray-600">7.23 MB</div>
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-2 justify-end">
-                        <span className="text-[11px] px-3 py-1 rounded-full bg-teal-600 text-white font-medium">
-                          Signed
-                        </span>
-                        <button
-                          type="button"
-                          className="w-9 h-9 rounded-2xl border border-zinc-200 bg-white hover:bg-zinc-50 flex items-center justify-center"
-                          aria-label="View"
-                        >
-                          <Eye className="w-4 h-4 text-teal-700" />
-                        </button>
-                        <button
-                          type="button"
-                          className="text-xs px-4 py-2 rounded-2xl bg-teal-600 text-white hover:bg-teal-700 transition"
-                        >
-                          Approved
-                        </button>
-                        <button
-                          type="button"
-                          className="text-xs px-4 py-2 rounded-2xl border border-teal-600 text-teal-700 hover:bg-teal-50 transition"
-                        >
-                          Reject
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </section>
-
-                {/* 3. I9 Form */}
-                <section>
-                  <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-                    <div className="text-sm font-semibold text-gray-600">3. I9 Form</div>
                     <div className="flex items-center gap-3">
-                      <div className="text-xs text-gray-600">
-                        Uploaded <span className="font-medium text-gray-600">1</span> of{" "}
-                        <span className="font-medium text-gray-600">1</span>
-                      </div>
-                      <button
-                        type="button"
-                        className="w-9 h-9 rounded-2xl border border-zinc-200 bg-white hover:bg-zinc-50 flex items-center justify-center"
-                        aria-label="View"
-                      >
-                        <Eye className="w-4 h-4 text-teal-700" />
+                      <Eye className="h-5 w-5 text-[#0D9488]" />
+                      <button className="inline-flex h-8 items-center justify-center rounded-md bg-[#0D9488] px-4 text-xs font-semibold text-white">
+                        Approved
                       </button>
-                      <a
-                        href="#"
-                        className="w-9 h-9 rounded-2xl border border-zinc-200 bg-white hover:bg-zinc-50 flex items-center justify-center"
-                        aria-label="Download"
-                      >
-                        <Download className="w-4 h-4 text-teal-700" />
-                      </a>
+                      <button className="inline-flex h-8 items-center justify-center rounded-md border border-[#99D8D3] px-4 text-xs font-semibold text-[#0D9488]">
+                        Reject
+                      </button>
                     </div>
                   </div>
-                  <div className="rounded-2xl border border-[#9CC3FF]/30 bg-white/90 p-5">
-                    <div className="rounded-2xl border border-teal-200 bg-teal-50/60 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                      <div className="flex items-start gap-3 min-w-0">
-                        <div className="w-10 h-10 rounded-lg bg-white border border-teal-200 flex items-center justify-center text-[10px] font-semibold text-teal-800 shrink-0">
-                          PDF
+                </section>
+
+                <section className="rounded-md border border-[#D1D5DB]">
+                  <div className="flex items-center justify-between border-b border-[#E5E7EB] px-5 py-3">
+                    <div className="text-[16px] font-semibold leading-6 text-[#111827]">2. I9 Form</div>
+                    <div className="text-sm text-[#6B7280]">
+                      Uploaded <span className="font-semibold text-[#111827]">1</span> of{" "}
+                      <span className="font-semibold text-[#111827]">1</span>
+                    </div>
+                  </div>
+                  <div className="border-b border-[#E5E7EB] px-5 py-3 text-sm text-[#6B7280]">
+                    <span className="font-semibold text-[#111827]">I9 Form</span>
+                    <span className="ml-3">Uploaded: April 20, 2026</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4 px-5 py-3">
+                    <div className="flex h-[50px] w-[306px] min-w-[306px] items-center gap-2 rounded-[8px] border border-[#99D8D3] bg-[#F8FAFC] px-3 py-2">
+                      <img src="/icons/jpeg-icon.svg" alt="" className="h-6 w-6 shrink-0" />
+                      <div className="min-w-0">
+                        <div className="truncate text-xs font-semibold leading-4 tracking-[0.01em] text-[#0D9488]">
+                          I9 Form.pdf
                         </div>
-                        <div className="min-w-0">
-                          <div className="text-xs font-medium text-teal-800 truncate">I9 Form.pdf</div>
-                          <div className="text-[11px] text-gray-600">5.23 MB</div>
-                        </div>
+                        <div className="text-xs font-normal leading-4 tracking-[0.01em] text-[#6B7280]">5.23 MB</div>
                       </div>
-                      <div className="flex flex-wrap items-center gap-2 justify-end">
-                        <span className="text-[11px] px-3 py-1 rounded-full border border-teal-600 text-teal-700 font-medium bg-white">
-                          Unsigned
-                        </span>
-                        <button
-                          type="button"
-                          className="text-xs px-4 py-2 rounded-2xl bg-teal-600 text-white hover:bg-teal-700 transition"
-                        >
-                          Request to Upload
-                        </button>
-                        <button
-                          type="button"
-                          className="text-xs px-4 py-2 rounded-2xl border border-teal-600 text-teal-700 hover:bg-teal-50 transition"
-                        >
-                          Reject
-                        </button>
-                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Eye className="h-5 w-5 text-[#0D9488]" />
+                      <Download className="h-5 w-5 text-[#0D9488]" />
+                      <button className="inline-flex h-8 items-center justify-center rounded-md bg-[#0D9488] px-4 text-xs font-semibold text-white">
+                        Approved
+                      </button>
+                      <button className="inline-flex h-8 items-center justify-center rounded-md border border-[#99D8D3] px-4 text-xs font-semibold text-[#0D9488]">
+                        Reject
+                      </button>
                     </div>
                   </div>
                 </section>
