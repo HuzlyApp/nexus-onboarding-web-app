@@ -24,10 +24,10 @@ export default function DetailedCandidateHeader({
           />
           <div>
             <div className="text-base font-semibold leading-6 text-[#0D9488]">
-              {loading ? "John Doe" : name || "John Doe"}
+              {loading ? "Loading applicant..." : name || "Unknown applicant"}
             </div>
             <div className="mt-0.5 text-xs font-normal leading-4 text-[#4B5563]">
-              {role || "Licensed Practical Nurse , LPN"}
+              {role || "Role not provided"}
             </div>
           </div>
         </div>

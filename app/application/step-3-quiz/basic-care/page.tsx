@@ -13,7 +13,6 @@ import {
 } from "@/lib/basic-patient-care-category"
 import { ChevronRight } from "lucide-react"
 import {
-  mergeQuestionCatalogWithDb,
   remapLegacySyntheticAnswerKeys,
 } from "@/lib/merge-skill-quiz-catalog"
 import { fetchApplicantSkillAnswers } from "@/lib/skill-assessment-answer-rows"
@@ -22,60 +21,6 @@ import AutosaveStatus from "@/app/components/AutosaveStatus"
 
 const CATEGORY_SLUG = "basic-care"
 const PAGE_SIZE = 5
-const BASIC_CARE_QUESTION_CONTENT = [
-  {
-    quiz_number: 1,
-    question: "Activities of daily living",
-    description:
-      "(e.g., bathing: sitz, tub, bed, shower; mouth care; nail care; elimination needs)",
-  },
-  {
-    quiz_number: 2,
-    question: "Body alignment and positioning",
-    description: "(includes range of motion)",
-  },
-  {
-    quiz_number: 3,
-    question: "Skin care",
-    description: "(includes decubitus care)",
-  },
-  {
-    quiz_number: 4,
-    question: "Nutritional check and support",
-    description: null,
-  },
-  {
-    quiz_number: 5,
-    question: "Provide comfort, safety, and privacy",
-    description: null,
-  },
-  {
-    quiz_number: 6,
-    question: "Hand hygiene",
-    description: null,
-  },
-  {
-    quiz_number: 7,
-    question: "Restraints",
-    description: "(use and monitoring)",
-  },
-  {
-    quiz_number: 8,
-    question: "Enemas and suppositories.",
-    description: "(cleansing, retention, Harris flush)",
-  },
-  {
-    quiz_number: 9,
-    question: "Ear drops and topical medication application",
-    description: null,
-  },
-  {
-    quiz_number: 10,
-    question: "Binders",
-    description: null,
-  },
-] as const
-
 type QuestionRow = {
   id: string
   question: string
@@ -172,7 +117,7 @@ export default function BasicCareQuiz() {
 
       let qBuilder = supabase
         .from("skill_questions")
-        .select("id, question, quiz_number")
+        .select("id, question, quiz_number, description")
         .eq("category_id", cat.id)
         .order("quiz_number", { ascending: true, nullsFirst: false })
 
@@ -180,20 +125,27 @@ export default function BasicCareQuiz() {
         qBuilder = qBuilder.limit(BASIC_PATIENT_CARE_QUESTION_LIMIT)
       }
 
-      const { data: qs, error: qErr } = await qBuilder
+      let qs: unknown[] | null = null
+      let qErr: unknown = null
+      const withDescription = await qBuilder
+      if (withDescription.error && String((withDescription.error as { code?: string }).code) === "42703") {
+        const fallbackBuilder = supabase
+          .from("skill_questions")
+          .select("id, question, quiz_number")
+          .eq("category_id", cat.id)
+          .order("quiz_number", { ascending: true, nullsFirst: false })
+        const fallback = cat.id === BASIC_PATIENT_CARE_CATEGORY_ID
+          ? await fallbackBuilder.limit(BASIC_PATIENT_CARE_QUESTION_LIMIT)
+          : await fallbackBuilder
+        qs = fallback.data as unknown[] | null
+        qErr = fallback.error
+      } else {
+        qs = withDescription.data as unknown[] | null
+        qErr = withDescription.error
+      }
 
       if (qErr) throw qErr
-      const ordered = (qs ?? []) as QuestionRow[]
-      let displayQuestions: QuestionRow[]
-      try {
-        displayQuestions = mergeQuestionCatalogWithDb(BASIC_CARE_QUESTION_CONTENT, ordered)
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : "Could not load quiz questions from the database"
-        setLoadError(msg)
-        setQuestions([])
-        setLoading(false)
-        return
-      }
+      const displayQuestions = (qs ?? []) as QuestionRow[]
       setQuestions(displayQuestions)
 
       const { data: userData } = await supabase.auth.getUser()

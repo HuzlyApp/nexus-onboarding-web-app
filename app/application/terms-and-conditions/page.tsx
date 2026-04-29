@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import OnboardingCheckbox from "@/app/components/OnboardingCheckbox"
 
@@ -9,26 +9,48 @@ type TermsSection = {
   content: string
 }
 
-const TERMS_SECTIONS: TermsSection[] = [
-  { title: "1. Acceptance", content: "By using Nexus MedPro Staffing, you agree to these Terms & Conditions." },
-  { title: "2. Eligibility", content: "You must provide true details and valid work credentials." },
-  { title: "3. Account Use", content: "Keep your login details safe. You are responsible for account activity." },
-  { title: "4. Resume Data", content: "You allow us to parse resume details and use them for onboarding." },
-  { title: "5. Background Verification", content: "Some roles may require document checks and credential verification." },
-  { title: "6. Communication", content: "You agree to receive email/SMS updates for onboarding progress." },
-  { title: "7. Privacy", content: "Your personal information is handled according to our privacy policy." },
-  { title: "8. Prohibited Conduct", content: "Do not provide fake details or misuse the platform in any way." },
-  { title: "9. Liability", content: "Nexus MedPro Staffing is not responsible for indirect or incidental damages." },
-  { title: "10. Governing Law", content: "These Terms are governed by applicable local laws." },
-]
-
 export default function TermsAndConditionsPage() {
   const router = useRouter()
   const scrollRef = useRef<HTMLDivElement>(null)
   const [isAtBottom, setIsAtBottom] = useState(false)
   const [agreed, setAgreed] = useState(false)
+  const [content, setContent] = useState<TermsSection[]>([])
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
-  const content = useMemo(() => TERMS_SECTIONS, [])
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      setLoading(true)
+      setLoadError(null)
+      try {
+        const res = await fetch("/api/onboarding/terms", { cache: "no-store" })
+        const json = (await res.json()) as Array<{ title?: unknown; content?: unknown }> & {
+          error?: string
+        }
+        if (!res.ok) throw new Error((json as { error?: string }).error || "Failed to load terms")
+        if (cancelled) return
+        const rows = Array.isArray(json)
+          ? json
+              .map((row) => ({
+                title: typeof row.title === "string" ? row.title : "",
+                content: typeof row.content === "string" ? row.content : "",
+              }))
+              .filter((row) => row.title && row.content)
+          : []
+        setContent(rows)
+      } catch (err) {
+        if (cancelled) return
+        setLoadError(err instanceof Error ? err.message : "Failed to load terms")
+        setContent([])
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     const el = scrollRef.current
@@ -70,20 +92,27 @@ export default function TermsAndConditionsPage() {
           onScroll={handleScroll}
           className="mt-5 h-[420px] overflow-y-auto rounded-lg border border-slate-200 p-4 md:p-6"
         >
-          <div className="space-y-5">
-            {content.map((section) => (
-              <div key={section.title}>
-                <h2 className="text-base font-semibold text-slate-900">{section.title}</h2>
-                <p className="mt-1 text-sm leading-6 text-slate-700">{section.content}</p>
-              </div>
-            ))}
-            <p className="pt-2 text-sm font-medium text-slate-900">
-              By accepting, you confirm that you have read and understood these Terms & Conditions.
-            </p>
-          </div>
+          {loading ? <p className="text-sm text-slate-600">Loading terms...</p> : null}
+          {!loading && loadError ? <p className="text-sm text-red-700">{loadError}</p> : null}
+          {!loading && !loadError && content.length === 0 ? (
+            <p className="text-sm text-slate-600">No terms content is available yet.</p>
+          ) : null}
+          {!loading && !loadError && content.length > 0 ? (
+            <div className="space-y-5">
+              {content.map((section) => (
+                <div key={section.title}>
+                  <h2 className="text-base font-semibold text-slate-900">{section.title}</h2>
+                  <p className="mt-1 text-sm leading-6 text-slate-700">{section.content}</p>
+                </div>
+              ))}
+              <p className="pt-2 text-sm font-medium text-slate-900">
+                By accepting, you confirm that you have read and understood these Terms & Conditions.
+              </p>
+            </div>
+          ) : null}
         </div>
 
-        {isAtBottom ? (
+        {!loading && !loadError && content.length > 0 && isAtBottom ? (
           <div className="mt-5">
             <OnboardingCheckbox
               checked={agreed}
@@ -104,9 +133,9 @@ export default function TermsAndConditionsPage() {
               </button>
             </div>
           </div>
-        ) : (
+        ) : !loading && !loadError && content.length > 0 ? (
           <p className="mt-4 text-sm text-slate-600">Please scroll to the bottom to accept.</p>
-        )}
+        ) : null}
       </div>
     </div>
   )

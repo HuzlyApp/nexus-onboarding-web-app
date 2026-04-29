@@ -18,21 +18,11 @@ import AutosaveStatus from "@/app/components/AutosaveStatus"
 
 type ContactConflictKind = "email" | "phone"
 
-const US_STATES = [
-  "Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado", "Connecticut", "Delaware",
-  "Florida", "Georgia", "Hawaii", "Idaho", "Illinois", "Indiana", "Iowa", "Kansas", "Kentucky",
-  "Louisiana", "Maine", "Maryland", "Massachusetts", "Michigan", "Minnesota", "Mississippi",
-  "Missouri", "Montana", "Nebraska", "Nevada", "New Hampshire", "New Jersey", "New Mexico",
-  "New York", "North Carolina", "North Dakota", "Ohio", "Oklahoma", "Oregon", "Pennsylvania",
-  "Rhode Island", "South Carolina", "South Dakota", "Tennessee", "Texas", "Utah", "Vermont",
-  "Virginia", "Washington", "West Virginia", "Wisconsin", "Wyoming",
-]
-
-const POPULAR_CITIES = [
-  "Los Angeles", "San Diego", "San Francisco", "Sacramento", "Phoenix", "Las Vegas",
-  "Dallas", "Houston", "Austin", "Chicago", "Miami", "Orlando", "Atlanta", "New York",
-  "Brooklyn", "Queens", "Boston", "Seattle", "Portland", "Denver", "Nashville", "Charlotte",
-]
+type FormOptionsPayload = {
+  states: string[]
+  cities: string[]
+  jobRoles: string[]
+}
 
 type EditableInputProps = {
   label: string
@@ -223,6 +213,11 @@ function Step1ReviewContent() {
   })
 
   const [loading, setLoading] = useState(false)
+  const [optionsLoading, setOptionsLoading] = useState(true)
+  const [optionsError, setOptionsError] = useState<string | null>(null)
+  const [stateOptions, setStateOptions] = useState<string[]>([])
+  const [cityOptions, setCityOptions] = useState<string[]>([])
+  const [jobRoleOptions, setJobRoleOptions] = useState<string[]>([])
   const [autosaveState, setAutosaveState] = useState<"idle" | "saving" | "saved">("idle")
   /** Duplicate contact conflict: banner + field highlight (matches design mock). */
   const [fieldConflict, setFieldConflict] = useState<{
@@ -269,6 +264,35 @@ function Step1ReviewContent() {
       console.error("Failed to parse resume data", e)
     }
   }, [urlJobTitle])
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      setOptionsLoading(true)
+      setOptionsError(null)
+      try {
+        const res = await fetch("/api/onboarding/form-options", { cache: "no-store" })
+        const json = (await res.json()) as FormOptionsPayload & { error?: string }
+        if (!res.ok) throw new Error(json.error || "Could not load form options")
+        if (cancelled) return
+        setStateOptions(Array.isArray(json.states) ? json.states : [])
+        setCityOptions(Array.isArray(json.cities) ? json.cities : [])
+        setJobRoleOptions(Array.isArray(json.jobRoles) ? json.jobRoles : [])
+      } catch (err) {
+        if (cancelled) return
+        const msg = err instanceof Error ? err.message : "Could not load form options"
+        setOptionsError(msg)
+        setStateOptions([])
+        setCityOptions([])
+        setJobRoleOptions([])
+      } finally {
+        if (!cancelled) setOptionsLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     if (!urlJobTitle) return
@@ -506,7 +530,8 @@ function Step1ReviewContent() {
           )
         }
         if (existing?.id) {
-          const { user_id: _u, ...updatePayload } = workerRow as Record<string, unknown>
+          const updatePayload = { ...(workerRow as Record<string, unknown>) }
+          delete updatePayload.user_id
           const { error: upErr } = await supabase.from("worker").update(updatePayload).eq("id", existing.id)
           if (upErr) {
             throw new Error(
@@ -677,7 +702,7 @@ function Step1ReviewContent() {
                   required
                   value={form.city}
                   placeholder="Select City"
-                  options={POPULAR_CITIES}
+                  options={cityOptions}
                   onChange={(value) => handleChange("city", value)}
                 />
                 <SearchableSelect
@@ -685,9 +710,21 @@ function Step1ReviewContent() {
                   required
                   value={form.state}
                   placeholder="Select State"
-                  options={US_STATES}
+                  options={stateOptions}
                   onChange={(value) => handleChange("state", value)}
                 />
+              </div>
+              <div className="flex flex-wrap gap-4 text-xs">
+                {optionsLoading ? <span className="text-slate-500">Loading city/state/job options…</span> : null}
+                {!optionsLoading && optionsError ? (
+                  <span className="text-red-600">{optionsError}</span>
+                ) : null}
+                {!optionsLoading && !optionsError && cityOptions.length === 0 ? (
+                  <span className="text-amber-700">No city options available yet.</span>
+                ) : null}
+                {!optionsLoading && !optionsError && stateOptions.length === 0 ? (
+                  <span className="text-amber-700">No state options available yet.</span>
+                ) : null}
               </div>
 
               {fieldConflict?.bannerVisible ? (
@@ -857,13 +894,13 @@ function Step1ReviewContent() {
                       <option value="" disabled>
                         Select Job Title
                       </option>
-                      <option value="CNA">CNA</option>
-                      <option value="RN">RN</option>
-                      <option value="LVN">LVN</option>
-                      <option value="Medical Assistant">Medical Assistant</option>
-                      <option value="Caregiver">Caregiver</option>
+                      {jobRoleOptions.map((role) => (
+                        <option key={role} value={role}>
+                          {role}
+                        </option>
+                      ))}
                       {form.jobRole &&
-                      !["CNA", "RN", "LVN", "Medical Assistant", "Caregiver"].includes(form.jobRole) ? (
+                      !jobRoleOptions.includes(form.jobRole) ? (
                         <option value={form.jobRole}>{form.jobRole}</option>
                       ) : null}
                     </select>

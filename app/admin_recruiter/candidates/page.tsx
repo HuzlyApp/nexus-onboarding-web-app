@@ -115,9 +115,34 @@ export default function CandidatesPage() {
   const [editColumnsOpen, setEditColumnsOpen] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const [headerName, setHeaderName] = useState("User");
+  const [headerRole, setHeaderRole] = useState("Staff");
 
   useEffect(() => {
     setListColumnOrder(loadColumnOrder());
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/auth/session", { cache: "no-store" });
+        const json = (await res.json()) as { displayName?: string; role?: string };
+        if (!res.ok || cancelled) return;
+        if (typeof json.displayName === "string" && json.displayName.trim()) {
+          setHeaderName(json.displayName.trim());
+        }
+        if (typeof json.role === "string" && json.role.trim()) {
+          const role = json.role.trim();
+          setHeaderRole(role.charAt(0).toUpperCase() + role.slice(1));
+        }
+      } catch {
+        // Keep generic identity when unauthenticated.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const loadCandidates = useCallback(async () => {
@@ -252,12 +277,12 @@ export default function CandidatesPage() {
 
             <div className="flex items-center gap-2">
               <div className="text-right hidden sm:block leading-tight">
-                <div className="font-semibold text-sm text-[#2d3a39]">Sean Smith</div>
-                <div className="text-[10px] text-[#8ca09e]">Manager</div>
+                <div className="font-semibold text-sm text-[#2d3a39]">{headerName}</div>
+                <div className="text-[10px] text-[#8ca09e]">{headerRole}</div>
               </div>
               <img
-                src="https://i.pravatar.cc/128?u=sean"
-                alt="Sean Smith"
+                src={`https://i.pravatar.cc/128?u=${encodeURIComponent(headerName)}`}
+                alt={headerName}
                 className="w-8 h-8 rounded-full object-cover"
               />
             </div>

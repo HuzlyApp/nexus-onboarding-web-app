@@ -128,7 +128,10 @@ export async function GET(req: NextRequest) {
       totalAssessments = saRows.length
       completedAssessments = saRows.filter((r) => (r as { completed?: boolean }).completed === true).length
     } else {
-      totalAssessments = 6
+      const { count: categoryCount } = await supabase
+        .from("skill_categories")
+        .select("id", { count: "exact", head: true })
+      totalAssessments = Math.max(0, categoryCount ?? 0)
       completedAssessments = 0
     }
 
