@@ -270,7 +270,7 @@ export default function NewApplicantProfileResumePage() {
             </div>
           </div>
 
-          <div className="relative bg-gradient-to-r from-[#F7FAFF] via-white to-[#F7FAFF] border border-[#9CC3FF]/30 rounded-3xl overflow-hidden">
+          <div className="relative">
             <div className="hidden p-6 items-center justify-between">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-2xl bg-white border border-zinc-200 grid place-items-center text-gray-600">
@@ -337,7 +337,7 @@ export default function NewApplicantProfileResumePage() {
               </div>
             </div>
 
-            <div className="px-6 pb-6">
+            <div className="px-0 pb-0">
               {error ? (
                 <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
                   {error}
@@ -361,7 +361,7 @@ export default function NewApplicantProfileResumePage() {
               ) : null}
 
               {!loading && resumeUrl ? (
-                <div className="bg-[#2A2A2A] rounded-2xl overflow-hidden border border-black/10">
+                <div className="h-[852px] w-full bg-[#2A2A2A] rounded-lg overflow-hidden border border-black/10">
                   <div className="h-11 flex items-center px-4 text-white/85 bg-black/15 text-xs justify-between">
                     <span className="truncate">{fileLabel(resumePath)}</span>
                     <a
@@ -377,7 +377,7 @@ export default function NewApplicantProfileResumePage() {
                     <iframe
                       title="Resume PDF"
                       src={resumeUrl}
-                      className="w-full min-h-[72vh] bg-zinc-100"
+                      className="h-[calc(852px-44px)] w-full bg-zinc-100"
                     />
                   ) : (
                     <div className="p-8 text-center text-white/90 text-sm">
