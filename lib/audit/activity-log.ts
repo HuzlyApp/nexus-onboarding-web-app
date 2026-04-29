@@ -26,7 +26,7 @@ export async function writeActivityLog(input: ActivityLogInput): Promise<void> {
     null;
   const userAgent = headers?.get("user-agent") || null;
 
-  const { error } = await supabase.from("activity_log").insert({
+  const payloadV1 = {
     actor_user_id: input.actorUserId,
     action: input.action,
     entity_type: input.entityType,
@@ -34,9 +34,42 @@ export async function writeActivityLog(input: ActivityLogInput): Promise<void> {
     metadata: input.metadata ?? {},
     ip,
     user_agent: userAgent,
-  });
+  };
 
-  if (error) {
+  const { error } = await supabase.from("activity_log").insert(payloadV1);
+  if (!error) return;
+
+  const isMissingActivityLogTable =
+    /activity_log/i.test(error.message) &&
+    /not find|does not exist|schema cache/i.test(error.message);
+
+  if (!isMissingActivityLogTable) {
     console.error("[activity_log] insert failed:", error.message);
+    return;
+  }
+
+  // Backward compatibility: some environments use `activity_logs` schema.
+  const entityId =
+    typeof input.entityId === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      input.entityId.trim(),
+    )
+      ? input.entityId.trim()
+      : null;
+  const payloadV0 = {
+    user_id: input.actorUserId,
+    action: input.action,
+    entity_type: input.entityType,
+    entity_id: entityId,
+    details: {
+      ...(input.metadata ?? {}),
+      ip,
+      user_agent: userAgent,
+    },
+  };
+
+  const { error: fallbackError } = await supabase.from("activity_logs").insert(payloadV0);
+  if (fallbackError) {
+    console.error("[activity_log] insert failed:", fallbackError.message);
   }
 }

@@ -28,6 +28,13 @@ function titleCaseStatus(s: string | null | undefined): string {
   return v.charAt(0).toUpperCase() + v.slice(1)
 }
 
+type ZohoSignRow = {
+  request_id: string | null
+  zoho_document_id: string | null
+  status: string | null
+  updated_at: string | null
+}
+
 export async function GET(req: NextRequest) {
   try {
     const workerIdRaw = req.nextUrl.searchParams.get("workerId")?.trim() || ""
@@ -106,9 +113,14 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const { data: docRow } = await supabase.from("worker_documents").select("*").eq("worker_id", workerId).maybeSingle()
+    const { data: docRow } = await supabase
+      .from("worker_documents")
+      .select("*")
+      .eq("worker_id", workerId)
+      .maybeSingle()
 
     const docs = (docRow ?? null) as Record<string, unknown> | null
+    const workerEmail = w.email != null ? String(w.email).trim().toLowerCase() : ""
     const licenseOk = hasUrl(docs?.nursing_license_url)
     const tbOk = hasUrl(docs?.tb_test_url)
     const cprOk = hasUrl(docs?.cpr_certification_url)
@@ -201,6 +213,22 @@ export async function GET(req: NextRequest) {
     const statusRaw = (w.status ?? w.worker_status) as string | undefined
     const statusLabel = titleCaseStatus(statusRaw)
 
+    let zohoSign: ZohoSignRow | null = null
+    if (workerEmail) {
+      const { data: zohoRow, error: zohoErr } = await supabase
+        .from("zoho_sign_requests")
+        .select("request_id,zoho_document_id,status,updated_at")
+        .eq("email", workerEmail)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (zohoErr) {
+        console.warn("[admin/worker-profile] zoho_sign_requests", zohoErr)
+      } else {
+        zohoSign = (zohoRow as ZohoSignRow | null) ?? null
+      }
+    }
+
     void writeActivityLog({
       actorUserId: auth.devBypass ? null : auth.userId,
       action: isStaffRole(auth.role) ? "worker.profile.view" : "worker.profile.self_view",
@@ -265,6 +293,12 @@ export async function GET(req: NextRequest) {
           docs != null && docs.document_name != null ? String(docs.document_name) : null,
         document_id:
           docs != null && docs.document_id != null ? String(docs.document_id) : null,
+      },
+      zoho_sign: {
+        request_id: zohoSign?.request_id ?? null,
+        document_id: zohoSign?.zoho_document_id ?? null,
+        status: zohoSign?.status ?? null,
+        updated_at: zohoSign?.updated_at ?? null,
       },
       references,
       skillAssessments: { completed: saCompleted, total: saTotal },

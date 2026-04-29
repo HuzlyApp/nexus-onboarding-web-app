@@ -31,11 +31,20 @@ export async function GET(req: NextRequest) {
   try {
     const requestId = req.nextUrl.searchParams.get("request_id")?.trim() || "";
     const documentId = req.nextUrl.searchParams.get("document_id")?.trim() || "";
+    const specificDownload =
+      req.nextUrl.searchParams.get("specific") === "1" ||
+      req.nextUrl.searchParams.get("specific") === "true";
     const mode = (req.nextUrl.searchParams.get("mode") || "preview").toLowerCase();
 
     if (!requestId) {
       return NextResponse.json(
         { success: false, error: "Missing request_id query parameter" },
+        { status: 400 },
+      );
+    }
+    if (specificDownload && !documentId) {
+      return NextResponse.json(
+        { success: false, error: "Missing document_id query parameter for specific document download" },
         { status: 400 },
       );
     }
@@ -110,6 +119,8 @@ export async function GET(req: NextRequest) {
                 status: preferred.status,
                 content_type: preferred.content_type,
                 body: preferred.body_preview,
+                hint:
+                  "The request may be incomplete, document_id may be invalid, or the OAuth token may be unauthorized for this Zoho Sign data center.",
               }
             : { message: "No PDF paths attempted" },
           attempts,
