@@ -4,6 +4,7 @@ import { requireStaffApiSession } from "@/lib/auth/api-session"
 import { getSupabaseUrl } from "@/lib/supabase-env"
 
 type RpcRow = Record<string, unknown>
+type ContactLookupRow = { id: string | null; email: string | null; phone: string | null }
 type WorkerSelectClient = {
   from: (table: "worker") => {
     select: (columns: string) => PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>
@@ -32,8 +33,8 @@ async function fallbackNearbyWorkers(
 ): Promise<{ rows: RpcRow[]; error: string | null }> {
   const db = supabase as WorkerSelectClient
   const selectVariants = [
-    "id, first_name, last_name, job_role, city, state, address1, lat, lng",
-    "id, first_name, last_name, job_role, city, state, address1, latitude, longitude",
+    "id, user_id, first_name, last_name, job_role, email, phone, city, state, address1, zip, created_at, lat, lng",
+    "id, user_id, first_name, last_name, job_role, email, phone, city, state, address1, zip, created_at, latitude, longitude",
   ]
 
   let wk: Record<string, unknown>[] | null = null
@@ -103,13 +104,18 @@ function mapWorkerRow(
   const lng = typeof w.lng === "number" ? w.lng : typeof w.longitude === "number" ? w.longitude : opts.lng
   return {
     id: w.id,
+    user_id: w.user_id ?? null,
     first_name: w.first_name ?? "",
     last_name: w.last_name ?? "",
     job_role: w.job_role ?? "",
+    email: w.email ?? null,
+    phone: w.phone ?? null,
     city: w.city ?? null,
     state: w.state ?? null,
     address1: w.address1 ?? null,
+    zip: w.zip ?? null,
     address: (w.address1 as string) || (w.address as string) || null,
+    created_at: w.created_at ?? null,
     lat,
     lng,
     distance_meters: null,
@@ -177,7 +183,7 @@ export async function POST(req: Request) {
 
       const { data: wk, error: wErr } = await supabase
         .from("worker")
-        .select("id, first_name, last_name, job_role, city, state, address1")
+        .select("id, user_id, first_name, last_name, job_role, email, phone, city, state, address1, zip, created_at")
         .or(`city.ilike.${pattern},state.ilike.${pattern},address1.ilike.${pattern}`)
 
       if (wErr) {
@@ -189,5 +195,53 @@ export async function POST(req: Request) {
   }
 
   const merged = mergeById(rpcRows, cityRows)
-  return Response.json(merged)
+  const workerIds = Array.from(new Set(merged.map((r) => (r.id != null ? String(r.id) : "")).filter(Boolean)))
+  const userIds = Array.from(
+    new Set(merged.map((r) => (r.user_id != null ? String(r.user_id) : "")).filter(Boolean))
+  )
+
+  let usersById = new Map<string, ContactLookupRow>()
+  if (userIds.length > 0) {
+    const { data: usersData, error: usersError } = await supabase
+      .from("users")
+      .select("id, email, phone")
+      .in("id", userIds)
+    if (!usersError) {
+      usersById = new Map(
+        ((usersData as ContactLookupRow[] | null) ?? [])
+          .filter((u) => Boolean(u.id))
+          .map((u) => [String(u.id), u])
+      )
+    }
+  }
+
+  let applicantsById = new Map<string, ContactLookupRow>()
+  if (workerIds.length > 0) {
+    const { data: applicantsData, error: applicantsError } = await supabase
+      .from("applicants")
+      .select("id, email, phone")
+      .in("id", workerIds)
+    if (!applicantsError) {
+      applicantsById = new Map(
+        ((applicantsData as ContactLookupRow[] | null) ?? [])
+          .filter((a) => Boolean(a.id))
+          .map((a) => [String(a.id), a])
+      )
+    }
+  }
+
+  const enriched = merged.map((row) => {
+    const workerId = row.id != null ? String(row.id) : ""
+    const userId = row.user_id != null ? String(row.user_id) : ""
+    const userContact = userId ? usersById.get(userId) : undefined
+    const applicantContact = workerId ? applicantsById.get(workerId) : undefined
+    return {
+      ...row,
+      user_email: userContact?.email ?? null,
+      user_phone: userContact?.phone ?? null,
+      applicant_email: applicantContact?.email ?? null,
+      applicant_phone: applicantContact?.phone ?? null,
+    }
+  })
+  return Response.json(enriched)
 }

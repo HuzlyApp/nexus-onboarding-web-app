@@ -13,6 +13,11 @@ type WorkerStatus =
   | "cancelled"
   | "banned";
 type SbErr = { message: string; code?: string };
+type ContactLookupRow = {
+  id: string | null;
+  email: string | null;
+  phone: string | null;
+};
 
 function parseStatus(v: string | null): WorkerStatus | null {
   if (!v) return null;
@@ -90,8 +95,8 @@ export async function GET(req: Request) {
     for (const key of keys) {
       const supabase = createClient(url, key);
       const baseColsOptions = [
-        "id, first_name, last_name, job_role, email, phone, address1, city, state, zip, created_at",
-        "id, first_name, last_name, job_role, email, phone, address1, city, state, created_at",
+        "id, user_id, first_name, last_name, job_role, email, phone, address1, city, state, zip, created_at",
+        "id, user_id, first_name, last_name, job_role, email, phone, address1, city, state, created_at",
       ] as const;
 
       // `worker_status_chk` is the CHECK name; the column is `worker_status` (or legacy `status`).
@@ -208,9 +213,80 @@ export async function GET(req: Request) {
               : statusVal;
           return { ...r, status: s };
         });
+
+        const withContacts = async () => {
+          if (headOnly) return [];
+          const rows = normalized as Array<Record<string, unknown>>;
+          if (rows.length === 0) return [];
+
+          const userIds = Array.from(
+            new Set(
+              rows
+                .map((row) => (typeof row.user_id === "string" ? row.user_id : ""))
+                .filter(Boolean)
+            )
+          );
+          const workerIds = Array.from(
+            new Set(
+              rows
+                .map((row) => (typeof row.id === "string" ? row.id : ""))
+                .filter(Boolean)
+            )
+          );
+
+          let usersById = new Map<string, ContactLookupRow>();
+          if (userIds.length > 0) {
+            const { data: usersData, error: usersError } = await supabase
+              .from("users")
+              .select("id, email, phone")
+              .in("id", userIds);
+            if (usersError) {
+              console.warn("Failed to load users contact data:", usersError.message);
+            } else {
+              usersById = new Map(
+                ((usersData as ContactLookupRow[] | null) ?? [])
+                  .filter((u) => Boolean(u.id))
+                  .map((u) => [String(u.id), u])
+              );
+            }
+          }
+
+          let applicantsById = new Map<string, ContactLookupRow>();
+          if (workerIds.length > 0) {
+            const { data: applicantsData, error: applicantsError } = await supabase
+              .from("applicants")
+              .select("id, email, phone")
+              .in("id", workerIds);
+            if (applicantsError) {
+              console.warn("Failed to load applicants contact data:", applicantsError.message);
+            } else {
+              applicantsById = new Map(
+                ((applicantsData as ContactLookupRow[] | null) ?? [])
+                  .filter((a) => Boolean(a.id))
+                  .map((a) => [String(a.id), a])
+              );
+            }
+          }
+
+          return rows.map((row) => {
+            const workerId = typeof row.id === "string" ? row.id : "";
+            const userId = typeof row.user_id === "string" ? row.user_id : "";
+            const userContact = userId ? usersById.get(userId) : undefined;
+            const applicantContact = workerId ? applicantsById.get(workerId) : undefined;
+            return {
+              ...row,
+              user_email: userContact?.email ?? null,
+              user_phone: userContact?.phone ?? null,
+              applicant_email: applicantContact?.email ?? null,
+              applicant_phone: applicantContact?.phone ?? null,
+            };
+          });
+        };
+
+        const enriched = await withContacts();
         return Response.json({
           total: count ?? 0,
-          workers: headOnly ? [] : normalized,
+          workers: headOnly ? [] : enriched,
         });
       }
 

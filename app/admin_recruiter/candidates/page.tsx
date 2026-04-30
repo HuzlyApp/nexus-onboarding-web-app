@@ -33,11 +33,16 @@ import AdvancedSearchModal from "../components/AdvancedSearchModal";
 
 type WorkerProfile = {
   id: string;
+  user_id?: string | null;
   first_name: string | null;
   last_name: string | null;
   job_role: string | null;
   email: string | null;
   phone: string | null;
+  user_email?: string | null;
+  user_phone?: string | null;
+  applicant_email?: string | null;
+  applicant_phone?: string | null;
   address1: string | null;
   address2?: string | null;
   city: string | null;
@@ -102,6 +107,54 @@ function formatDateShort(iso: string | null) {
 const PAGE_SIZE = 9;
 const ADVANCED_SEARCH_STORAGE_KEY = "admin_recruiter_candidates_advanced_search";
 type AdvancedSearchParams = { lat: number; lng: number; radius: number; place?: string };
+
+function pickFirstNonEmpty(values: Array<string | null | undefined>): string {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "";
+}
+
+function resolveCandidateContact(item: WorkerProfile) {
+  const emailCandidates = [
+    { source: "candidate.email", value: item.email },
+    { source: "worker.email", value: item.email },
+    { source: "profile.email", value: item.user_email },
+    { source: "applicant.email", value: item.applicant_email },
+  ];
+  const phoneCandidates = [
+    { source: "candidate.phone", value: item.phone },
+    { source: "worker.phone", value: item.phone },
+    { source: "profile.phone", value: item.user_phone },
+    { source: "applicant.phone", value: item.applicant_phone },
+  ];
+  const selectedEmail = pickFirstNonEmpty(emailCandidates.map((entry) => entry.value));
+  const selectedPhone = pickFirstNonEmpty(phoneCandidates.map((entry) => entry.value));
+  const emailSource =
+    emailCandidates.find((entry) => typeof entry.value === "string" && entry.value.trim())?.source ?? "none";
+  const phoneSource =
+    phoneCandidates.find((entry) => typeof entry.value === "string" && entry.value.trim())?.source ?? "none";
+
+  console.debug("[CandidatesCardContactDebug]", {
+    candidate_id: item.id,
+    worker_id: item.id,
+    user_id: item.user_id ?? null,
+    selected_email: selectedEmail || null,
+    selected_phone: selectedPhone || null,
+    email_source: emailSource,
+    phone_source: phoneSource,
+    raw_contact_fields: {
+      worker_email: item.email ?? null,
+      worker_phone: item.phone ?? null,
+      profile_email: item.user_email ?? null,
+      profile_phone: item.user_phone ?? null,
+      applicant_email: item.applicant_email ?? null,
+      applicant_phone: item.applicant_phone ?? null,
+    },
+  });
+
+  return { email: selectedEmail, phone: selectedPhone };
+}
 
 export default function CandidatesPage() {
   const router = useRouter();
@@ -206,14 +259,16 @@ export default function CandidatesPage() {
             : [];
         setTotalFromApi(rows.length);
 
-        const mapped: CandidateRow[] = rows.map((item) => ({
+        const mapped: CandidateRow[] = rows.map((item) => {
+          const { email, phone } = resolveCandidateContact(item);
+          return ({
           id: item.id,
           name: `${item.first_name || ""} ${item.last_name || ""}`.trim(),
           firstName: item.first_name ?? "",
           lastName: item.last_name ?? "",
           role: item.job_role || "N/A",
-          email: item.email || "",
-          phone: item.phone || "",
+          email,
+          phone,
           address: [item.address1, item.city, item.state].filter(Boolean).join(", "),
           city: item.city ?? "",
           state: item.state ?? "",
@@ -224,7 +279,8 @@ export default function CandidatesPage() {
           createdAt: item.created_at,
           reference: item.id.slice(0, 7).toUpperCase(),
           dateOfBirth: null,
-        }));
+          });
+        });
 
         setCandidates(mapped);
         setVisibleCount(PAGE_SIZE);
@@ -255,14 +311,16 @@ export default function CandidatesPage() {
           : [];
       setTotalFromApi(typeof data?.total === "number" ? data.total : rows.length);
 
-      const mapped: CandidateRow[] = rows.map((item) => ({
+      const mapped: CandidateRow[] = rows.map((item) => {
+        const { email, phone } = resolveCandidateContact(item);
+        return ({
         id: item.id,
         name: `${item.first_name || ""} ${item.last_name || ""}`.trim(),
         firstName: item.first_name ?? "",
         lastName: item.last_name ?? "",
         role: item.job_role || "N/A",
-        email: item.email || "",
-        phone: item.phone || "",
+        email,
+        phone,
         address: [item.address1, item.city, item.state].filter(Boolean).join(", "),
         city: item.city ?? "",
         state: item.state ?? "",
@@ -273,7 +331,8 @@ export default function CandidatesPage() {
         createdAt: item.created_at,
         reference: item.id.slice(0, 7).toUpperCase(),
         dateOfBirth: null,
-      }));
+        });
+      });
 
       setCandidates(mapped);
       setVisibleCount(PAGE_SIZE);
