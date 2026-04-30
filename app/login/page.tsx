@@ -95,7 +95,7 @@ function AdminRecruiterLoginContent() {
                 className={cn(
                   "w-full px-4 py-3.5 border border-gray-300 rounded-lg",
                   "focus:ring-2 focus:ring-teal-500 focus:border-teal-500",
-                  "placeholder-gray-400 transition-all outline-none"
+                  "text-black placeholder-gray-400 transition-all outline-none"
                 )}
                 required
               />
@@ -127,7 +127,7 @@ function AdminRecruiterLoginContent() {
                   className={cn(
                     "w-full px-4 py-3.5 border border-gray-300 rounded-lg",
                     "focus:ring-2 focus:ring-teal-500 focus:border-teal-500",
-                    "placeholder-gray-400 transition-all outline-none pr-11"
+                    "text-black placeholder-gray-400 transition-all outline-none pr-11"
                   )}
                   required
                 />
