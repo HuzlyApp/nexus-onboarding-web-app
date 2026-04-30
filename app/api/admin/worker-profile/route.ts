@@ -35,6 +35,31 @@ type ZohoSignRow = {
   updated_at: string | null
 }
 
+type StorageHit = {
+  bucket: string
+  path: string
+  name: string
+  created_at: string | null
+}
+
+type ClassifiedDocType = "license" | "tb" | "cpr" | "authorization"
+
+function asTrimmedString(v: unknown): string | null {
+  if (v == null) return null
+  const s = String(v).trim()
+  return s.length > 0 ? s : null
+}
+
+function toStringArray(v: unknown): string[] {
+  if (!Array.isArray(v)) return []
+  return v.map((item) => String(item).trim()).filter((x) => x.length > 0)
+}
+
+function boolFromZohoSigned(status: string | null | undefined): boolean {
+  const s = (status ?? "").trim().toLowerCase()
+  return s === "signed" || s === "completed"
+}
+
 export async function GET(req: NextRequest) {
   try {
     const workerIdRaw = req.nextUrl.searchParams.get("workerId")?.trim() || ""
@@ -120,10 +145,146 @@ export async function GET(req: NextRequest) {
       .maybeSingle()
 
     const docs = (docRow ?? null) as Record<string, unknown> | null
+    const workerKeys = Array.from(
+      new Set([workerId, userIdForLegacy].filter((x): x is string => Boolean(x && x.trim())))
+    )
+    const { data: allBuckets } = await supabase.storage.listBuckets()
+    const bucketSet = new Set<string>((allBuckets ?? []).map((b) => b.id))
+    const candidateBuckets = Array.from(
+      new Set(["docs", "worker_required_files", "worker-onboarding", "worker-resumes"])
+    ).filter((bucket) => bucketSet.has(bucket))
+    const publicBucketSet = new Set<string>(
+      (allBuckets ?? []).filter((b) => b.public).map((b) => b.id)
+    )
+
+    const candidatePaths = Array.from(
+      new Set(
+        workerKeys.flatMap((key) => [
+          key,
+          `license/${key}`,
+          `tb/${key}`,
+          `cpr/${key}`,
+          `docs/${key}`,
+          `authorization/${key}`,
+          `agreement/${key}`,
+          `onboarding/${key}`,
+        ])
+      )
+    )
+    const scanTargets = candidateBuckets.flatMap((bucket) =>
+      candidatePaths.map((path) => ({ bucket, path }))
+    )
+    const listResults = await Promise.all(
+      scanTargets.map(async ({ bucket, path }) => {
+        const { data: files, error } = await supabase.storage.from(bucket).list(path, {
+          limit: 25,
+          sortBy: { column: "created_at", order: "desc" },
+        })
+        if (error || !Array.isArray(files)) return [] as StorageHit[]
+        return files
+          .filter((f) => Boolean(f?.name) && !String(f?.name).endsWith("/"))
+          .map((f) => ({
+            bucket,
+            path: `${path}/${f.name}`,
+            name: String(f.name),
+            created_at: (f as { created_at?: string }).created_at ?? null,
+          }))
+      })
+    )
+    const listHits = listResults.flat()
+
+    async function toAccessibleUrl(hit: StorageHit): Promise<string | null> {
+      if (publicBucketSet.has(hit.bucket)) {
+        return supabase.storage.from(hit.bucket).getPublicUrl(hit.path).data.publicUrl
+      }
+      const { data, error } = await supabase.storage.from(hit.bucket).createSignedUrl(hit.path, 3600)
+      if (error) return null
+      return data?.signedUrl ?? null
+    }
+
+    function classifyStorageHit(hit: StorageHit): ClassifiedDocType | null {
+      const path = hit.path.toLowerCase()
+      const name = hit.name.toLowerCase()
+      const full = `${path} ${name}`
+      if (
+        path.startsWith("tb/") ||
+        full.includes("tb test") ||
+        full.includes("tb_test") ||
+        full.includes("/tb-") ||
+        full.includes("tuberculosis")
+      ) {
+        return "tb"
+      }
+      if (
+        path.startsWith("cpr/") ||
+        full.includes("cpr") ||
+        full.includes("bls") ||
+        full.includes("basic life support")
+      ) {
+        return "cpr"
+      }
+      if (
+        full.includes("authorization") ||
+        full.includes("agreement") ||
+        full.includes("w2") ||
+        full.includes("i9") ||
+        (hit.bucket === "worker-onboarding" && full.includes("document"))
+      ) {
+        return "authorization"
+      }
+      if (
+        path.startsWith("license/") ||
+        full.includes("nursing") ||
+        full.includes("license")
+      ) {
+        return "license"
+      }
+      return null
+    }
+
+    function newestHit(hits: StorageHit[]): StorageHit | null {
+      if (hits.length === 0) return null
+      return [...hits].sort((a, b) => {
+        const ta = a.created_at ? Date.parse(a.created_at) : 0
+        const tb = b.created_at ? Date.parse(b.created_at) : 0
+        return tb - ta
+      })[0]
+    }
+    async function toAccessibleUrlIfAny(hit: StorageHit | null): Promise<string | null> {
+      if (!hit) return null
+      return toAccessibleUrl(hit)
+    }
+
+    const byType: Record<ClassifiedDocType, StorageHit[]> = {
+      license: [],
+      tb: [],
+      cpr: [],
+      authorization: [],
+    }
+    for (const hit of listHits) {
+      const type = classifyStorageHit(hit)
+      if (type) byType[type].push(hit)
+    }
+    const storageNursingUrl = await toAccessibleUrlIfAny(newestHit(byType.license))
+    const storageTbUrl = await toAccessibleUrlIfAny(newestHit(byType.tb))
+    const storageCprUrl = await toAccessibleUrlIfAny(newestHit(byType.cpr))
+    const storageAuthUrlFromFiles = await toAccessibleUrlIfAny(newestHit(byType.authorization))
+    const attachmentFiles = await Promise.all(
+      listHits.slice(0, 12).map(async (hit) => ({
+        bucket: hit.bucket,
+        path: hit.path,
+        name: hit.name,
+        created_at: hit.created_at,
+        url: await toAccessibleUrl(hit),
+      }))
+    )
     const workerEmail = w.email != null ? String(w.email).trim().toLowerCase() : ""
-    const licenseOk = hasUrl(docs?.nursing_license_url)
-    const tbOk = hasUrl(docs?.tb_test_url)
-    const cprOk = hasUrl(docs?.cpr_certification_url)
+    const nursingLicenseUrl = urlOrNull(docs?.nursing_license_url) ?? storageNursingUrl
+    const tbTestUrl = urlOrNull(docs?.tb_test_url) ?? storageTbUrl
+    const cprCertUrl = urlOrNull(docs?.cpr_certification_url) ?? storageCprUrl
+    const licenseOk = hasUrl(nursingLicenseUrl)
+    const tbOk = hasUrl(tbTestUrl)
+    const cprOk = hasUrl(cprCertUrl)
     const idOk = hasUrl(docs?.ssn_url) || hasUrl(docs?.drivers_license_url)
     const docsCompleteCount = [licenseOk, tbOk, cprOk, idOk].filter(Boolean).length
 
@@ -151,67 +312,173 @@ export async function GET(req: NextRequest) {
     let saTotal = 0
     const { data: saRows, error: saErr } = await supabase
       .from("skill_assessments")
-      .select("category, completed")
+      .select("*")
       .eq("worker_id", workerId)
 
-    if (!saErr && Array.isArray(saRows) && saRows.length > 0) {
-      saTotal = saRows.length
-      saCompleted = saRows.filter((x) => (x as { completed?: boolean }).completed === true).length
+    const skillAssessmentRows =
+      !saErr && Array.isArray(saRows) ? (saRows as Record<string, unknown>[]) : []
+    if (skillAssessmentRows.length > 0) {
+      const categorySlugs = skillAssessmentRows
+        .map((x) => String(x.category ?? "").trim())
+        .filter((x) => x.length > 0)
+      const { data: categoriesRows } = await supabase
+        .from("skill_categories")
+        .select("*")
+        .in("slug", categorySlugs.length > 0 ? categorySlugs : ["__none__"])
+      const categoryBySlug = new Map<string, Record<string, unknown>>(
+        ((categoriesRows ?? []) as Record<string, unknown>[]).map((row) => [String(row.slug ?? ""), row])
+      )
+
+      const categoryIds = Array.from(
+        new Set(
+          ((categoriesRows ?? []) as Record<string, unknown>[])
+            .map((row) => String(row.id ?? "").trim())
+            .filter((id) => id.length > 0)
+        )
+      )
+      const { data: questionRows } = await supabase
+        .from("skill_questions")
+        .select("id,category_id")
+        .in("category_id", categoryIds.length > 0 ? categoryIds : ["00000000-0000-0000-0000-000000000000"])
+      const questionCountByCategory = new Map<string, number>()
+      for (const row of ((questionRows ?? []) as Record<string, unknown>[])) {
+        const cid = String(row.category_id ?? "").trim()
+        if (!cid) continue
+        questionCountByCategory.set(cid, (questionCountByCategory.get(cid) ?? 0) + 1)
+      }
+
+      const { data: normalizedAnswerRows } = await supabase
+        .from("applicant_skill_assessment_answers")
+        .select("applicant_id,category_id,answer_value")
+        .in("applicant_id", userIdForLegacy ? [workerId, userIdForLegacy] : [workerId])
+      const answersByCategoryId = new Map<string, number>()
+      for (const row of ((normalizedAnswerRows ?? []) as Record<string, unknown>[])) {
+        const cid = String(row.category_id ?? "").trim()
+        if (!cid) continue
+        answersByCategoryId.set(cid, (answersByCategoryId.get(cid) ?? 0) + 1)
+      }
+
+      saTotal = skillAssessmentRows.length
+      saCompleted = 0
+      for (const row of skillAssessmentRows) {
+        const slug = String(row.category ?? "")
+        const category = categoryBySlug.get(slug)
+        const categoryId = String(category?.id ?? "").trim()
+        row.category_title = category?.title ?? slug
+        row.category_id = category?.id ?? null
+        const answeredCount = categoryId ? (answersByCategoryId.get(categoryId) ?? 0) : 0
+        const requiredCount = categoryId ? (questionCountByCategory.get(categoryId) ?? 0) : 0
+        const inferredCompleted = answeredCount > 0
+        const completed = row.completed === true || inferredCompleted
+        row.completed = completed
+        row.answered_count = answeredCount
+        row.required_question_count = requiredCount
+        if (completed) saCompleted += 1
+      }
     } else {
-      saTotal = 6
+      saTotal = 0
     }
 
-    const profileComplete = Boolean(w.id)
-    const hasResumePath = Boolean(resumePathCanonical)
-    const licenseStep = licenseOk
-    const assessmentsComplete = saTotal > 0 && saCompleted >= saTotal
-    const authDocsComplete = docsCompleteCount >= 4
-    const referencesComplete = references.length >= 2
-    const hasDocumentsRow = docRow != null
+    const positions = toStringArray(w.positions)
+    const experienceYearsRaw = w.experience_years ?? w.years_experience
+    const experienceYears =
+      typeof experienceYearsRaw === "number"
+        ? experienceYearsRaw
+        : experienceYearsRaw != null && String(experienceYearsRaw).trim() !== ""
+          ? Number(experienceYearsRaw)
+          : null
 
-    type StepState = "complete" | "in_progress" | "pending"
-    const step = (done: boolean, partial: boolean): StepState => {
-      if (done) return "complete"
-      if (partial) return "in_progress"
-      return "pending"
+    const { data: workerRoleRows } = await supabase
+      .from("worker_category_roles")
+      .select("*")
+      .eq("worker_id", workerId)
+    const workerRoles = ((workerRoleRows ?? []) as Record<string, unknown>[]).filter(
+      (row) => row != null
+    )
+    const categoryIds = workerRoles
+      .map((row) => String(row.job_category_id ?? "").trim())
+      .filter((id) => id.length > 0)
+    const { data: jobCategoryRows } = await supabase
+      .from("job_categories")
+      .select("*")
+      .in("id", categoryIds.length > 0 ? categoryIds : ["00000000-0000-0000-0000-000000000000"])
+    const jobCategoryById = new Map<string, Record<string, unknown>>(
+      ((jobCategoryRows ?? []) as Record<string, unknown>[]).map((row) => [String(row.id ?? ""), row])
+    )
+    const roleAssignments = workerRoles.map((row) => {
+      const categoryId = String(row.job_category_id ?? "")
+      const cat = jobCategoryById.get(categoryId)
+      return {
+        role: asTrimmedString(row.role),
+        job_category_id: categoryId || null,
+        job_category_name: asTrimmedString(cat?.name),
+        created_at: asTrimmedString(row.created_at),
+      }
+    })
+
+    const workerAuthId = asTrimmedString(w.user_id)
+    const facilityAssignments: Array<Record<string, unknown>> = []
+    if (workerAuthId) {
+      const { data: assignmentRows } = await supabase
+        .from("worker_shift_assignments")
+        .select("*")
+        .eq("worker_id", workerAuthId)
+      const assignments = (assignmentRows ?? []) as Record<string, unknown>[]
+      if (assignments.length > 0) {
+        const shiftIds = assignments
+          .map((row) => String(row.shift_id ?? "").trim())
+          .filter((id) => id.length > 0)
+        const { data: shiftRows } = await supabase
+          .from("shifts")
+          .select("*")
+          .in("id", shiftIds.length > 0 ? shiftIds : ["00000000-0000-0000-0000-000000000000"])
+        const shiftById = new Map<string, Record<string, unknown>>(
+          ((shiftRows ?? []) as Record<string, unknown>[]).map((row) => [String(row.id ?? ""), row])
+        )
+        const facilityIds = ((shiftRows ?? []) as Record<string, unknown>[])
+          .map((row) => String(row.facility_id ?? "").trim())
+          .filter((id) => id.length > 0)
+        const { data: facilityRows } = await supabase
+          .from("facility")
+          .select("*")
+          .in(
+            "id",
+            facilityIds.length > 0 ? facilityIds : ["00000000-0000-0000-0000-000000000000"]
+          )
+        const facilityById = new Map<string, Record<string, unknown>>(
+          ((facilityRows ?? []) as Record<string, unknown>[]).map((row) => [String(row.id ?? ""), row])
+        )
+        for (const assignment of assignments) {
+          const shift = shiftById.get(String(assignment.shift_id ?? ""))
+          const facility = shift ? facilityById.get(String(shift.facility_id ?? "")) : null
+          facilityAssignments.push({
+            assignment_id: assignment.id ?? null,
+            assigned_at: asTrimmedString(assignment.assigned_at),
+            status: asTrimmedString(assignment.status),
+            shift_id: assignment.shift_id ?? null,
+            shift_title: asTrimmedString(shift?.title),
+            facility_id: shift?.facility_id ?? null,
+            facility_name: asTrimmedString(facility?.name),
+            facility_address: asTrimmedString(facility?.address),
+          })
+        }
+      }
     }
 
-    const onboardingSteps = [
-      {
-        id: "resume",
-        label: "Add Resume / Profile",
-        state: step(hasResumePath, !hasResumePath && profileComplete),
-      },
-      {
-        id: "license",
-        label: "Professional License",
-        state: step(licenseStep, !licenseStep && hasDocumentsRow),
-      },
-      {
-        id: "skills",
-        label: "Skill Assessment",
-        state: step(assessmentsComplete, saCompleted > 0 && !assessmentsComplete),
-        detail: saTotal ? `${saCompleted} of ${saTotal}` : undefined,
-      },
-      {
-        id: "auth_docs",
-        label: "Authorizations & Documents",
-        state: step(authDocsComplete, docsCompleteCount > 0 && !authDocsComplete),
-        detail: `${docsCompleteCount} of 4`,
-      },
-      {
-        id: "references",
-        label: "Add References",
-        state: step(referencesComplete, references.length > 0 && !referencesComplete),
-        detail: `${references.length} added`,
-      },
-    ]
-
-    const createdAt = w.created_at != null ? String(w.created_at) : null
-    const updatedAt = w.updated_at != null ? String(w.updated_at) : createdAt
-
-    const statusRaw = (w.status ?? w.worker_status) as string | undefined
-    const statusLabel = titleCaseStatus(statusRaw)
+    const { data: activityRows } = await supabase
+      .from("activity_logs")
+      .select("*")
+      .eq("entity_id", workerId)
+      .order("created_at", { ascending: false })
+      .limit(50)
+    const activityLogs = ((activityRows ?? []) as Record<string, unknown>[]).map((row) => ({
+      id: row.id ?? null,
+      action: asTrimmedString(row.action),
+      entity_type: asTrimmedString(row.entity_type),
+      entity_id: row.entity_id ?? null,
+      details: row.details ?? null,
+      created_at: asTrimmedString(row.created_at),
+    }))
 
     let zohoSign: ZohoSignRow | null = null
     if (workerEmail) {
@@ -228,6 +495,141 @@ export async function GET(req: NextRequest) {
         zohoSign = (zohoRow as ZohoSignRow | null) ?? null
       }
     }
+
+    const profileComplete = Boolean(w.id)
+    const hasResumePath = Boolean(resumePathCanonical)
+    const licenseCount = [licenseOk, tbOk, cprOk].filter(Boolean).length
+    const licenseRequiredCount = 3
+    const licenseStep = licenseCount >= licenseRequiredCount
+    const assessmentsComplete = saTotal > 0 && saCompleted >= saTotal
+    const ssnUploaded = hasUrl(docs?.ssn_url)
+    const driversLicenseUploaded = hasUrl(docs?.drivers_license_url)
+    const authSigned = boolFromZohoSigned(zohoSign?.status)
+    const authDocsCount = [authSigned, ssnUploaded, driversLicenseUploaded].filter(Boolean).length
+    const authDocsRequiredCount = 3
+    const authDocsComplete = authDocsCount >= authDocsRequiredCount
+    const referencesComplete = references.length >= 2
+    const hasDocumentsRow = docRow != null
+
+    console.info("[debug-onboarding-progress] section-evaluation", {
+      route: "GET /api/admin/worker-profile",
+      workerId,
+      workerUserId: userIdForLegacy,
+      sections: {
+        resume_profile: {
+          source_tables: ["worker", "worker_requirements", "storage.worker-resumes"],
+          profile_exists: profileComplete,
+          resume_exists: hasResumePath,
+          complete: profileComplete && hasResumePath,
+        },
+        professional_license: {
+          source_tables: ["worker_documents", "storage.worker_required_files"],
+          nursing_license: licenseOk,
+          tb_test: tbOk,
+          cpr: cprOk,
+          count: licenseCount,
+          required: licenseRequiredCount,
+          complete: licenseStep,
+        },
+        skill_assessment: {
+          source_tables: ["skill_assessments", "applicant_skill_assessment_answers", "skill_questions"],
+          total: saTotal,
+          completed: saCompleted,
+          complete: assessmentsComplete,
+        },
+        authorizations_documents: {
+          source_tables: ["worker_documents", "zoho_sign_requests"],
+          auth_signed: authSigned,
+          ssn_uploaded: ssnUploaded,
+          drivers_license_uploaded: driversLicenseUploaded,
+          count: authDocsCount,
+          required: authDocsRequiredCount,
+          complete: authDocsComplete,
+        },
+        references: {
+          source_tables: ["worker_references"],
+          count: references.length,
+          required: 2,
+          complete: referencesComplete,
+        },
+      },
+    })
+
+    type StepState = "complete" | "in_progress" | "pending"
+    const step = (done: boolean, partial: boolean): StepState => {
+      if (done) return "complete"
+      if (partial) return "in_progress"
+      return "pending"
+    }
+
+    const onboardingSteps = [
+      {
+        id: "resume",
+        label: "Add Resume / Profile",
+        state: step(profileComplete && hasResumePath, profileComplete && !hasResumePath),
+      },
+      {
+        id: "license",
+        label: "Professional License",
+        state: step(licenseStep, !licenseStep && hasDocumentsRow),
+        detail: `${licenseCount} of ${licenseRequiredCount}`,
+      },
+      {
+        id: "skills",
+        label: "Skill Assessment",
+        state: step(assessmentsComplete, saCompleted > 0 && !assessmentsComplete),
+        detail: saTotal ? `${saCompleted} of ${saTotal}` : undefined,
+      },
+      {
+        id: "auth_docs",
+        label: "Authorizations & Documents",
+        state: step(authDocsComplete, authDocsCount > 0 && !authDocsComplete),
+        detail: `${authDocsCount} of ${authDocsRequiredCount}`,
+      },
+      {
+        id: "references",
+        label: "Add References",
+        state: step(referencesComplete, references.length > 0 && !referencesComplete),
+        detail: `${references.length} added`,
+      },
+    ]
+
+    const createdAt = w.created_at != null ? String(w.created_at) : null
+    const updatedAt = w.updated_at != null ? String(w.updated_at) : createdAt
+
+    const statusRaw = (w.status ?? w.worker_status) as string | undefined
+    const statusLabel = titleCaseStatus(statusRaw)
+
+    const zohoAuthUrl =
+      zohoSign?.request_id && zohoSign.request_id.trim().length > 0
+        ? `/api/zoho-sign/document?request_id=${encodeURIComponent(zohoSign.request_id)}&mode=preview`
+        : null
+    const storageAuthUrl = storageAuthUrlFromFiles ?? urlOrNull(docs?.document_url) ?? zohoAuthUrl
+    console.info("[debug-doc-upload] admin-worker-profile:attachment-mapping", {
+      route: "GET /api/admin/worker-profile",
+      workerId,
+      workerUserId: userIdForLegacy,
+      bucketCandidates: candidateBuckets,
+      storageHits: listHits.length,
+      classifiedCounts: {
+        license: byType.license.length,
+        tb: byType.tb.length,
+        cpr: byType.cpr.length,
+        authorization: byType.authorization.length,
+      },
+      dbUrls: {
+        nursing_license_url: urlOrNull(docs?.nursing_license_url),
+        tb_test_url: urlOrNull(docs?.tb_test_url),
+        cpr_certification_url: urlOrNull(docs?.cpr_certification_url),
+        document_url: urlOrNull(docs?.document_url),
+      },
+      resolvedUrls: {
+        nursing_license_url: storageNursingUrl,
+        tb_test_url: storageTbUrl,
+        cpr_certification_url: storageCprUrl,
+        authorization_document_url: storageAuthUrl,
+      },
+    })
 
     void writeActivityLog({
       actorUserId: auth.devBypass ? null : auth.userId,
@@ -257,13 +659,10 @@ export async function GET(req: NextRequest) {
         status_label: statusLabel,
         date_of_birth: w.date_of_birth != null ? String(w.date_of_birth) : null,
         years_experience:
-          typeof w.years_experience === "number"
-            ? w.years_experience
-            : w.years_experience != null && String(w.years_experience).trim() !== ""
-              ? Number(w.years_experience)
-              : null,
+          experienceYears,
         hourly_rate: w.hourly_rate != null ? String(w.hourly_rate) : null,
         ssn_last_four: w.ssn_last_four != null ? String(w.ssn_last_four) : null,
+        positions,
       },
       requirements: {
         resume_path: resumePathCanonical,
@@ -280,13 +679,14 @@ export async function GET(req: NextRequest) {
           }
         : null,
       document_urls: {
-        nursing_license_url: urlOrNull(docs?.nursing_license_url),
-        tb_test_url: urlOrNull(docs?.tb_test_url),
-        cpr_certification_url: urlOrNull(docs?.cpr_certification_url),
+        nursing_license_url: nursingLicenseUrl,
+        tb_test_url: tbTestUrl,
+        cpr_certification_url: cprCertUrl,
         ssn_url: urlOrNull(docs?.ssn_url),
         ssn_back_url: urlOrNull(docs?.ssn_back_url),
         drivers_license_url: urlOrNull(docs?.drivers_license_url),
         drivers_license_back_url: urlOrNull(docs?.drivers_license_back_url),
+        authorization_document_url: storageAuthUrl,
       },
       signeasy: {
         document_name:
@@ -301,8 +701,41 @@ export async function GET(req: NextRequest) {
         updated_at: zohoSign?.updated_at ?? null,
       },
       references,
-      skillAssessments: { completed: saCompleted, total: saTotal },
+      skillAssessments: { completed: saCompleted, total: saTotal, rows: skillAssessmentRows },
       onboardingSteps,
+      nursing_licenses: [
+        {
+          license_url: urlOrNull(docs?.nursing_license_url),
+          state: asTrimmedString(w.state),
+          license_type: asTrimmedString(w.job_role),
+          expires_at: null,
+        },
+      ].filter((row) => row.license_url != null),
+      education: {
+        source: resumePathCanonical ? "worker_requirements.resume_path" : "none",
+        resume_available: Boolean(resumePathCanonical),
+        items: [] as Array<Record<string, unknown>>,
+      },
+      experience: {
+        years: experienceYears,
+        job_role: asTrimmedString(w.job_role),
+        positions,
+        role_assignments: roleAssignments,
+      },
+      skills: {
+        positions,
+        role_assignments: roleAssignments,
+        assessed_categories: skillAssessmentRows.map((row) => ({
+          category: asTrimmedString(row.category),
+          category_title: asTrimmedString(row.category_title),
+          completed: row.completed === true,
+        })),
+      },
+      facilities_assigned: facilityAssignments,
+      notes: [] as Array<Record<string, unknown>>,
+      attachment_files: attachmentFiles,
+      activity_logs: activityLogs,
+      activity_history: activityLogs,
       activity: {
         source: "Onboarding application",
         created_at: createdAt,

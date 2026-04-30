@@ -34,6 +34,13 @@ export async function POST(req: Request) {
     if (!allowedFolder.test(folder)) {
       return NextResponse.json({ error: "Invalid folder" }, { status: 400 })
     }
+    console.info("[debug-doc-upload] upload-required-file:start", {
+      route: "/api/onboarding/upload-required-file",
+      fileName: file.name,
+      documentType: folder,
+      applicantId,
+      bucket: WORKER_REQUIRED_FILES_BUCKET,
+    })
 
     const buffer = Buffer.from(await file.arrayBuffer())
 
@@ -57,6 +64,15 @@ export async function POST(req: Request) {
       })
 
     if (uploadError) {
+      console.error("[debug-doc-upload] upload-required-file:error", {
+        route: "/api/onboarding/upload-required-file",
+        fileName: file.name,
+        documentType: folder,
+        applicantId,
+        bucket: WORKER_REQUIRED_FILES_BUCKET,
+        uploadedPath: path,
+        error: uploadError.message,
+      })
       return NextResponse.json(
         { error: uploadError.message || "Upload failed" },
         { status: 500 }
@@ -66,6 +82,15 @@ export async function POST(req: Request) {
     const { data: urlData } = supabase.storage
       .from(WORKER_REQUIRED_FILES_BUCKET)
       .getPublicUrl(path)
+    console.info("[debug-doc-upload] upload-required-file:success", {
+      route: "/api/onboarding/upload-required-file",
+      fileName: file.name,
+      documentType: folder,
+      applicantId,
+      bucket: WORKER_REQUIRED_FILES_BUCKET,
+      uploadedPath: path,
+      generatedUrl: urlData.publicUrl,
+    })
 
     return NextResponse.json({
       path,

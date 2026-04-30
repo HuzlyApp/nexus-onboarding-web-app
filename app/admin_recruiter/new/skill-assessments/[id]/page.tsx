@@ -3,12 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useParams } from "next/navigation";
+import { jsPDF } from "jspdf";
 import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader";
 import DetailedTabs from "../../../components/DetailedTabs";
 import {
   Briefcase,
   Calendar,
-  Download,
   LogOut,
   Menu,
   Settings,
@@ -18,6 +18,7 @@ import {
   Users,
   X,
 } from "lucide-react";
+
 type WorkerProfile = {
   id: string;
   first_name: string | null;
@@ -25,15 +26,199 @@ type WorkerProfile = {
   job_role: string | null;
 };
 
-type WorkerProfileApi = {
-  worker: WorkerProfile;
-  skillAssessments: { completed: number; total: number };
+type Assessment = {
+  id: string;
+  title: string | null;
+  total_score: number | null;
+  answered_count: number | null;
+  result_status: string;
+  completed: boolean | null;
+  created_at: string | null;
+  updated_at: string | null;
 };
 
-type Assessment = {
-  title: string;
-  score: string;
+type AssessmentListResponse = {
+  worker: WorkerProfile;
+  skill_assessments: Assessment[];
 };
+
+type AssessmentQuestion = Record<string, unknown> & {
+  selected_answer?: unknown;
+};
+
+type AssessmentDetailResponse = {
+  worker: Record<string, unknown>;
+  assessment: Record<string, unknown>;
+  questions: AssessmentQuestion[];
+  metadata?: Record<string, unknown>;
+};
+
+type PdfQuestionRow = {
+  number: number;
+  questionText: string;
+  selectedAnswer: string;
+  answerLabel: string | null;
+  scoreValue: string | null;
+};
+
+type PdfDisplayData = {
+  candidateName: string;
+  assessmentTitle: string;
+  categoryName: string;
+  totalScore: string;
+  resultStatus: string;
+  submittedDate: string;
+  questions: PdfQuestionRow[];
+};
+
+function asText(value: unknown): string | null {
+  if (value == null) return null;
+  if (typeof value === "string") {
+    const s = value.trim();
+    return s.length > 0 ? s : null;
+  }
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return null;
+}
+
+function formatDate(value: unknown): string {
+  const text = asText(value);
+  if (!text) return "N/A";
+  const date = new Date(text);
+  if (Number.isNaN(date.getTime())) return text;
+  return date.toLocaleDateString("en-US");
+}
+
+function drawSectionTitle(doc: jsPDF, y: number, text: string): number {
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.text(text, 14, y);
+  return y + 6;
+}
+
+function buildPdfDisplayData(detail: AssessmentDetailResponse): PdfDisplayData {
+  const worker = detail.worker ?? {};
+  const assessment = detail.assessment ?? {};
+  const firstName = asText(worker.first_name) ?? "";
+  const lastName = asText(worker.last_name) ?? "";
+  const candidateName = `${firstName} ${lastName}`.trim() || "N/A";
+  const assessmentTitle = asText(assessment.assessment_title) ?? "Untitled Assessment";
+  const categoryName = asText(assessment.assessment_title) ?? asText(assessment.category_slug) ?? "N/A";
+  const totalScore = asText(assessment.total_score) ?? "0";
+  const resultStatus = asText(assessment.result_status) ?? "N/A";
+  const submittedDate = formatDate(assessment.submitted_at);
+  const questions = (Array.isArray(detail.questions) ? detail.questions : []).map((q, index) => ({
+    number: Number(q.quiz_number ?? index + 1),
+    questionText: asText(q.question_text) ?? `Question ${index + 1}`,
+    selectedAnswer: asText(q.selected_answer) ?? "N/A",
+    answerLabel: asText(q.answer_label),
+    scoreValue: asText(q.answer_value),
+  }));
+
+  return {
+    candidateName,
+    assessmentTitle,
+    categoryName,
+    totalScore,
+    resultStatus,
+    submittedDate,
+    questions,
+  };
+}
+
+function buildAssessmentPdf(pdfDisplayData: PdfDisplayData): jsPDF {
+  const doc = new jsPDF();
+  let y = 14;
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(14);
+  doc.text("Skill Assessment Result", 14, y);
+  y += 10;
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.text("Candidate:", 14, y);
+  doc.setFont("helvetica", "normal");
+  doc.text(pdfDisplayData.candidateName, 45, y);
+  y += 7;
+
+  doc.setFont("helvetica", "bold");
+  doc.text("Assessment:", 14, y);
+  doc.setFont("helvetica", "normal");
+  doc.text(doc.splitTextToSize(pdfDisplayData.assessmentTitle, 150), 45, y);
+  y += 7;
+
+  doc.setFont("helvetica", "bold");
+  doc.text("Category:", 14, y);
+  doc.setFont("helvetica", "normal");
+  doc.text(doc.splitTextToSize(pdfDisplayData.categoryName, 150), 45, y);
+  y += 7;
+
+  doc.setFont("helvetica", "bold");
+  doc.text("Status:", 14, y);
+  doc.setFont("helvetica", "normal");
+  doc.text(pdfDisplayData.resultStatus, 45, y);
+  y += 7;
+
+  doc.setFont("helvetica", "bold");
+  doc.text("Score:", 14, y);
+  doc.setFont("helvetica", "normal");
+  doc.text(pdfDisplayData.totalScore, 45, y);
+  y += 7;
+
+  doc.setFont("helvetica", "bold");
+  doc.text("Submitted:", 14, y);
+  doc.setFont("helvetica", "normal");
+  doc.text(pdfDisplayData.submittedDate, 45, y);
+  y += 10;
+
+  if (y > 250) {
+    doc.addPage();
+    y = 14;
+  }
+  y = drawSectionTitle(doc, y, "Questions and Answers");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  doc.text("#", 14, y);
+  doc.text("Question", 24, y);
+  doc.text("Selected Answer", 128, y);
+  y += 4;
+  doc.line(14, y, 195, y);
+  y += 4;
+
+  if (pdfDisplayData.questions.length === 0) {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.text("No question/answer data available for this assessment.", 14, y);
+    return doc;
+  }
+
+  for (const row of pdfDisplayData.questions) {
+    if (y > 250) {
+      doc.addPage();
+      y = 14;
+    }
+
+    const selectedAnswerText = row.answerLabel
+      ? `${row.selectedAnswer} (${row.answerLabel})`
+      : row.selectedAnswer;
+    const withScore = row.scoreValue ? `${selectedAnswerText} [${row.scoreValue}]` : selectedAnswerText;
+    const qWrapped = doc.splitTextToSize(row.questionText, 100);
+    const aWrapped = doc.splitTextToSize(withScore, 62);
+    const lines = Math.max(qWrapped.length, aWrapped.length);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.text(String(row.number), 14, y);
+    doc.text(qWrapped, 24, y);
+    doc.text(aWrapped, 128, y);
+    y += lines * 5 + 2;
+    doc.setDrawColor(235, 235, 235);
+    doc.line(14, y - 1, 195, y - 1);
+  }
+
+  return doc;
+}
 
 export default function NewApplicantSkillAssessmentsPage() {
   const pathname = usePathname();
@@ -43,45 +228,93 @@ export default function NewApplicantSkillAssessmentsPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [resultError, setResultError] = useState<string | null>(null);
+  const [busyAssessmentId, setBusyAssessmentId] = useState<string | null>(null);
   const [applicant, setApplicant] = useState<WorkerProfile | null>(null);
-  const [skillProgress, setSkillProgress] = useState<{ completed: number; total: number } | null>(
-    null
-  );
+  const [assessments, setAssessments] = useState<Assessment[]>([]);
 
   useEffect(() => {
-    async function fetchApplicant() {
+    async function fetchAssessmentList() {
       if (!applicantId) return;
       setLoading(true);
       setLoadError(null);
       try {
         const res = await fetch(
-          `/api/admin/worker-profile?workerId=${encodeURIComponent(applicantId)}`
+          `/api/admin/skill-assessment-results?workerId=${encodeURIComponent(applicantId)}`
         );
-        const json = (await res.json()) as WorkerProfileApi & { error?: string };
+        const json = (await res.json()) as AssessmentListResponse & { error?: string };
         if (!res.ok) {
-          throw new Error(json.error || `Failed to load profile (${res.status})`);
+          throw new Error(json.error || `Failed to load skill assessments (${res.status})`);
         }
-        const w = json.worker;
-        setApplicant({
-          id: w.id,
-          first_name: w.first_name,
-          last_name: w.last_name,
-          job_role: w.job_role,
-        });
-        setSkillProgress(json.skillAssessments ?? null);
+        setApplicant(json.worker ?? null);
+        setAssessments(Array.isArray(json.skill_assessments) ? json.skill_assessments : []);
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        console.error("Failed to fetch applicant for skill assessments:", msg, e);
         setLoadError(msg);
         setApplicant(null);
-        setSkillProgress(null);
+        setAssessments([]);
       } finally {
         setLoading(false);
       }
     }
 
-    fetchApplicant();
+    void fetchAssessmentList();
   }, [applicantId]);
+
+  async function fetchAssessmentDetail(assessmentId: string): Promise<AssessmentDetailResponse> {
+    if (!applicantId) throw new Error("Missing worker ID");
+    const res = await fetch(
+      `/api/admin/skill-assessment-results?workerId=${encodeURIComponent(applicantId)}&assessmentId=${encodeURIComponent(assessmentId)}`
+    );
+    const json = (await res.json()) as AssessmentDetailResponse & { error?: string };
+    if (!res.ok) {
+      throw new Error(json.error || "Failed to load assessment result");
+    }
+    return json;
+  }
+
+  async function buildPdfForAssessment(assessmentId: string): Promise<jsPDF | null> {
+    const detail = await fetchAssessmentDetail(assessmentId);
+    const pdfDisplayData = buildPdfDisplayData(detail);
+    const hasData = pdfDisplayData.questions.length > 0 || pdfDisplayData.assessmentTitle !== "Untitled Assessment";
+    if (!hasData) {
+      setResultError("No assessment data is available for this record.");
+      return null;
+    }
+    return buildAssessmentPdf(pdfDisplayData);
+  }
+
+  async function handleSeeResults(assessmentId: string) {
+    setResultError(null);
+    setBusyAssessmentId(assessmentId);
+    try {
+      const doc = await buildPdfForAssessment(assessmentId);
+      if (!doc) return;
+      const blobUrl = doc.output("bloburl");
+      window.open(blobUrl, "_blank", "noopener,noreferrer");
+    } catch (e) {
+      setResultError(e instanceof Error ? e.message : "Failed to load assessment result");
+    } finally {
+      setBusyAssessmentId(null);
+    }
+  }
+
+  async function handleDownload(assessmentId: string) {
+    setResultError(null);
+    setBusyAssessmentId(assessmentId);
+    try {
+      const doc = await buildPdfForAssessment(assessmentId);
+      if (!doc) return;
+      const namePart =
+        assessments.find((a) => a.id === assessmentId)?.title?.replace(/\s+/g, "-").toLowerCase() ||
+        "skill-assessment";
+      doc.save(`${namePart}-${assessmentId}.pdf`);
+    } catch (e) {
+      setResultError(e instanceof Error ? e.message : "Failed to download assessment result");
+    } finally {
+      setBusyAssessmentId(null);
+    }
+  }
 
   const candidateName = useMemo(() => {
     const n = `${applicant?.first_name ?? ""} ${applicant?.last_name ?? ""}`.trim();
@@ -89,22 +322,13 @@ export default function NewApplicantSkillAssessmentsPage() {
   }, [applicant]);
 
   const candidateRole = applicant?.job_role || "N/A";
-
-  const assessments: Assessment[] = useMemo(
-    () => [
-      { title: "Basic Patient Care & Hygiene", score: "10 of 10" },
-      { title: "Clinical Skills & Procedures", score: "4 of 10" },
-      { title: "Assessment, Monitoring & Emergency Response", score: "10 of 10" },
-      { title: "Mobility Positioning & Patient Handling", score: "7 of 10" },
-      { title: "Clinical Skills & Procedures", score: "5 of 10" },
-      { title: "Professional Practices & Documentation", score: "9 of 10" },
-    ],
-    []
+  const completedCount = useMemo(
+    () => assessments.filter((assessment) => assessment.completed === true).length,
+    [assessments]
   );
 
   return (
     <div className="flex min-h-screen bg-zinc-50 overflow-hidden">
-      {/* Sidebar */}
       <div
         className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#0A1F1C] text-white transform transition-transform lg:translate-x-0 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
@@ -185,7 +409,6 @@ export default function NewApplicantSkillAssessmentsPage() {
         </div>
       </div>
 
-      {/* Main */}
       <div className="flex-1 flex flex-col overflow-hidden lg:pl-72">
         <header className="h-16 border-b bg-white flex items-center px-6 justify-between">
           <div className="flex items-center gap-4">
@@ -228,6 +451,11 @@ export default function NewApplicantSkillAssessmentsPage() {
                 {loadError}
               </div>
             ) : null}
+            {resultError ? (
+              <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                {resultError}
+              </div>
+            ) : null}
 
             <DetailedCandidateHeader
               name={candidateName}
@@ -242,17 +470,15 @@ export default function NewApplicantSkillAssessmentsPage() {
                 <div className="text-xs font-medium text-[#6B7280]">
                   Completed{" "}
                   <span className="font-semibold text-[#111827]">
-                    {skillProgress && skillProgress.total > 0
-                      ? `${skillProgress.completed} of ${skillProgress.total}`
-                      : "0 of 0"}
+                    {`${completedCount} of ${assessments.length}`}
                   </span>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-                {assessments.map((a) => (
+                {assessments.map((assessment) => (
                   <div
-                    key={a.title + a.score}
+                    key={assessment.id}
                     className="flex h-[84px] w-full items-center justify-between gap-5 rounded-[8px] border border-[#99D8D3] bg-[#ECF4F3] px-4 py-5"
                   >
                     <div className="flex min-w-0 items-center gap-4">
@@ -262,16 +488,29 @@ export default function NewApplicantSkillAssessmentsPage() {
                         className="h-8 w-8 shrink-0"
                       />
                       <div className="min-w-0">
-                        <div className="truncate text-[16px] font-semibold leading-6 text-[#1F2937]">{a.title}</div>
-                        <div className="mt-1 text-[14px] leading-5 text-[#475467]">{a.score}</div>
+                        <div className="truncate text-[16px] font-semibold leading-6 text-[#1F2937]">
+                          {assessment.title || "Untitled Assessment"}
+                        </div>
+                        <div className="mt-1 text-[14px] leading-5 text-[#475467]">
+                          Score: {assessment.total_score ?? 0} | Answered: {assessment.answered_count ?? 0} |{" "}
+                          {assessment.result_status}
+                        </div>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-3 shrink-0">
-                      <button className="inline-flex h-10 items-center justify-center rounded-lg border border-[#0D9488] px-6 text-sm font-semibold text-[#0D9488]">
+                      <button
+                        onClick={() => handleSeeResults(assessment.id)}
+                        disabled={busyAssessmentId === assessment.id}
+                        className="inline-flex h-10 items-center justify-center rounded-lg border border-[#0D9488] px-6 text-sm font-semibold text-[#0D9488] disabled:opacity-50"
+                      >
                         See Results
                       </button>
-                      <button className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#0D9488] px-4 text-sm font-semibold text-[#0D9488]">
+                      <button
+                        onClick={() => handleDownload(assessment.id)}
+                        disabled={busyAssessmentId === assessment.id}
+                        className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#0D9488] px-4 text-sm font-semibold text-[#0D9488] disabled:opacity-50"
+                      >
                         <img src="/icons/pdf-icon.svg" alt="" className="h-5 w-5" />
                         Download
                       </button>
@@ -280,8 +519,25 @@ export default function NewApplicantSkillAssessmentsPage() {
                 ))}
               </div>
 
+              {!loading && assessments.length === 0 ? (
+                <div className="mt-5 rounded-lg border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-700">
+                  No skill assessments found for this candidate.
+                </div>
+              ) : null}
+
               <div className="mt-8 flex justify-center">
-                <button className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#0D9488] px-6 text-sm font-semibold text-[#0D9488]">
+                <button
+                  onClick={async () => {
+                    if (assessments.length === 0) {
+                      setResultError("No skill assessments available to download.");
+                      return;
+                    }
+                    for (const assessment of assessments) {
+                      await handleDownload(assessment.id);
+                    }
+                  }}
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#0D9488] px-6 text-sm font-semibold text-[#0D9488]"
+                >
                   <img src="/icons/pdf-icon.svg" alt="" className="h-4 w-4" />
                   Download skill assessment full results
                 </button>
@@ -293,4 +549,3 @@ export default function NewApplicantSkillAssessmentsPage() {
     </div>
   );
 }
-

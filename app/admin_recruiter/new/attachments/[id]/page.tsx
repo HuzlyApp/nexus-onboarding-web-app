@@ -38,7 +38,14 @@ type WorkerProfileResponse = {
     nursing_license_url: string | null;
     tb_test_url: string | null;
     cpr_certification_url: string | null;
+    authorization_document_url?: string | null;
   };
+  attachment_files?: Array<{
+    bucket: string;
+    path: string;
+    name: string;
+    url?: string | null;
+  }>;
 };
 
 type AttachmentRow = {
@@ -125,14 +132,12 @@ export default function NewApplicantAttachmentsFilledPage() {
       return basenameFromStoragePath(raw ?? null);
     })();
     return [
-      // Resume row is intentionally hidden for now to match current Figma (3 rows only).
-      // Keep this block for future use.
-      // {
-      //   id: "resume",
-      //   title: "Resume",
-      //   url: req?.resume_url ?? null,
-      //   filename: resumeFileLabel,
-      // },
+      {
+        id: "resume",
+        title: "Resume",
+        url: req?.resume_url ?? null,
+        filename: resumeFileLabel,
+      },
       {
         id: "license",
         title: "Nursing License",
@@ -151,6 +156,21 @@ export default function NewApplicantAttachmentsFilledPage() {
         url: du?.cpr_certification_url ?? null,
         filename: fileNameFromHttpUrl(du?.cpr_certification_url ?? null),
       },
+      {
+        id: "authorization",
+        title: "Authorization Document",
+        url: du?.authorization_document_url ?? null,
+        filename: fileNameFromHttpUrl(du?.authorization_document_url ?? null),
+      },
+      ...((profile.attachment_files ?? [])
+        .filter((f) => !["resume", "license", "tb", "cpr", "authorization"].some((k) => f.path.toLowerCase().includes(k)))
+        .slice(0, 5)
+        .map((f, idx) => ({
+          id: `extra-${idx}`,
+          title: `Other Uploaded File ${idx + 1}`,
+          url: f.url ?? null,
+          filename: f.name || basenameFromStoragePath(f.path),
+        })) as AttachmentRow[]),
     ];
   }, [profile]);
 
@@ -401,7 +421,7 @@ export default function NewApplicantAttachmentsFilledPage() {
                                   {r.url ? r.filename : "Not uploaded yet"}
                                 </div>
                                 <div className="text-xs font-normal leading-4 tracking-[0.01em] text-[#6B7280]">
-                                  {r.url ? "5.23 MB" : "—"}
+                                  {r.url ? "Uploaded file" : "—"}
                                 </div>
                               </div>
                             </div>

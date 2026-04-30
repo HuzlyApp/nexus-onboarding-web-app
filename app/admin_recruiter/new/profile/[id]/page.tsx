@@ -56,13 +56,60 @@ type ProfilePayload = {
     identity_uploaded: boolean;
   } | null;
   references: Array<{ id: string; name: string; phone: string | null; email: string | null }>;
-  skillAssessments: { completed: number; total: number };
+  skillAssessments: { completed: number; total: number; rows?: Array<Record<string, unknown>> };
   onboardingSteps: OnboardingStep[];
   activity: { source: string; created_at: string | null; updated_at: string | null };
+  activity_logs?: Array<{
+    id: string | null;
+    action: string | null;
+    entity_type: string | null;
+    entity_id: string | null;
+    details: Record<string, unknown> | null;
+    created_at: string | null;
+  }>;
+  activity_history?: Array<{
+    id: string | null;
+    action: string | null;
+    entity_type: string | null;
+    entity_id: string | null;
+    details: Record<string, unknown> | null;
+    created_at: string | null;
+  }>;
   requirements: {
     resume_path: string | null;
     resume_url: string | null;
   } | null;
+  nursing_licenses?: Array<{
+    license_url: string | null;
+    state: string | null;
+    license_type: string | null;
+    expires_at: string | null;
+  }>;
+  education?: {
+    source: string;
+    resume_available: boolean;
+    items: Array<Record<string, unknown>>;
+  };
+  experience?: {
+    years: number | null;
+    job_role: string | null;
+    positions: string[];
+    role_assignments: Array<{ role: string | null; job_category_name: string | null }>;
+  };
+  skills?: {
+    positions: string[];
+    role_assignments: Array<{ role: string | null; job_category_name: string | null }>;
+    assessed_categories: Array<{ category_title: string | null; completed: boolean }>;
+  };
+  facilities_assigned?: Array<{
+    assignment_id: string | null;
+    assigned_at: string | null;
+    status: string | null;
+    shift_title: string | null;
+    facility_name: string | null;
+    facility_address: string | null;
+  }>;
+  notes?: Array<Record<string, unknown>>;
 };
 
 function initials(name: string) {
@@ -194,17 +241,27 @@ export default function NewApplicantProfilePage() {
 
   const id = applicantId ?? "";
   const nursingLicenseRows = useMemo(() => {
-    const rows = [
+    const fromApi = (data?.nursing_licenses ?? []).map((license, idx) => ({
+      tag: `L${idx + 1}`,
+      registration: license.license_type ?? "—",
+      state: license.state ?? "—",
+      expiry: formatDate(license.expires_at),
+    }));
+    if (fromApi.length > 0) return fromApi;
+    return [
       {
         tag: "L1",
-        registration: w?.ssn_last_four ? `RN${w.ssn_last_four}` : "—",
+        registration: "—",
         state: w?.state ?? "—",
         expiry: "—",
       },
     ];
+  }, [data?.nursing_licenses, w?.state]);
 
-    return rows;
-  }, [w?.ssn_last_four, w?.state]);
+  const onboardingCompleted = useMemo(
+    () => (data?.onboardingSteps ?? []).length > 0 && (data?.onboardingSteps ?? []).every((s) => s.state === "complete"),
+    [data?.onboardingSteps]
+  );
 
   return (
     <div className="flex min-h-screen bg-zinc-50 overflow-hidden">
@@ -425,11 +482,22 @@ export default function NewApplicantProfilePage() {
                             "Reference 2 (Name, Email, Phone, Relationship)",
                             data?.references?.[2]?.name ?? "—",
                           ],
-                          ["Primary Practice Setting", "—"],
-                          ["Primary Allied Health Role", "—"],
-                          ["Professional License / Certification Type", "—"],
-                          ["License Expiration Date", "—"],
-                          ["Which State are you applying for?", "—"],
+                          [
+                            "Primary Practice Setting",
+                            data?.facilities_assigned?.[0]?.facility_name ?? candidateLocation,
+                          ],
+                          [
+                            "Primary Allied Health Role",
+                            data?.experience?.role_assignments?.[0]?.role ??
+                              data?.skills?.positions?.[0] ??
+                              "—",
+                          ],
+                          [
+                            "Professional License / Certification Type",
+                            data?.nursing_licenses?.[0]?.license_type ?? "—",
+                          ],
+                          ["License Expiration Date", formatDate(data?.nursing_licenses?.[0]?.expires_at)],
+                          ["Which State are you applying for?", data?.nursing_licenses?.[0]?.state ?? w?.state ?? "—"],
                           [
                             "Resume file",
                             data?.requirements?.resume_url ? (
@@ -534,8 +602,8 @@ export default function NewApplicantProfilePage() {
                         [
                           ["Source", data?.activity.source ?? "—"],
                           ["Created date", formatDateTimeLabel(data?.activity.created_at)],
-                          ["Date resume added", formatDateTimeLabel(data?.activity.created_at)],
-                          ["Created by", "Nexus Med Pro"],
+                          ["Date resume added", formatDateTimeLabel(data?.requirements?.resume_path ? data?.activity.created_at : null)],
+                          ["Created by", data?.activity_logs?.[0]?.details?.user_agent ? "API Session" : "N/A"],
                           ["Last updated", formatRelative(data?.activity.updated_at)],
                         ] as const
                       ).map(([k, v], idx) => (
@@ -559,41 +627,30 @@ export default function NewApplicantProfilePage() {
                     </div>
                     <div className="p-5">
                     <div>
-                      <div className="flex items-start gap-3 border-b border-[#E5E7EB] py-3">
-                        <img
-                          src="/icons/admin-recruiter/history-icon.svg"
-                          alt=""
-                          className="mt-0.5 h-6 w-6 shrink-0"
-                        />
-                        <div className="min-w-0">
-                          <div className="text-sm font-medium leading-5 text-[#0D9488]">
-                            Record created for {candidateName}
-                          </div>
-                          <div className="text-xs leading-4 text-[#6B7280]">
-                            {formatRelative(data?.activity.created_at)} -{" "}
-                            {formatDateTimeLabel(data?.activity.created_at)}
-                          </div>
-                        </div>
-                      </div>
-                      {data?.activity.updated_at &&
-                      data.activity.updated_at !== data.activity.created_at ? (
-                        <div className="flex items-start gap-3 py-3">
-                          <img
-                            src="/icons/admin-recruiter/history-icon.svg"
-                            alt=""
-                            className="mt-0.5 h-6 w-6 shrink-0"
-                          />
-                          <div className="min-w-0">
-                            <div className="text-sm font-medium leading-5 text-[#0D9488]">
-                              Profile last updated
-                            </div>
-                            <div className="text-xs leading-4 text-[#6B7280]">
-                              {formatRelative(data.activity.updated_at)} -{" "}
-                              {formatDateTimeLabel(data.activity.updated_at)}
+                      {(data?.activity_history ?? []).length === 0 ? (
+                        <div className="py-3 text-xs text-[#6B7280]">No activity history found.</div>
+                      ) : (
+                        (data?.activity_history ?? []).slice(0, 6).map((entry, idx) => (
+                          <div
+                            key={entry.id ?? `history-${idx}`}
+                            className={`flex items-start gap-3 py-3 ${idx < (data?.activity_history ?? []).slice(0, 6).length - 1 ? "border-b border-[#E5E7EB]" : ""}`}
+                          >
+                            <img
+                              src="/icons/admin-recruiter/history-icon.svg"
+                              alt=""
+                              className="mt-0.5 h-6 w-6 shrink-0"
+                            />
+                            <div className="min-w-0">
+                              <div className="text-sm font-medium leading-5 text-[#0D9488]">
+                                {entry.action ?? "Activity"}
+                              </div>
+                              <div className="text-xs leading-4 text-[#6B7280]">
+                                {formatRelative(entry.created_at)} - {formatDateTimeLabel(entry.created_at)}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      ) : null}
+                        ))
+                      )}
                     </div>
                     </div>
                   </div>
@@ -611,11 +668,13 @@ export default function NewApplicantProfilePage() {
                       </div>
                       <div className="px-5 pt-4">
                       <div className="text-xs text-gray-600">
-                        {data?.requirements?.resume_path
-                          ? "Structured education fields are not stored separately; see the uploaded resume."
-                          : "From resume (not stored on worker yet)"}
+                        Source: {data?.education?.source ?? "none"}
                       </div>
-                      <div className="mt-2 text-xs text-gray-600">—</div>
+                      <div className="mt-2 text-xs text-gray-600">
+                        {data?.education?.resume_available
+                          ? "Resume available for education verification."
+                          : "N/A"}
+                      </div>
                       </div>
                   </div>
 
@@ -630,7 +689,19 @@ export default function NewApplicantProfilePage() {
                       </div>
                       <div className="px-5 pt-4">
                       <div className="text-xs text-gray-600">Job role</div>
-                      <div className="mt-2 text-xs text-gray-600">{candidateRole}</div>
+                      <div className="mt-2 text-xs text-gray-600">{data?.experience?.job_role ?? candidateRole}</div>
+                      <div className="mt-2 text-xs text-gray-600">
+                        Years: {data?.experience?.years != null ? data.experience.years : "N/A"}
+                      </div>
+                      <div className="mt-2 text-xs text-gray-600">
+                        Roles:{" "}
+                        {data?.experience?.role_assignments?.length
+                          ? data.experience.role_assignments
+                              .map((x) => x.role || x.job_category_name)
+                              .filter(Boolean)
+                              .join(", ")
+                          : "N/A"}
+                      </div>
                       </div>
                     </div>
 
@@ -645,9 +716,16 @@ export default function NewApplicantProfilePage() {
                       </div>
                       <div className="px-5 pt-4">
                       <div className="text-xs text-gray-600">
-                        Structured skills will appear when stored with the applicant profile.
+                        Positions: {data?.skills?.positions?.length ? data.skills.positions.join(", ") : "N/A"}
                       </div>
-                      <div className="mt-2 text-xs text-gray-600">—</div>
+                      <div className="mt-2 text-xs text-gray-600">
+                        Assessed categories:{" "}
+                        {data?.skills?.assessed_categories?.length
+                          ? data.skills.assessed_categories
+                              .map((x) => x.category_title || "Category")
+                              .join(", ")
+                          : "N/A"}
+                      </div>
                       </div>
                     </div>
 
@@ -661,7 +739,13 @@ export default function NewApplicantProfilePage() {
                         />
                       </div>
                       <div className="flex items-start justify-between px-5 pt-4">
-                        <div className="text-xs text-gray-600">No facility assignments in database yet.</div>
+                        <div className="text-xs text-gray-600">
+                          {data?.facilities_assigned?.length
+                            ? data.facilities_assigned
+                                .map((f) => f.facility_name || f.shift_title || "Assignment")
+                                .join(", ")
+                            : "No facility assignments found"}
+                        </div>
                         <button
                           type="button"
                           className="inline-flex h-9 w-[78px] items-center justify-center gap-1.5 rounded-lg bg-[#0D9488] px-4 py-2 text-sm font-semibold text-white"
@@ -676,8 +760,8 @@ export default function NewApplicantProfilePage() {
                         <div className="min-w-0 truncate whitespace-nowrap text-[18px] font-semibold leading-6 text-[#111827]">
                           Onboarding Progress
                         </div>
-                        <span className="shrink-0 whitespace-nowrap rounded-md bg-[#00B135] px-3 py-1 text-[11px] font-medium text-white">
-                          In Progress
+                        <span className={`shrink-0 whitespace-nowrap rounded-md px-3 py-1 text-[11px] font-medium text-white ${onboardingCompleted ? "bg-[#00B135]" : "bg-[#F59E0B]"}`}>
+                          {onboardingCompleted ? "Completed" : "In Progress"}
                         </span>
                       </div>
 
@@ -760,8 +844,10 @@ export default function NewApplicantProfilePage() {
                       <div className="text-[20px] font-semibold leading-7 text-[#111827]">Notes</div>
                     </div>
                     <div className="p-5">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="text-xs text-[#9CA3AF]">No notes added yet</div>
+                      <div className="flex items-center justify-between gap-3">
+                      <div className="text-xs text-[#9CA3AF]">
+                        {data?.notes?.length ? `${data.notes.length} notes found` : "No notes records found"}
+                      </div>
                       <Link
                         href={`${base}/profile/notes/${id}`}
                         className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#0D9488] px-4 text-xs font-semibold text-white"

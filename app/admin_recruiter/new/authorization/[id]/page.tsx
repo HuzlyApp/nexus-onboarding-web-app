@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams, usePathname } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader";
 import DetailedTabs from "../../../components/DetailedTabs";
@@ -79,6 +79,12 @@ type ZohoRequestDetails = {
   documents_count: number;
 };
 
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value
+  );
+}
+
 function fileLabelFromUrl(url: string): string {
   try {
     const u = new URL(url);
@@ -118,6 +124,7 @@ function FileActions({ url }: { url: string | null }) {
 
 export default function NewApplicantAuthorizationFilledPage() {
   const pathname = usePathname();
+  const router = useRouter();
   const params = useParams<{ id: string }>();
   const applicantId = params?.id;
 
@@ -132,6 +139,33 @@ export default function NewApplicantAuthorizationFilledPage() {
   useEffect(() => {
     async function fetchApplicant() {
       if (!applicantId) return;
+      if (!isUuid(applicantId)) {
+        try {
+          // Recovery path: if URL has a short/invalid ID but only one worker is available,
+          // redirect to the canonical worker UUID route.
+          const res = await fetch("/api/workers", { cache: "no-store" });
+          const json = (await res.json()) as
+            | { workers?: Array<{ id?: string | null }> }
+            | { error?: string };
+          const workers = Array.isArray((json as { workers?: unknown[] }).workers)
+            ? ((json as { workers: Array<{ id?: string | null }> }).workers ?? [])
+            : [];
+          const validWorkers = workers
+            .map((w) => (w?.id ? String(w.id).trim() : ""))
+            .filter((id) => isUuid(id));
+          const unique = Array.from(new Set(validWorkers));
+          if (unique.length === 1) {
+            router.replace(`/admin_recruiter/new/authorization/${unique[0]}`);
+            return;
+          }
+        } catch {
+          // no-op; explicit error shown below
+        }
+        setLoadError("Invalid workerId in URL. Open Authorization from a specific candidate record.");
+        setProfile(null);
+        setLoading(false);
+        return;
+      }
       setLoading(true);
       setLoadError(null);
       try {
@@ -145,7 +179,9 @@ export default function NewApplicantAuthorizationFilledPage() {
         setProfile(json);
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        console.error("Failed to fetch applicant for authorization:", msg, e);
+        if (msg !== "Invalid workerId") {
+          console.error("Failed to fetch applicant for authorization:", msg, e);
+        }
         setLoadError(msg);
         setProfile(null);
       } finally {

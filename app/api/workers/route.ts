@@ -3,7 +3,15 @@ import { NextResponse } from "next/server";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/supabase-env";
 
-type WorkerStatus = "new" | "pending" | "approved" | "disapproved";
+type WorkerStatus =
+  | "new"
+  | "pending"
+  | "approved"
+  | "disapproved"
+  | "active"
+  | "inactive"
+  | "cancelled"
+  | "banned";
 type SbErr = { message: string; code?: string };
 
 function parseStatus(v: string | null): WorkerStatus | null {
@@ -13,7 +21,11 @@ function parseStatus(v: string | null): WorkerStatus | null {
     s === "new" ||
     s === "pending" ||
     s === "approved" ||
-    s === "disapproved"
+    s === "disapproved" ||
+    s === "active" ||
+    s === "inactive" ||
+    s === "cancelled" ||
+    s === "banned"
   ) {
     return s;
   }
@@ -85,10 +97,16 @@ export async function GET(req: Request) {
       // `worker_status_chk` is the CHECK name; the column is `worker_status` (or legacy `status`).
       // Prefer `worker_status` first: when both columns exist, Studio / CHECK usually reflect `worker_status`;
       // filtering `status` first can return 0 rows while `worker_status` is `new`.
-      const attempts = [
-        { col: "worker_status" as const, extra: "worker_status" as const },
-        { col: "status" as const, extra: "status" as const },
-      ];
+      const attempts =
+        status === "active" ||
+        status === "inactive" ||
+        status === "cancelled" ||
+        status === "banned"
+          ? [{ col: "status" as const, extra: "status" as const }]
+          : [
+              { col: "worker_status" as const, extra: "worker_status" as const },
+              { col: "status" as const, extra: "status" as const },
+            ];
 
       let data: unknown[] | null = null;
       let error: SbErr | null = null;
