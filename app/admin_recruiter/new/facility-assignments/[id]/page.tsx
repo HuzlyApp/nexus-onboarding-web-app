@@ -243,7 +243,28 @@ export default function NewApplicantFacilityAssignmentsPage() {
               </div>
 
               {/* Tabs */}
-              <div className="border-b border-[#9CC3FF]/20 bg-white/30" />
+              <div className="border-b border-[#E5E7EB] px-6 py-4">
+                <div className="mx-auto flex w-full max-w-[540px] items-center gap-1">
+                  <button
+                    type="button"
+                    className="h-8 flex-1 rounded-lg bg-transparent px-4 text-base font-medium text-[#374151]"
+                  >
+                    Active Facilities
+                  </button>
+                  <button
+                    type="button"
+                    className="h-8 flex-1 rounded-lg bg-[#0D9488] px-4 text-base font-medium text-white"
+                  >
+                    Potential Facilities
+                  </button>
+                  <button
+                    type="button"
+                    className="h-8 flex-1 rounded-lg bg-transparent px-4 text-base font-medium text-[#374151]"
+                  >
+                    Recent Facilities
+                  </button>
+                </div>
+              </div>
 
               {/* Empty state */}
               <div className="flex min-h-[calc(896px-40px)] items-center justify-center px-6 py-10">
