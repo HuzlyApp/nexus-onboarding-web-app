@@ -136,7 +136,7 @@ export async function GET(req: NextRequest) {
           const n = Number(item.answer_value)
           return Number.isFinite(n) ? acc + n : acc
         }, 0)
-        const totalScoreFromJson = Object.values(answersJson).reduce((acc, v) => {
+        const totalScoreFromJson = Object.values(answersJson).reduce<number>((acc, v) => {
           const n = Number(v)
           return Number.isFinite(n) ? acc + n : acc
         }, 0)

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createClient, type PostgrestError } from "@supabase/supabase-js"
+import { createClient, type PostgrestError, type SupabaseClient } from "@supabase/supabase-js"
 import { requireApiSession } from "@/lib/auth/api-session"
 import { canAccessWorkerRecord } from "@/lib/auth/worker-record-access"
 import { getSupabaseUrl } from "@/lib/supabase-env"
@@ -49,7 +49,7 @@ function toSectionError(error: PostgrestError): SectionError {
 }
 
 async function queryRows(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient,
   candidate: TableCandidate,
   runtimeId: string
 ): Promise<{ rows: Record<string, unknown>[]; error: PostgrestError | null }> {
@@ -84,7 +84,7 @@ async function queryRows(
 }
 
 async function queryFirstAvailableRows(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient,
   runtimeId: string,
   candidates: TableCandidate[]
 ): Promise<{ rows: Record<string, unknown>[]; error: PostgrestError | null }> {
