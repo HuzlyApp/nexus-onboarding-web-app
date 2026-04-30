@@ -148,15 +148,13 @@ function AdminRecruiterLoginContent() {
             {/* Terms checkbox */}
             <div className="pt-2">
               <OnboardingCheckbox
-                native
-                id="agree"
                 checked={form.agree}
                 onChange={(checked) =>
                   setForm((prev) => ({ ...prev, agree: checked }))
                 }
                 className="flex items-start gap-3"
               >
-                <label htmlFor="agree" className="text-sm text-gray-600 leading-6">
+                <span className="text-sm text-gray-600 leading-6">
                   By checking this box you agree to our{" "}
                   <a
                     href="#"
@@ -164,7 +162,7 @@ function AdminRecruiterLoginContent() {
                   >
                     Terms & Conditions
                   </a>
-                </label>
+                </span>
               </OnboardingCheckbox>
             </div>
 
