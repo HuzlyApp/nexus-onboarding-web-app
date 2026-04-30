@@ -1,10 +1,11 @@
 import { redirect } from "next/navigation";
 
-export default function WorkerChecklistRedirectPage({
+export default async function WorkerChecklistRedirectPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
-  redirect(`/admin_recruiter/new/checklist/${params.id}`);
+  const { id } = await params;
+  redirect(`/admin_recruiter/new/checklist/${id}`);
 }
 

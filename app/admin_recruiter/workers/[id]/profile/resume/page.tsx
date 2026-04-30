@@ -1,10 +1,11 @@
 import { redirect } from "next/navigation";
 
-export default function WorkerProfileResumeRedirectPage({
+export default async function WorkerProfileResumeRedirectPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
-  redirect(`/admin_recruiter/new/profile/resume/${params.id}`);
+  const { id } = await params;
+  redirect(`/admin_recruiter/new/profile/resume/${id}`);
 }
 
