@@ -4,6 +4,81 @@ import { requireStaffApiSession } from "@/lib/auth/api-session"
 import { getSupabaseUrl } from "@/lib/supabase-env"
 
 type RpcRow = Record<string, unknown>
+type WorkerSelectClient = {
+  from: (table: "worker") => {
+    select: (columns: string) => PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>
+  }
+}
+
+function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const toRad = (v: number) => (v * Math.PI) / 180
+  const R = 6371000
+  const dLat = toRad(lat2 - lat1)
+  const dLng = toRad(lng2 - lng1)
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) * Math.sin(dLng / 2)
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+  return R * c
+}
+
+function getRowCoord(v: unknown): number | null {
+  return typeof v === "number" && Number.isFinite(v) ? v : null
+}
+
+async function fallbackNearbyWorkers(
+  supabase: unknown,
+  opts: { lat: number; lng: number; radiusMiles: number }
+): Promise<{ rows: RpcRow[]; error: string | null }> {
+  const db = supabase as WorkerSelectClient
+  const selectVariants = [
+    "id, first_name, last_name, job_role, city, state, address1, lat, lng",
+    "id, first_name, last_name, job_role, city, state, address1, latitude, longitude",
+  ]
+
+  let wk: Record<string, unknown>[] | null = null
+  let lastError: string | null = null
+
+  for (const selectCols of selectVariants) {
+    const { data, error } = await db.from("worker").select(selectCols)
+    if (!error) {
+      wk = (data ?? []).map((row) => row as Record<string, unknown>)
+      lastError = null
+      break
+    }
+    lastError = error.message
+  }
+
+  if (!wk) {
+    return { rows: [], error: lastError ?? "Failed to fetch worker coordinates" }
+  }
+
+  const radiusMeters = opts.radiusMiles * 1609.344
+  const rows: RpcRow[] = []
+  for (const row of wk) {
+    const rowLat = getRowCoord(row.lat) ?? getRowCoord(row.latitude)
+    const rowLng = getRowCoord(row.lng) ?? getRowCoord(row.longitude)
+    if (rowLat == null || rowLng == null) continue
+
+    const distance = haversineMeters(opts.lat, opts.lng, rowLat, rowLng)
+    if (distance > radiusMeters) continue
+
+    rows.push({
+      ...mapWorkerRow(row, { lat: opts.lat, lng: opts.lng }),
+      lat: rowLat,
+      lng: rowLng,
+      distance_meters: distance,
+    })
+  }
+
+  rows.sort((a, b) => {
+    const ad = typeof a.distance_meters === "number" ? a.distance_meters : Number.POSITIVE_INFINITY
+    const bd = typeof b.distance_meters === "number" ? b.distance_meters : Number.POSITIVE_INFINITY
+    return ad - bd
+  })
+
+  return { rows, error: null }
+}
 
 function mergeById(a: RpcRow[], b: RpcRow[]): RpcRow[] {
   const map = new Map<string, RpcRow>()
@@ -78,9 +153,13 @@ export async function POST(req: Request) {
   })
 
   if (rpcError) {
-    // RPC may be missing in dev — still allow city search
+    // Fallback if RPC is broken/missing (e.g. function references old columns)
     if (!place) {
-      return Response.json({ error: rpcError.message }, { status: 500 })
+      const fallback = await fallbackNearbyWorkers(supabase, { lat, lng, radiusMiles: radius })
+      if (fallback.error) {
+        return Response.json({ error: `${rpcError.message} | Fallback failed: ${fallback.error}` }, { status: 500 })
+      }
+      rpcRows = fallback.rows
     }
   } else if (Array.isArray(rpcData)) {
     rpcRows = rpcData as RpcRow[]

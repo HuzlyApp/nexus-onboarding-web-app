@@ -1,10 +1,10 @@
-import { Suspense } from "react";
-import ResultsClient from "./ResultsClient";
+import { redirect } from "next/navigation";
 
-export default function AdvancedSearchResultsPage() {
-  return (
-    <Suspense fallback={<div className="p-8 text-gray-600">Loading…</div>}>
-      <ResultsClient />
-    </Suspense>
-  );
+export default async function AdvancedSearchResultsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  await searchParams;
+  redirect("/admin_recruiter/candidates");
 }

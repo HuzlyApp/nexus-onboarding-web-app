@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import {
   Plus,
   Mail,
@@ -28,6 +29,7 @@ import {
 } from "./column-config";
 import { renderListCell } from "./render-list-cell";
 import type { CandidateRow } from "./types";
+import AdvancedSearchModal from "../components/AdvancedSearchModal";
 
 type WorkerProfile = {
   id: string;
@@ -98,8 +100,11 @@ function formatDateShort(iso: string | null) {
 }
 
 const PAGE_SIZE = 9;
+const ADVANCED_SEARCH_STORAGE_KEY = "admin_recruiter_candidates_advanced_search";
+type AdvancedSearchParams = { lat: number; lng: number; radius: number; place?: string };
 
 export default function CandidatesPage() {
+  const router = useRouter();
   const [candidates, setCandidates] = useState<CandidateRow[]>([]);
   const [totalFromApi, setTotalFromApi] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -115,14 +120,117 @@ export default function CandidatesPage() {
   const [editColumnsOpen, setEditColumnsOpen] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const [advancedSearchOpen, setAdvancedSearchOpen] = useState(false);
+  const [advancedSearchParams, setAdvancedSearchParams] = useState<AdvancedSearchParams | null>(null);
+
+  const advancedSearchContext = useMemo(() => {
+    if (!advancedSearchParams) {
+      return { active: false, lat: 0, lng: 0, radius: 0, place: "" };
+    }
+    return {
+      active: true,
+      lat: advancedSearchParams.lat,
+      lng: advancedSearchParams.lng,
+      radius: advancedSearchParams.radius,
+      place: (advancedSearchParams.place ?? "").trim(),
+    };
+  }, [advancedSearchParams]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const raw = window.sessionStorage.getItem(ADVANCED_SEARCH_STORAGE_KEY);
+    if (!raw) return;
+    try {
+      const parsed = JSON.parse(raw) as Partial<AdvancedSearchParams>;
+      const lat = Number(parsed.lat);
+      const lng = Number(parsed.lng);
+      const radius = Number(parsed.radius);
+      if (Number.isFinite(lat) && Number.isFinite(lng) && Number.isFinite(radius) && radius > 0) {
+        setAdvancedSearchParams({
+          lat,
+          lng,
+          radius,
+          place: typeof parsed.place === "string" ? parsed.place : "",
+        });
+      }
+    } catch {
+      window.sessionStorage.removeItem(ADVANCED_SEARCH_STORAGE_KEY);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const sp = new URLSearchParams(window.location.search);
+    if (sp.get("advancedSearch") === "1") {
+      setAdvancedSearchOpen(true);
+      router.replace("/admin_recruiter/candidates");
+    }
+  }, [router]);
+
+  const applyAdvancedSearchParams = useCallback((params: AdvancedSearchParams | null) => {
+    setAdvancedSearchParams(params);
+    if (typeof window === "undefined") return;
+    if (!params) {
+      window.sessionStorage.removeItem(ADVANCED_SEARCH_STORAGE_KEY);
+      return;
+    }
+    window.sessionStorage.setItem(ADVANCED_SEARCH_STORAGE_KEY, JSON.stringify(params));
+  }, []);
 
   useEffect(() => {
     setListColumnOrder(loadColumnOrder());
   }, []);
 
-  const loadCandidates = useCallback(async () => {
+  const loadCandidates = useCallback(async (overrideAdvancedSearch?: AdvancedSearchParams | null) => {
+    const activeSearch = overrideAdvancedSearch === undefined ? advancedSearchParams : overrideAdvancedSearch;
     setLoading(true);
     try {
+      if (activeSearch) {
+        const res = await fetch("/api/search-workers", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            lat: activeSearch.lat,
+            lng: activeSearch.lng,
+            radius: activeSearch.radius,
+            ...(activeSearch.place ? { place: activeSearch.place } : {}),
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.error || "Failed to fetch search results");
+
+        const rows: WorkerProfile[] = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.workers)
+            ? data.workers
+            : [];
+        setTotalFromApi(rows.length);
+
+        const mapped: CandidateRow[] = rows.map((item) => ({
+          id: item.id,
+          name: `${item.first_name || ""} ${item.last_name || ""}`.trim(),
+          firstName: item.first_name ?? "",
+          lastName: item.last_name ?? "",
+          role: item.job_role || "N/A",
+          email: item.email || "",
+          phone: item.phone || "",
+          address: [item.address1, item.city, item.state].filter(Boolean).join(", "),
+          city: item.city ?? "",
+          state: item.state ?? "",
+          zip: item.zip ?? "",
+          address1: item.address1 ?? "",
+          address2: item.address2 ?? "",
+          status: titleCaseStatus(item.status as string | undefined),
+          createdAt: item.created_at,
+          reference: item.id.slice(0, 7).toUpperCase(),
+          dateOfBirth: null,
+        }));
+
+        setCandidates(mapped);
+        setVisibleCount(PAGE_SIZE);
+        return;
+      }
+
       const param = statusToApiParam(statusFilter);
       const url = param ? `/api/workers?status=${encodeURIComponent(param)}` : "/api/workers";
       const res = await fetch(url, { cache: "no-store" });
@@ -176,7 +284,7 @@ export default function CandidatesPage() {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter]);
+  }, [advancedSearchParams, statusFilter]);
 
   useEffect(() => {
     void loadCandidates();
@@ -298,11 +406,18 @@ export default function CandidatesPage() {
 
                   <button
                     type="button"
-                    onClick={() => void loadCandidates()}
+                    onClick={() => {
+                      if (advancedSearchContext.active) {
+                        applyAdvancedSearchParams(null);
+                        void loadCandidates(null);
+                        return;
+                      }
+                      void loadCandidates();
+                    }}
                     className="h-8 inline-flex items-center gap-1.5 border border-[#dce6e3] bg-white hover:bg-zinc-50 px-3 rounded-md transition text-xs leading-4 font-semibold text-[#3d4a4a]"
                   >
                     <Image src="/icons/admin-recruiter/candidates/refresh.svg" alt="" width={16} height={16} />
-                    Refresh
+                    {advancedSearchContext.active ? "Reset Search" : "Refresh"}
                   </button>
 
                   {/* <button
@@ -337,14 +452,17 @@ export default function CandidatesPage() {
                           aria-label="Close menu"
                           onClick={() => setMoreMenuOpen(false)}
                         />
-                        <div className="absolute right-0 top-full mt-2 z-50 min-w-[200px] rounded-2xl border border-zinc-200 bg-white py-2 shadow-lg">
-                          <Link
-                            href="/admin_recruiter/advanced-search"
-                            className="block px-4 py-2.5 text-sm text-gray-600 hover:bg-zinc-50"
-                            onClick={() => setMoreMenuOpen(false)}
+                    <div className="absolute right-0 top-full mt-2 z-50 min-w-[200px] rounded-2xl border border-zinc-200 bg-white py-2 shadow-lg">
+                          <button
+                            type="button"
+                            className="block w-full px-4 py-2.5 text-left text-sm text-gray-600 hover:bg-zinc-50"
+                            onClick={() => {
+                              setMoreMenuOpen(false);
+                              setAdvancedSearchOpen(true);
+                            }}
                           >
                             Advanced search
-                          </Link>
+                          </button>
                         </div>
                       </>
                     ) : null}
@@ -421,11 +539,29 @@ export default function CandidatesPage() {
 
                   <div className="h-[56px] border-b border-[#E5E7EB] bg-white px-[14px] flex items-center justify-between gap-4">
                     <div className="text-xs text-[#5e7371] shrink-0">
-                      Total:{" "}
-                      <span className="font-semibold text-[#203130]">
-                        {loading ? "—" : totalFromApi ?? filtered.length}
-                      </span>{" "}
-                      {loading ? "" : totalLabel}
+                      {advancedSearchContext.active ? (
+                        <>
+                          Total:{" "}
+                          <span className="font-semibold text-[#203130]">
+                            {loading ? "—" : totalFromApi ?? filtered.length}
+                          </span>{" "}
+                          Results
+                          {advancedSearchContext.place ? (
+                            <>
+                              {" "}found in{" "}
+                              <span className="font-semibold text-[#203130]">{advancedSearchContext.place}</span>
+                            </>
+                          ) : null}
+                        </>
+                      ) : (
+                        <>
+                          Total:{" "}
+                          <span className="font-semibold text-[#203130]">
+                            {loading ? "—" : totalFromApi ?? filtered.length}
+                          </span>{" "}
+                          {loading ? "" : totalLabel}
+                        </>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
@@ -480,7 +616,23 @@ export default function CandidatesPage() {
                   );
                 }
                 if (filtered.length === 0) {
-                  return <div className="text-center py-24 text-gray-600">No candidates found.</div>;
+                  return (
+                    <div className="py-24 text-center text-gray-600">
+                      <div>No candidates found.</div>
+                      {advancedSearchContext.active ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            applyAdvancedSearchParams(null);
+                            void loadCandidates(null);
+                          }}
+                          className="mt-4 inline-flex h-10 items-center justify-center rounded-md bg-[#0D9488] px-5 text-sm font-semibold text-white hover:bg-[#0B7F77]"
+                        >
+                          Reset Search
+                        </button>
+                      ) : null}
+                    </div>
+                  );
                 }
 
                 if (view === "list") {
@@ -640,6 +792,32 @@ export default function CandidatesPage() {
         onSave={(order) => {
           setListColumnOrder(order);
           saveColumnOrder(order);
+        }}
+      />
+      <AdvancedSearchModal
+        open={advancedSearchOpen}
+        onClose={() => setAdvancedSearchOpen(false)}
+        initialParams={
+          advancedSearchContext.active
+            ? {
+                lat: advancedSearchContext.lat,
+                lng: advancedSearchContext.lng,
+                radius: advancedSearchContext.radius,
+                place: advancedSearchContext.place,
+              }
+            : undefined
+        }
+        onViewResults={(params) => {
+          const nextParams: AdvancedSearchParams = {
+            lat: params.lat,
+            lng: params.lng,
+            radius: params.radius,
+            ...(params.place ? { place: params.place } : {}),
+          };
+          applyAdvancedSearchParams(nextParams);
+          void loadCandidates(nextParams);
+          router.replace("/admin_recruiter/candidates");
+          setAdvancedSearchOpen(false);
         }}
       />
     </div>
