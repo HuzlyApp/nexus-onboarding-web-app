@@ -7,7 +7,6 @@ import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader
 import DetailedTabs from "../../../components/DetailedTabs";
 import {
   Briefcase,
-  Building2,
   Calendar,
   LogOut,
   Menu,
@@ -217,7 +216,7 @@ export default function NewApplicantFacilityAssignmentsPage() {
             />
             <DetailedTabs applicantId={applicantId} activeTab="Facility Assignments" />
 
-            <div className="mx-auto w-full max-w-[1300px] rounded-md border border-[#E5E7EB] bg-white p-5">
+            <div className="mx-auto w-full max-w-[1300px] min-h-[896px] rounded-lg border border-[#E5E7EB] bg-white p-5">
               {/* Top */}
               <div className="hidden p-6 items-start justify-between gap-6 border-b border-[#9CC3FF]/30 bg-white/40">
                 <div className="flex items-center gap-4">
@@ -247,23 +246,22 @@ export default function NewApplicantFacilityAssignmentsPage() {
               <div className="border-b border-[#9CC3FF]/20 bg-white/30" />
 
               {/* Empty state */}
-              <div className="p-14">
-                <div className="max-w-md mx-auto text-center">
-                  <div className="w-12 h-12 mx-auto rounded-2xl bg-teal-600/10 flex items-center justify-center mb-4">
-                    <Building2 className="w-6 h-6 text-teal-700" />
+              <div className="flex min-h-[calc(896px-40px)] items-center justify-center px-6 py-10">
+                <div className="max-w-md text-center">
+                  <div className="text-[18px] font-semibold leading-7 text-gray-700">
+                    No facility assigned yet
                   </div>
-                  <div className="text-sm font-semibold text-gray-600">No facility assigned yet</div>
-                  <div className="text-xs text-gray-600 mt-2">
-                    No facility assigned yet for {loading ? "this applicant" : candidateName}.
+                  <div className="mt-2 text-center text-sm font-normal leading-5 text-gray-500">
+                    No facility assigned yet to the applicant.
                   </div>
                   <a
                     href="#"
-                    className="text-xs text-teal-700 mt-2 underline underline-offset-4 inline-block"
+                    className="mt-2 inline-block text-center text-sm font-normal leading-5 text-teal-700 underline underline-offset-4"
                   >
                     Learn more about facility recommendations
                   </a>
 
-                  <button className="mt-6 inline-flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white px-6 py-3 rounded-2xl transition text-sm">
+                  <button className="mt-6 inline-flex h-10 w-[237px] items-center justify-center gap-2 rounded-[8px] bg-[#0D9488] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#0B7F77]">
                     <Plus className="w-4 h-4" />
                     Add candidate to a facility
                   </button>
