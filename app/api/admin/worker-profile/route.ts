@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { writeActivityLog } from "@/lib/audit/activity-log"
+import { mapAdminOnboardingProgress } from "@/lib/admin-onboarding-progress"
 import { requireApiSession } from "@/lib/auth/api-session"
 import { isStaffRole } from "@/lib/auth/app-role"
 import { canAccessWorkerRecord } from "@/lib/auth/worker-record-access"
@@ -53,11 +54,6 @@ function asTrimmedString(v: unknown): string | null {
 function toStringArray(v: unknown): string[] {
   if (!Array.isArray(v)) return []
   return v.map((item) => String(item).trim()).filter((x) => x.length > 0)
-}
-
-function boolFromZohoSigned(status: string | null | undefined): boolean {
-  const s = (status ?? "").trim().toLowerCase()
-  return s === "signed" || s === "completed"
 }
 
 export async function GET(req: NextRequest) {
@@ -286,8 +282,6 @@ export async function GET(req: NextRequest) {
     const tbOk = hasUrl(tbTestUrl)
     const cprOk = hasUrl(cprCertUrl)
     const idOk = hasUrl(docs?.ssn_url) || hasUrl(docs?.drivers_license_url)
-    const docsCompleteCount = [licenseOk, tbOk, cprOk, idOk].filter(Boolean).length
-
     const { data: refRows } = await supabase
       .from("worker_references")
       .select("id, reference_first_name, reference_last_name, reference_phone, reference_email, created_at")
@@ -308,76 +302,9 @@ export async function GET(req: NextRequest) {
       }
     })
 
+    let skillAssessmentRows: Record<string, unknown>[] = []
     let saCompleted = 0
     let saTotal = 0
-    const { data: saRows, error: saErr } = await supabase
-      .from("skill_assessments")
-      .select("*")
-      .eq("worker_id", workerId)
-
-    const skillAssessmentRows =
-      !saErr && Array.isArray(saRows) ? (saRows as Record<string, unknown>[]) : []
-    if (skillAssessmentRows.length > 0) {
-      const categorySlugs = skillAssessmentRows
-        .map((x) => String(x.category ?? "").trim())
-        .filter((x) => x.length > 0)
-      const { data: categoriesRows } = await supabase
-        .from("skill_categories")
-        .select("*")
-        .in("slug", categorySlugs.length > 0 ? categorySlugs : ["__none__"])
-      const categoryBySlug = new Map<string, Record<string, unknown>>(
-        ((categoriesRows ?? []) as Record<string, unknown>[]).map((row) => [String(row.slug ?? ""), row])
-      )
-
-      const categoryIds = Array.from(
-        new Set(
-          ((categoriesRows ?? []) as Record<string, unknown>[])
-            .map((row) => String(row.id ?? "").trim())
-            .filter((id) => id.length > 0)
-        )
-      )
-      const { data: questionRows } = await supabase
-        .from("skill_questions")
-        .select("id,category_id")
-        .in("category_id", categoryIds.length > 0 ? categoryIds : ["00000000-0000-0000-0000-000000000000"])
-      const questionCountByCategory = new Map<string, number>()
-      for (const row of ((questionRows ?? []) as Record<string, unknown>[])) {
-        const cid = String(row.category_id ?? "").trim()
-        if (!cid) continue
-        questionCountByCategory.set(cid, (questionCountByCategory.get(cid) ?? 0) + 1)
-      }
-
-      const { data: normalizedAnswerRows } = await supabase
-        .from("applicant_skill_assessment_answers")
-        .select("applicant_id,category_id,answer_value")
-        .in("applicant_id", userIdForLegacy ? [workerId, userIdForLegacy] : [workerId])
-      const answersByCategoryId = new Map<string, number>()
-      for (const row of ((normalizedAnswerRows ?? []) as Record<string, unknown>[])) {
-        const cid = String(row.category_id ?? "").trim()
-        if (!cid) continue
-        answersByCategoryId.set(cid, (answersByCategoryId.get(cid) ?? 0) + 1)
-      }
-
-      saTotal = skillAssessmentRows.length
-      saCompleted = 0
-      for (const row of skillAssessmentRows) {
-        const slug = String(row.category ?? "")
-        const category = categoryBySlug.get(slug)
-        const categoryId = String(category?.id ?? "").trim()
-        row.category_title = category?.title ?? slug
-        row.category_id = category?.id ?? null
-        const answeredCount = categoryId ? (answersByCategoryId.get(categoryId) ?? 0) : 0
-        const requiredCount = categoryId ? (questionCountByCategory.get(categoryId) ?? 0) : 0
-        const inferredCompleted = answeredCount > 0
-        const completed = row.completed === true || inferredCompleted
-        row.completed = completed
-        row.answered_count = answeredCount
-        row.required_question_count = requiredCount
-        if (completed) saCompleted += 1
-      }
-    } else {
-      saTotal = 0
-    }
 
     const positions = toStringArray(w.positions)
     const experienceYearsRaw = w.experience_years ?? w.years_experience
@@ -496,103 +423,23 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const profileComplete = Boolean(w.id)
-    const hasResumePath = Boolean(resumePathCanonical)
-    const licenseCount = [licenseOk, tbOk, cprOk].filter(Boolean).length
-    const licenseRequiredCount = 3
-    const licenseStep = licenseCount >= licenseRequiredCount
-    const assessmentsComplete = saTotal > 0 && saCompleted >= saTotal
-    const ssnUploaded = hasUrl(docs?.ssn_url)
-    const driversLicenseUploaded = hasUrl(docs?.drivers_license_url)
-    const authSigned = boolFromZohoSigned(zohoSign?.status)
-    const authDocsCount = [authSigned, ssnUploaded, driversLicenseUploaded].filter(Boolean).length
-    const authDocsRequiredCount = 3
-    const authDocsComplete = authDocsCount >= authDocsRequiredCount
-    const referencesComplete = references.length >= 2
-    const hasDocumentsRow = docRow != null
-
-    console.info("[debug-onboarding-progress] section-evaluation", {
-      route: "GET /api/admin/worker-profile",
+    const applicantName = `${String(w.first_name ?? "").trim()} ${String(w.last_name ?? "").trim()}`.trim() || "Applicant"
+    const mapped = await mapAdminOnboardingProgress({
+      supabase,
       workerId,
-      workerUserId: userIdForLegacy,
-      sections: {
-        resume_profile: {
-          source_tables: ["worker", "worker_requirements", "storage.worker-resumes"],
-          profile_exists: profileComplete,
-          resume_exists: hasResumePath,
-          complete: profileComplete && hasResumePath,
-        },
-        professional_license: {
-          source_tables: ["worker_documents", "storage.worker_required_files"],
-          nursing_license: licenseOk,
-          tb_test: tbOk,
-          cpr: cprOk,
-          count: licenseCount,
-          required: licenseRequiredCount,
-          complete: licenseStep,
-        },
-        skill_assessment: {
-          source_tables: ["skill_assessments", "applicant_skill_assessment_answers", "skill_questions"],
-          total: saTotal,
-          completed: saCompleted,
-          complete: assessmentsComplete,
-        },
-        authorizations_documents: {
-          source_tables: ["worker_documents", "zoho_sign_requests"],
-          auth_signed: authSigned,
-          ssn_uploaded: ssnUploaded,
-          drivers_license_uploaded: driversLicenseUploaded,
-          count: authDocsCount,
-          required: authDocsRequiredCount,
-          complete: authDocsComplete,
-        },
-        references: {
-          source_tables: ["worker_references"],
-          count: references.length,
-          required: 2,
-          complete: referencesComplete,
-        },
-      },
+      userId: userIdForLegacy,
+      applicantName,
+      workerDocuments: docs,
+      resumePathRaw: resumePathStored,
+      candidateBuckets,
+      storageHits: listHits,
+      zohoStatus: zohoSign?.status ?? null,
+      referencesCount: references.length,
     })
-
-    type StepState = "complete" | "in_progress" | "pending"
-    const step = (done: boolean, partial: boolean): StepState => {
-      if (done) return "complete"
-      if (partial) return "in_progress"
-      return "pending"
-    }
-
-    const onboardingSteps = [
-      {
-        id: "resume",
-        label: "Add Resume / Profile",
-        state: step(profileComplete && hasResumePath, profileComplete && !hasResumePath),
-      },
-      {
-        id: "license",
-        label: "Professional License",
-        state: step(licenseStep, !licenseStep && hasDocumentsRow),
-        detail: `${licenseCount} of ${licenseRequiredCount}`,
-      },
-      {
-        id: "skills",
-        label: "Skill Assessment",
-        state: step(assessmentsComplete, saCompleted > 0 && !assessmentsComplete),
-        detail: saTotal ? `${saCompleted} of ${saTotal}` : undefined,
-      },
-      {
-        id: "auth_docs",
-        label: "Authorizations & Documents",
-        state: step(authDocsComplete, authDocsCount > 0 && !authDocsComplete),
-        detail: `${authDocsCount} of ${authDocsRequiredCount}`,
-      },
-      {
-        id: "references",
-        label: "Add References",
-        state: step(referencesComplete, references.length > 0 && !referencesComplete),
-        detail: `${references.length} added`,
-      },
-    ]
+    skillAssessmentRows = mapped.skillAssessments.rows
+    saCompleted = mapped.skillAssessments.completed
+    saTotal = mapped.skillAssessments.total
+    const onboardingSteps = mapped.steps
 
     const createdAt = w.created_at != null ? String(w.created_at) : null
     const updatedAt = w.updated_at != null ? String(w.updated_at) : createdAt

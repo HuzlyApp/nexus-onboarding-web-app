@@ -109,27 +109,100 @@ export async function GET(req: NextRequest) {
 
     const docs = docRow as Record<string, unknown> | null
 
-    const licenseOk = hasUrl(docs?.nursing_license_url)
-    const tbOk = hasUrl(docs?.tb_test_url)
-    const cprOk = hasUrl(docs?.cpr_certification_url)
-    const ssnOk = hasUrl(docs?.ssn_url) || hasUrl(docs?.drivers_license_url)
+    const documentChecks = [
+      { id: "license", ok: hasUrl(docs?.nursing_license_url) },
+      { id: "tb", ok: hasUrl(docs?.tb_test_url) },
+      { id: "cpr", ok: hasUrl(docs?.cpr_certification_url) },
+      { id: "ssn", ok: hasUrl(docs?.ssn_url) || hasUrl(docs?.drivers_license_url) },
+    ]
+    const licenseOk = documentChecks[0].ok
+    const tbOk = documentChecks[1].ok
+    const cprOk = documentChecks[2].ok
+    const ssnOk = documentChecks[3].ok
 
-    const verifiedDone = [licenseOk, tbOk, cprOk, ssnOk].filter(Boolean).length
-    const verifiedTotal = 4
+    const verifiedDone = documentChecks.filter((d) => d.ok).length
+    const verifiedTotal = documentChecks.length
 
     let completedAssessments = 0
     let totalAssessments = 0
     const { data: saRows, error: saErr } = await supabase
       .from("skill_assessments")
-      .select("category, completed")
+      .select("category, completed, answers")
       .eq("worker_id", workerId)
 
-    if (!saErr && Array.isArray(saRows) && saRows.length > 0) {
-      totalAssessments = saRows.length
-      completedAssessments = saRows.filter((r) => (r as { completed?: boolean }).completed === true).length
-    } else {
-      totalAssessments = 6
+    if (!saErr) {
+      const assessmentRows = (saRows ?? []) as Array<{
+        category?: string | null
+        completed?: boolean | null
+        answers?: Record<string, unknown> | null
+      }>
+      const categorySlugs = Array.from(
+        new Set(
+          assessmentRows
+            .map((r) => String(r.category ?? "").trim())
+            .filter((slug) => slug.length > 0)
+        )
+      )
+
+      const { data: categoryRows } = await supabase
+        .from("skill_categories")
+        .select("id,slug")
+        .in("slug", categorySlugs.length > 0 ? categorySlugs : ["__none__"])
+      const categoryBySlug = new Map<string, string>(
+        ((categoryRows ?? []) as Array<{ id?: string; slug?: string }>).map((row) => [
+          String(row.slug ?? ""),
+          String(row.id ?? ""),
+        ])
+      )
+
+      const { data: questionRows } = await supabase
+        .from("skill_questions")
+        .select("category_id")
+      const requiredByCategory = new Map<string, number>()
+      for (const row of ((questionRows ?? []) as Array<{ category_id?: string }>)) {
+        const categoryId = String(row.category_id ?? "").trim()
+        if (!categoryId) continue
+        requiredByCategory.set(categoryId, (requiredByCategory.get(categoryId) ?? 0) + 1)
+      }
+
+      const { data: answerRows } = await supabase
+        .from("applicant_skill_assessment_answers")
+        .select("category_id")
+        .eq("applicant_id", workerId)
+      const answeredByCategory = new Map<string, number>()
+      for (const row of ((answerRows ?? []) as Array<{ category_id?: string }>)) {
+        const categoryId = String(row.category_id ?? "").trim()
+        if (!categoryId) continue
+        answeredByCategory.set(categoryId, (answeredByCategory.get(categoryId) ?? 0) + 1)
+      }
+
+      totalAssessments = assessmentRows.length
       completedAssessments = 0
+      for (const row of assessmentRows) {
+        const slug = String(row.category ?? "").trim()
+        const categoryId = categoryBySlug.get(slug) ?? ""
+        const normalizedAnswered = answeredByCategory.get(categoryId) ?? 0
+        const answersJson =
+          row.answers && typeof row.answers === "object" && !Array.isArray(row.answers)
+            ? row.answers
+            : {}
+        const jsonAnswered = Object.keys(answersJson).length
+        const answered = Math.max(normalizedAnswered, jsonAnswered)
+        const required = requiredByCategory.get(categoryId) ?? 0
+        const completeByAnswers = required > 0 ? answered >= required : answered > 0
+        if (row.completed === true || completeByAnswers) completedAssessments += 1
+      }
+
+      if (totalAssessments === 0) {
+        totalAssessments = answeredByCategory.size
+        completedAssessments = 0
+        for (const [categoryId, answered] of answeredByCategory.entries()) {
+          const required = requiredByCategory.get(categoryId) ?? 0
+          if ((required > 0 && answered >= required) || (required === 0 && answered > 0)) {
+            completedAssessments += 1
+          }
+        }
+      }
     }
 
     const docPct = (verifiedDone / Math.max(verifiedTotal, 1)) * 35

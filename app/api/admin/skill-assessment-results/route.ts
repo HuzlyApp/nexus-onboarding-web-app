@@ -104,11 +104,33 @@ export async function GET(req: NextRequest) {
         normalizedByCategory.set(key, prev)
       }
 
+      const categoryIds = Array.from(
+        new Set(
+          ((categories ?? []) as JsonMap[])
+            .map((row) => String(row.id ?? "").trim())
+            .filter((id) => id.length > 0)
+        )
+      )
+      const { data: questionRows } = await supabase
+        .from("skill_questions")
+        .select("id,category_id")
+        .in(
+          "category_id",
+          categoryIds.length > 0 ? categoryIds : ["00000000-0000-0000-0000-000000000000"]
+        )
+      const requiredByCategory = new Map<string, number>()
+      for (const row of ((questionRows ?? []) as JsonMap[])) {
+        const categoryId = String(row.category_id ?? "").trim()
+        if (!categoryId) continue
+        requiredByCategory.set(categoryId, (requiredByCategory.get(categoryId) ?? 0) + 1)
+      }
+
       const list = rows.map((row) => {
         const slug = String(row.category ?? "")
         const category = categoryBySlug.get(slug) ?? {}
         const categoryId = asNullableString(category.id)
         const answerRows = categoryId ? normalizedByCategory.get(categoryId) ?? [] : []
+        const requiredCount = categoryId ? (requiredByCategory.get(categoryId) ?? 0) : 0
         const answersJson = asObject(row.answers)
         const totalScoreFromRows = answerRows.reduce((acc, item) => {
           const n = Number(item.answer_value)
@@ -118,6 +140,11 @@ export async function GET(req: NextRequest) {
           const n = Number(v)
           return Number.isFinite(n) ? acc + n : acc
         }, 0)
+        // Use the most complete signal available. Some records have partial normalized rows
+        // while the JSON payload still contains the full submitted answers.
+        const answeredCount = Math.max(answerRows.length, Object.keys(answersJson).length)
+        const inferredCompleted = requiredCount > 0 ? answeredCount >= requiredCount : answeredCount > 0
+        const completed = row.completed === true || inferredCompleted
 
         return {
           id: asNullableString(row.id),
@@ -126,9 +153,9 @@ export async function GET(req: NextRequest) {
           category_id: categoryId,
           title: asNullableString(category.title) ?? slug,
           total_score: answerRows.length > 0 ? totalScoreFromRows : totalScoreFromJson,
-          answered_count: answerRows.length > 0 ? answerRows.length : Object.keys(answersJson).length,
-          result_status: formatStatus(row.completed),
-          completed: row.completed === true,
+          answered_count: answeredCount,
+          result_status: formatStatus(completed),
+          completed,
           created_at: toIsoIfDateLike(row.created_at),
           updated_at: null,
         }
