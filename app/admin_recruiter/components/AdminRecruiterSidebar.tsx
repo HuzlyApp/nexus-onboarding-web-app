@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
+import { useEffect, useMemo } from "react";
+import { supabaseBrowser } from "@/lib/supabase-browser";
 
 const CANDIDATE_SUB = [
   { label: "All", href: "/admin_recruiter/candidates" },
@@ -21,9 +23,20 @@ const WORKER_SUB = [
 
 export function AdminRecruiterSidebar() {
   const pathname = usePathname() ?? "";
+  const router = useRouter();
   const inDashboard = pathname.startsWith("/admin_recruiter/dashboard");
-  const inCandidates = pathname.startsWith("/admin_recruiter/candidates") || pathname.startsWith("/admin_recruiter/new") || pathname.startsWith("/admin_recruiter/pending") || pathname.startsWith("/admin_recruiter/approved") || pathname.startsWith("/admin_recruiter/disapproved");
+  const inCandidates =
+    pathname.startsWith("/admin_recruiter/candidates") ||
+    pathname.startsWith("/admin_recruiter/new") ||
+    pathname.startsWith("/admin_recruiter/pending") ||
+    pathname.startsWith("/admin_recruiter/approved") ||
+    pathname.startsWith("/admin_recruiter/disapproved");
   const inWorkers = pathname.startsWith("/admin_recruiter/workers");
+  const inCalendar = pathname.startsWith("/admin_recruiter/calendar");
+  const inJobs = pathname.startsWith("/admin_recruiter/jobs");
+  const inNotifications = pathname.startsWith("/admin_recruiter/notifications");
+  const inSettings = pathname.startsWith("/admin_recruiter/settings");
+  const inMessages = pathname.startsWith("/admin_recruiter/messages");
 
   type RailIcon = {
     src: string;
@@ -32,16 +45,37 @@ export function AdminRecruiterSidebar() {
     href?: string;
   };
 
-  const railIcons: RailIcon[] = [
-    { src: "/icons/admin-recruiter/dashboard-icon.svg", alt: "Dashboard", active: inDashboard, href: "/admin_recruiter/dashboard" },
-    { src: "/icons/admin-recruiter/user-setting.svg", alt: "User setting", active: false },
-    { src: "/icons/admin-recruiter/groups.svg", alt: "Groups", active: inCandidates || inWorkers },
-    { src: "/icons/admin-recruiter/calender.svg", alt: "Calendar", active: false },
-    { src: "/icons/admin-recruiter/switch-icon.svg", alt: "Switch", active: false },
-    { src: "/icons/admin-recruiter/bell-02.svg", alt: "Notification", active: false },
-    { src: "/icons/admin-recruiter/circle-focus.svg", alt: "Circle focus", active: false },
-    { src: "/icons/admin-recruiter/setting.svg", alt: "Setting", active: false },
-  ];
+  const railIcons: RailIcon[] = useMemo(
+    () => [
+      { src: "/icons/admin-recruiter/dashboard-icon.svg", alt: "Dashboard", active: inDashboard, href: "/admin_recruiter/dashboard" },
+      { src: "/icons/admin-recruiter/user-setting.svg", alt: "Candidates", active: inCandidates, href: "/admin_recruiter/candidates" },
+      { src: "/icons/admin-recruiter/groups.svg", alt: "Workers", active: inWorkers, href: "/admin_recruiter/workers" },
+      { src: "/icons/admin-recruiter/calender.svg", alt: "Calendar", active: inCalendar, href: "/admin_recruiter/calendar" },
+      { src: "/icons/admin-recruiter/switch-icon.svg", alt: "Jobs", active: inJobs, href: "/admin_recruiter/jobs" },
+      { src: "/icons/admin-recruiter/chat.svg", alt: "Messages", active: inMessages, href: "/admin_recruiter/messages" },
+      { src: "/icons/admin-recruiter/bell-02.svg", alt: "Notification", active: inNotifications, href: "/admin_recruiter/notifications" },
+      { src: "/icons/admin-recruiter/setting.svg", alt: "Setting", active: inSettings, href: "/admin_recruiter/settings" },
+    ],
+    [inCalendar, inCandidates, inDashboard, inJobs, inMessages, inNotifications, inSettings, inWorkers]
+  );
+
+  const handleNavClick = (label: string, href: string) => {
+    console.log("[AdminRecruiterSidebar] clicked sidebar item", { label, href, currentRoute: pathname });
+  };
+
+  useEffect(() => {
+    console.log("[AdminRecruiterSidebar] current route", pathname);
+  }, [pathname]);
+
+  const handleLogout = async () => {
+    console.log("[AdminRecruiterSidebar] clicked sidebar item", { label: "Logout", currentRoute: pathname });
+    const { error } = await supabaseBrowser.auth.signOut();
+    if (error) {
+      console.error("[AdminRecruiterSidebar] Supabase logout error", error);
+      return;
+    }
+    router.push("/login");
+  };
 
   return (
     <aside className="fixed inset-y-0 left-0 z-40 hidden w-[344px] max-w-[344px] min-w-[80px] border-r border-[#d7e4e1] bg-[#e9f2f0] lg:block">
@@ -65,7 +99,13 @@ export function AdminRecruiterSidebar() {
 
               if (icon.href) {
                 return (
-                  <Link key={icon.src} href={icon.href} className={cls} aria-label={icon.alt}>
+                  <Link
+                    key={icon.src}
+                    href={icon.href}
+                    className={cls}
+                    aria-label={icon.alt}
+                    onClick={() => handleNavClick(icon.alt, icon.href ?? "")}
+                  >
                     <Image src={icon.src} alt={icon.alt} width={32} height={32} />
                   </Link>
                 );
@@ -79,9 +119,14 @@ export function AdminRecruiterSidebar() {
             })}
           </div>
 
-          <div className="mt-auto h-[72px] w-20 flex items-center justify-center cursor-pointer transition hover:bg-[#044543]">
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="mt-auto h-[72px] w-20 flex items-center justify-center cursor-pointer transition hover:bg-[#044543]"
+            aria-label="Logout"
+          >
             <Image src="/icons/admin-recruiter/logout.svg" alt="Logout" width={32} height={32} />
-          </div>
+          </button>
         </div>
 
         <div className="ml-20 h-full w-[264px] flex flex-col">
@@ -104,6 +149,7 @@ export function AdminRecruiterSidebar() {
                     <Link
                       key={item.href}
                       href={item.href}
+                      onClick={() => handleNavClick(`Candidates/${item.label}`, item.href)}
                       className={`box-border flex h-8 w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs transition ${
                         active ? "border border-[#0c918a] bg-[#f5fbfa] text-[#0f514e]" : "text-[#3e5d5a] hover:bg-[#f2f8f7]"
                       }`}
@@ -130,6 +176,7 @@ export function AdminRecruiterSidebar() {
                     <Link
                       key={item.label}
                       href={item.href}
+                      onClick={() => handleNavClick(`Workers/${item.label}`, item.href)}
                       className={`box-border flex h-8 w-full items-center rounded-md px-2 py-1.5 text-xs transition ${
                         active ? "border border-[#0c918a] bg-[#f5fbfa] text-[#0f514e]" : "text-[#3e5d5a] hover:bg-[#f2f8f7]"
                       }`}
@@ -139,6 +186,36 @@ export function AdminRecruiterSidebar() {
                   );
                 })}
               </div>
+            </div>
+
+            <div className="mt-6 w-56 border-t border-[#d6e2df] pt-4 space-y-1">
+              {[
+                { label: "Calendar", href: "/admin_recruiter/calendar", active: inCalendar },
+                { label: "Jobs / Assignments", href: "/admin_recruiter/jobs", active: inJobs },
+                { label: "Messages", href: "/admin_recruiter/messages", active: inMessages },
+                { label: "Notifications", href: "/admin_recruiter/notifications", active: inNotifications },
+                { label: "Settings", href: "/admin_recruiter/settings", active: inSettings },
+              ].map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => handleNavClick(item.label, item.href)}
+                  className={`box-border flex h-8 w-full items-center rounded-md px-2 py-1.5 text-xs transition ${
+                    item.active
+                      ? "border border-[#0c918a] bg-[#f5fbfa] text-[#0f514e]"
+                      : "text-[#3e5d5a] hover:bg-[#f2f8f7]"
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              ))}
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="box-border flex h-8 w-full items-center rounded-md px-2 py-1.5 text-xs text-[#3e5d5a] transition hover:bg-[#f2f8f7]"
+              >
+                Logout
+              </button>
             </div>
           </nav>
         </div>
