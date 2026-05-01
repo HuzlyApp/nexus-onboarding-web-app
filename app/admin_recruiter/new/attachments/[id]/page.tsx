@@ -414,17 +414,29 @@ export default function NewApplicantAttachmentsFilledPage() {
                           </div>
 
                           <div className="flex items-center justify-between gap-4 px-5 py-3">
-                            <div className="flex h-[50px] w-[306px] min-w-[306px] max-w-[520px] items-center gap-2 rounded-[8px] border border-[#99D8D3] bg-[#F8FAFC] px-3 py-2">
-                              <img src="/icons/jpeg-icon.svg" alt="" className="h-6 w-6 shrink-0" />
-                              <div className="min-w-0">
-                                <div className="truncate text-xs font-semibold leading-4 tracking-[0.01em] text-[#0D9488]">
-                                  {r.url ? r.filename : "Not uploaded yet"}
-                                </div>
-                                <div className="text-xs font-normal leading-4 tracking-[0.01em] text-[#6B7280]">
-                                  {r.url ? "Uploaded file" : "—"}
+                            {r.url ? (
+                              <div className="flex h-[50px] w-[306px] min-w-[306px] max-w-[520px] items-center gap-2 rounded-[8px] border border-[#99D8D3] bg-[#F8FAFC] px-3 py-2">
+                                <img src="/icons/jpeg-icon.svg" alt="" className="h-6 w-6 shrink-0" />
+                                <div className="min-w-0">
+                                  <div className="truncate text-xs font-semibold leading-4 tracking-[0.01em] text-[#0D9488]">
+                                    {r.filename}
+                                  </div>
+                                  <div className="text-xs font-normal leading-4 tracking-[0.01em] text-[#6B7280]">
+                                    Uploaded file
+                                  </div>
                                 </div>
                               </div>
-                            </div>
+                            ) : (
+                              <div className="flex h-[50px] w-[306px] min-w-[306px] max-w-[520px] items-center justify-between rounded-[8px] border border-dashed border-[#99D8D3] bg-[#F8FAFC] px-3 py-2">
+                                <span className="text-xs text-[#6B7280]">No Document</span>
+                                <button
+                                  type="button"
+                                  className="inline-flex h-8 items-center justify-center rounded-md border border-[#99D8D3] bg-white px-4 text-xs font-semibold text-[#0D9488]"
+                                >
+                                  Upload
+                                </button>
+                              </div>
+                            )}
 
                             {r.url ? (
                               <div className="flex items-center gap-2">
