@@ -8,6 +8,7 @@ import DetailedTabs from "../../../components/DetailedTabs";
 import {
   Briefcase,
   Calendar,
+  Circle,
   LogOut,
   Menu,
   Plus,
@@ -30,6 +31,61 @@ type WorkerProfileResponse = {
   worker: WorkerProfile;
 };
 
+type FacilityTab = "active" | "potential" | "recent";
+
+type PotentialFacility = {
+  id: string;
+  name: string;
+  primaryAddress: string;
+  secondaryAddress: string;
+  distance: string;
+};
+
+const potentialFacilities: PotentialFacility[] = [
+  {
+    id: "hca-healthcare",
+    name: "HCA Healthcare",
+    primaryAddress: "213 Pine Road Troy, Michigan",
+    secondaryAddress: "PO Box 1244, Hanalei, Hawaii, 96714",
+    distance: "2 Miles Away",
+  },
+  {
+    id: "universal-health-services",
+    name: "Universal Health Services",
+    primaryAddress: "112 West Road Troy, Michigan",
+    secondaryAddress: "11820 Edgewater Dr, Lakewood, Ohio, 44107",
+    distance: "2.5 Miles Away",
+  },
+  {
+    id: "kaiser-permanente",
+    name: "Kaiser Permanente",
+    primaryAddress: "63 Mark Street, Michigan",
+    secondaryAddress: "7515 Forrester Ln, Manassas, Virginia, 20109",
+    distance: "1.5 Miles Away",
+  },
+  {
+    id: "providence-st-joseph-health",
+    name: "Providence St Joseph Health",
+    primaryAddress: "21 Ripple Ave, Michigan",
+    secondaryAddress: "19 Johnson Dr, Dickson, North Dakota, 58601",
+    distance: "3.5 Miles Away",
+  },
+  {
+    id: "trinity-health",
+    name: "Trinity Health",
+    primaryAddress: "133 Rump Street, Michigan",
+    secondaryAddress: "PO Box 1134, Hanalei, Hawaii, 96714",
+    distance: "1.5 Miles Away",
+  },
+  {
+    id: "ascension-health",
+    name: "Ascension Health",
+    primaryAddress: "95 Gandhi Street, Michigan",
+    secondaryAddress: "13 Winter Ter, Mahwah, New Jersey, 07430",
+    distance: "1.5 Miles Away",
+  },
+];
+
 function initials(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return "NA";
@@ -47,6 +103,8 @@ export default function NewApplicantFacilityAssignmentsPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [profile, setProfile] = useState<WorkerProfileResponse | null>(null);
+  const [activeFacilityTab, setActiveFacilityTab] = useState<FacilityTab>("potential");
+  const [showAssignFacilityModal, setShowAssignFacilityModal] = useState(false);
 
   useEffect(() => {
     async function fetchApplicant() {
@@ -84,6 +142,8 @@ export default function NewApplicantFacilityAssignmentsPage() {
 
   const candidateRole = applicant?.job_role || "N/A";
   const statusLabel = applicant?.status_label?.trim() || "New Applicant";
+  const visibleFacilities =
+    activeFacilityTab === "potential" || activeFacilityTab === "recent" ? potentialFacilities : [];
 
   return (
     <div className="flex min-h-screen bg-zinc-50 overflow-hidden">
@@ -243,55 +303,190 @@ export default function NewApplicantFacilityAssignmentsPage() {
               </div>
 
               {/* Tabs */}
-              <div className="border-b border-[#E5E7EB] px-6 py-4">
-                <div className="mx-auto flex w-full max-w-[540px] items-center gap-1">
+              <div className="border-b border-[#E5E7EB] px-6 py-4 ">
+                <div className="mx-auto flex w-full bg-[#F8FAFC] rounded-xl py-1 max-w-[540px] items-center gap-1">
                   <button
                     type="button"
-                    className="h-8 flex-1 rounded-lg bg-transparent px-4 text-base font-medium text-[#374151]"
+                    onClick={() => setActiveFacilityTab("active")}
+                    className={`h-8 flex-1 rounded-lg px-4 text-base font-medium ${
+                      activeFacilityTab === "active"
+                        ? "bg-[#0D9488] text-white"
+                        : "bg-transparent text-[#374151]"
+                    }`}
                   >
                     Active Facilities
                   </button>
                   <button
                     type="button"
-                    className="h-8 flex-1 rounded-lg bg-[#0D9488] px-4 text-base font-medium text-white"
+                    onClick={() => setActiveFacilityTab("potential")}
+                    className={`h-8 flex-1 rounded-lg px-4 text-base font-medium ${
+                      activeFacilityTab === "potential"
+                        ? "bg-[#0D9488] text-white"
+                        : "bg-transparent text-[#374151]"
+                    }`}
                   >
                     Potential Facilities
                   </button>
                   <button
                     type="button"
-                    className="h-8 flex-1 rounded-lg bg-transparent px-4 text-base font-medium text-[#374151]"
+                    onClick={() => setActiveFacilityTab("recent")}
+                    className={`h-8 flex-1 rounded-lg px-4 text-base font-medium ${
+                      activeFacilityTab === "recent"
+                        ? "bg-[#0D9488] text-white"
+                        : "bg-transparent text-[#374151]"
+                    }`}
                   >
                     Recent Facilities
                   </button>
                 </div>
               </div>
 
-              {/* Empty state */}
-              <div className="flex min-h-[calc(896px-40px)] items-center justify-center px-6 py-10">
-                <div className="max-w-md text-center">
-                  <div className="text-[18px] font-semibold leading-7 text-gray-700">
-                    No facility assigned yet
-                  </div>
-                  <div className="mt-2 text-center text-sm font-normal leading-5 text-gray-500">
-                    No facility assigned yet to the applicant.
-                  </div>
-                  <a
-                    href="#"
-                    className="mt-2 inline-block text-center text-sm font-normal leading-5 text-teal-700 underline underline-offset-4"
-                  >
-                    Learn more about facility recommendations
-                  </a>
+              {visibleFacilities.length === 0 ? (
+                <div className="flex min-h-[calc(896px-40px)] items-center justify-center px-6 py-10">
+                  <div className="max-w-md text-center">
+                    <div className="text-[18px] font-semibold leading-7 text-gray-700">
+                      No facility assigned yet
+                    </div>
+                    <div className="mt-2 text-center text-sm font-normal leading-5 text-gray-500">
+                      No facility assigned yet to the applicant.
+                    </div>
+                    <a
+                      href="#"
+                      className="mt-2 inline-block text-center text-sm font-normal leading-5 text-teal-700 underline underline-offset-4"
+                    >
+                      Learn more about facility recommendations
+                    </a>
 
-                  <button className="mt-6 inline-flex h-10 w-[237px] items-center justify-center gap-2 rounded-[8px] bg-[#0D9488] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#0B7F77]">
-                    <Plus className="w-4 h-4" />
-                    Add candidate to a facility
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (activeFacilityTab === "active") {
+                          setShowAssignFacilityModal(true);
+                        }
+                      }}
+                      className="mt-6 inline-flex h-10 w-[237px] items-center justify-center gap-2 rounded-[8px] bg-[#0D9488] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#0B7F77]"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add candidate to a facility
+                    </button>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="px-4 py-6 sm:px-6">
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    {visibleFacilities.map((facility) => (
+                      <div
+                        key={facility.id}
+                        className="rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)]"
+                      >
+                        <div className="mb-3 flex items-center gap-3 border-b border-[#F1F5F9] pb-3">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-lg  bg-[linear-gradient(135deg,#27c8c0_0%,#16877f_100%)] ">
+                            <img
+                              src="/icons/admin-recruiter/pie_chart_outlined.svg"
+                              alt="Facility icon"
+                              className="h-5 w-5"
+                            />
+                          </div>
+                          <div className="text-lg font-semibold leading-7 text-black ">
+                            {facility.name}
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2 text-sm text-[#4B5563]">
+                            <img
+                              src="/icons/admin-recruiter/locationfacility.svg"
+                              alt="Location"
+                               className="h-5 w-5"
+                            />
+                            <span>{facility.primaryAddress}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-sm text-[#4B5563]">
+                            <img
+                              src="/icons/admin-recruiter/corporate_fare.svg"
+                              alt="Location"
+                               className="h-5 w-5"
+                            />
+                            <span>{facility.secondaryAddress}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-sm text-[#4B5563]">
+                            <img
+                              src="/icons/admin-recruiter/target.svg"
+                              alt="Distance"
+                              className="h-5 w-5"
+                            />
+                            <span>{facility.distance}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
       </div>
+
+      {showAssignFacilityModal ? (
+        <div className="fixed inset-0 z-70 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-[1080px] rounded-[22px] bg-white shadow-[0_18px_38px_rgba(2,8,23,0.2)]">
+            <div className="flex items-center justify-between border-b border-[#E5E7EB] px-8 py-6">
+              <h2 className="text-2xl font-semibold leading-none text-[#1F2937]">Assign to facility</h2>
+              <button
+                type="button"
+                onClick={() => setShowAssignFacilityModal(false)}
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-black text-white"
+                aria-label="Close assign facility modal"
+              >
+                <X className="h-7 w-7" />
+              </button>
+            </div>
+
+            <div className="px-8 pb-8 pt-5">
+              <div className="mb-4 text-lg font-normal leading-none text-[#374151]">
+                {potentialFacilities.length} Results
+              </div>
+
+              <div className="max-h-[64vh] overflow-auto pr-2">
+                {potentialFacilities.map((facility) => (
+                  <div
+                    key={`assign-${facility.id}`}
+                    className="flex items-center justify-between border-b border-[#E5E7EB] py-5"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#0D9488]">
+                        <img
+                          src="/icons/admin-recruiter/facilityicon.svg"
+                          alt="Facility"
+                          className="h-5 w-5"
+                        />
+                      </div>
+                      <div>
+                        <div className="text-sm font-medium leading-none text-black">
+                          {facility.name}
+                        </div>
+                        <div className="mt-1 text-xs font-normal leading-none text-[#6B7280]">
+                          {facility.primaryAddress}
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-5 px-2 py-1 text-[#0D9488]"
+                      aria-label={`Add ${facility.name}`}
+                    >
+                      <Circle className="h-5 w-5 fill-current stroke-current" />
+                      <Plus className="h-6 w-6" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
