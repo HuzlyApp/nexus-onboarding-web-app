@@ -21,7 +21,12 @@ const WORKER_SUB = [
   { label: "Banned", href: "/admin_recruiter/workers" },
 ] as const;
 
-export function AdminRecruiterSidebar() {
+type AdminRecruiterSidebarProps = {
+  isMobileOpen?: boolean;
+  onMobileClose?: () => void;
+};
+
+export function AdminRecruiterSidebar({ isMobileOpen = false, onMobileClose }: AdminRecruiterSidebarProps) {
   const pathname = usePathname() ?? "";
   const router = useRouter();
   const inDashboard = pathname.startsWith("/admin_recruiter/dashboard");
@@ -61,6 +66,7 @@ export function AdminRecruiterSidebar() {
 
   const handleNavClick = (label: string, href: string) => {
     console.log("[AdminRecruiterSidebar] clicked sidebar item", { label, href, currentRoute: pathname });
+    onMobileClose?.();
   };
 
   useEffect(() => {
@@ -74,152 +80,176 @@ export function AdminRecruiterSidebar() {
       console.error("[AdminRecruiterSidebar] Supabase logout error", error);
       return;
     }
+    onMobileClose?.();
     router.push("/login");
   };
 
-  return (
-    <aside className="fixed inset-y-0 left-0 z-40 hidden w-[344px] max-w-[344px] min-w-[80px] border-r border-[#d7e4e1] bg-[#e9f2f0] lg:block">
-      <div className="relative h-full">
-        <div className="absolute inset-y-0 left-0 w-20 bg-[#033c3a] text-[#d4efea] flex flex-col items-center py-3 pb-5">
-          <div className="mt-1 mb-6">
-            <Image
-              src="/icons/admin-recruiter/nexus-main-logo.svg"
-              alt="Nexus logo"
-              width={46}
-              height={46}
-              className="w-[46px] h-[46px]"
-            />
-          </div>
+  const SidebarContent = () => (
+    <div className="relative h-full">
+      <div className="absolute inset-y-0 left-0 w-20 bg-[#033c3a] text-[#d4efea] flex flex-col items-center py-3 pb-5">
+        <div className="mt-1 mb-6">
+          <Image
+            src="/icons/admin-recruiter/nexus-main-logo.svg"
+            alt="Nexus logo"
+            width={46}
+            height={46}
+            className="w-[46px] h-[46px]"
+          />
+        </div>
 
-          <div className="flex flex-col items-center">
-            {railIcons.map((icon) => {
-              const cls = `h-[72px] w-20 flex items-center justify-center cursor-pointer transition ${
-                icon.active ? "bg-[#0b5551] shadow-[inset_3px_0_0_0_#14d3c2]" : "hover:bg-[#044543]"
-              }`;
+        <div className="flex flex-col items-center">
+          {railIcons.map((icon) => {
+            const cls = `h-[72px] w-20 flex items-center justify-center cursor-pointer transition ${
+              icon.active ? "bg-[#0b5551] shadow-[inset_3px_0_0_0_#14d3c2]" : "hover:bg-[#044543]"
+            }`;
 
-              if (icon.href) {
+            if (icon.href) {
+              return (
+                <Link
+                  key={icon.src}
+                  href={icon.href}
+                  className={cls}
+                  aria-label={icon.alt}
+                  onClick={() => handleNavClick(icon.alt, icon.href ?? "")}
+                >
+                  <Image src={icon.src} alt={icon.alt} width={32} height={32} />
+                </Link>
+              );
+            }
+
+            return (
+              <div key={icon.src} className={cls}>
+                <Image src={icon.src} alt={icon.alt} width={32} height={32} />
+              </div>
+            );
+          })}
+        </div>
+
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="mt-auto h-[72px] w-20 flex items-center justify-center cursor-pointer transition hover:bg-[#044543]"
+          aria-label="Logout"
+        >
+          <Image src="/icons/admin-recruiter/logout.svg" alt="Logout" width={32} height={32} />
+        </button>
+      </div>
+
+      <div className="ml-20 h-full w-[264px] flex flex-col">
+        <div className="px-5 pt-10 pb-5">
+          <p className="text-xs font-semibold leading-[18px] uppercase tracking-normal text-[#587573]">TEAM MANAGEMENT</p>
+        </div>
+
+        <nav className="flex-1 overflow-y-auto px-5 pb-5">
+          <div className="w-56 rounded-xl bg-transparent">
+            <div className="flex w-full items-center justify-between px-2 py-2 text-sm font-semibold text-[#1b5f5b]">
+              <span className="flex items-center gap-2">
+                <Image src="/icons/admin-recruiter/Member.svg" alt="" width={18} height={18} className="shrink-0" />
+                Candidates
+              </span>
+            </div>
+            <div className="mt-1 space-y-0">
+              {CANDIDATE_SUB.map((item) => {
+                const active = pathname === item.href;
                 return (
                   <Link
-                    key={icon.src}
-                    href={icon.href}
-                    className={cls}
-                    aria-label={icon.alt}
-                    onClick={() => handleNavClick(icon.alt, icon.href ?? "")}
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => handleNavClick(`Candidates/${item.label}`, item.href)}
+                    className={`box-border flex h-8 w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs transition ${
+                      active ? "border border-[#0c918a] bg-[#f5fbfa] text-[#0f514e]" : "text-[#3e5d5a] hover:bg-[#f2f8f7]"
+                    }`}
                   >
-                    <Image src={icon.src} alt={icon.alt} width={32} height={32} />
+                    {item.label}
                   </Link>
                 );
-              }
-
-              return (
-                <div key={icon.src} className={cls}>
-                  <Image src={icon.src} alt={icon.alt} width={32} height={32} />
-                </div>
-              );
-            })}
+              })}
+            </div>
           </div>
 
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="mt-auto h-[72px] w-20 flex items-center justify-center cursor-pointer transition hover:bg-[#044543]"
-            aria-label="Logout"
-          >
-            <Image src="/icons/admin-recruiter/logout.svg" alt="Logout" width={32} height={32} />
-          </button>
-        </div>
-
-        <div className="ml-20 h-full w-[264px] flex flex-col">
-          <div className="px-5 pt-10 pb-5">
-            <p className="text-xs font-semibold leading-[18px] uppercase tracking-normal text-[#587573]">TEAM MANAGEMENT</p>
+          <div className="mt-6 w-56 border-t border-[#d6e2df] pt-6">
+            <div className="flex w-full items-center justify-between px-2 py-2 text-sm font-semibold text-[#1b5f5b]">
+              <span className="flex items-center gap-2">
+                <Image src="/icons/admin-recruiter/Member.svg" alt="" width={18} height={18} className="shrink-0" />
+                Workers
+              </span>
+            </div>
+            <div className="mt-1 flex h-[128px] w-56 flex-col gap-3">
+              {WORKER_SUB.map((item) => {
+                const onWorkers = pathname.startsWith("/admin_recruiter/workers");
+                const active = onWorkers && item.label === "Active";
+                return (
+                  <Link
+                    key={item.label}
+                    href={item.href}
+                    onClick={() => handleNavClick(`Workers/${item.label}`, item.href)}
+                    className={`box-border flex h-8 w-full items-center rounded-md px-2 py-1.5 text-xs transition ${
+                      active ? "border border-[#0c918a] bg-[#f5fbfa] text-[#0f514e]" : "text-[#3e5d5a] hover:bg-[#f2f8f7]"
+                    }`}
+                  >
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </div>
           </div>
 
-          <nav className="flex-1 overflow-y-auto px-5 pb-5">
-            <div className="w-56 rounded-xl bg-transparent">
-              <div className="flex w-full items-center justify-between px-2 py-2 text-sm font-semibold text-[#1b5f5b]">
-                <span className="flex items-center gap-2">
-                  <Image src="/icons/admin-recruiter/Member.svg" alt="" width={18} height={18} className="shrink-0" />
-                  Candidates
-                </span>
-              </div>
-              <div className="mt-1 space-y-0">
-                {CANDIDATE_SUB.map((item) => {
-                  const active = pathname === item.href;
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      onClick={() => handleNavClick(`Candidates/${item.label}`, item.href)}
-                      className={`box-border flex h-8 w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs transition ${
-                        active ? "border border-[#0c918a] bg-[#f5fbfa] text-[#0f514e]" : "text-[#3e5d5a] hover:bg-[#f2f8f7]"
-                      }`}
-                    >
-                      {item.label}
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="mt-6 w-56 border-t border-[#d6e2df] pt-6">
-              <div className="flex w-full items-center justify-between px-2 py-2 text-sm font-semibold text-[#1b5f5b]">
-                <span className="flex items-center gap-2">
-                  <Image src="/icons/admin-recruiter/Member.svg" alt="" width={18} height={18} className="shrink-0" />
-                  Workers
-                </span>
-              </div>
-              <div className="mt-1 flex h-[128px] w-56 flex-col gap-3">
-                {WORKER_SUB.map((item) => {
-                  const onWorkers = pathname.startsWith("/admin_recruiter/workers");
-                  const active = onWorkers && item.label === "Active";
-                  return (
-                    <Link
-                      key={item.label}
-                      href={item.href}
-                      onClick={() => handleNavClick(`Workers/${item.label}`, item.href)}
-                      className={`box-border flex h-8 w-full items-center rounded-md px-2 py-1.5 text-xs transition ${
-                        active ? "border border-[#0c918a] bg-[#f5fbfa] text-[#0f514e]" : "text-[#3e5d5a] hover:bg-[#f2f8f7]"
-                      }`}
-                    >
-                      {item.label}
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="mt-6 w-56 border-t border-[#d6e2df] pt-4 space-y-1">
-              {[
-                { label: "Calendar", href: "/admin_recruiter/calendar", active: inCalendar },
-                { label: "Jobs / Assignments", href: "/admin_recruiter/jobs", active: inJobs },
-                { label: "Messages", href: "/admin_recruiter/messages", active: inMessages },
-                { label: "Notifications", href: "/admin_recruiter/notifications", active: inNotifications },
-                { label: "Settings", href: "/admin_recruiter/settings", active: inSettings },
-              ].map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={() => handleNavClick(item.label, item.href)}
-                  className={`box-border flex h-8 w-full items-center rounded-md px-2 py-1.5 text-xs transition ${
-                    item.active
-                      ? "border border-[#0c918a] bg-[#f5fbfa] text-[#0f514e]"
-                      : "text-[#3e5d5a] hover:bg-[#f2f8f7]"
-                  }`}
-                >
-                  {item.label}
-                </Link>
-              ))}
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="box-border flex h-8 w-full items-center rounded-md px-2 py-1.5 text-xs text-[#3e5d5a] transition hover:bg-[#f2f8f7]"
+          <div className="mt-6 w-56 border-t border-[#d6e2df] pt-4 space-y-1">
+            {[
+              { label: "Calendar", href: "/admin_recruiter/calendar", active: inCalendar },
+              { label: "Jobs / Assignments", href: "/admin_recruiter/jobs", active: inJobs },
+              { label: "Messages", href: "/admin_recruiter/messages", active: inMessages },
+              { label: "Notifications", href: "/admin_recruiter/notifications", active: inNotifications },
+              { label: "Settings", href: "/admin_recruiter/settings", active: inSettings },
+            ].map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => handleNavClick(item.label, item.href)}
+                className={`box-border flex h-8 w-full items-center rounded-md px-2 py-1.5 text-xs transition ${
+                  item.active
+                    ? "border border-[#0c918a] bg-[#f5fbfa] text-[#0f514e]"
+                    : "text-[#3e5d5a] hover:bg-[#f2f8f7]"
+                }`}
               >
-                Logout
-              </button>
-            </div>
-          </nav>
-        </div>
+                {item.label}
+              </Link>
+            ))}
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="box-border flex h-8 w-full items-center rounded-md px-2 py-1.5 text-xs text-[#3e5d5a] transition hover:bg-[#f2f8f7]"
+            >
+              Logout
+            </button>
+          </div>
+        </nav>
       </div>
-    </aside>
+    </div>
+  );
+
+  return (
+    <>
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[344px] max-w-[344px] min-w-[80px] border-r border-[#d7e4e1] bg-[#e9f2f0] lg:block">
+        <SidebarContent />
+      </aside>
+
+      <div
+        className={`fixed inset-0 z-50 bg-black/30 transition-opacity lg:hidden ${
+          isMobileOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
+        }`}
+        onClick={onMobileClose}
+        aria-hidden={!isMobileOpen}
+      >
+        <aside
+          className={`h-full w-[344px] max-w-[90vw] min-w-[80px] border-r border-[#d7e4e1] bg-[#e9f2f0] transition-transform ${
+            isMobileOpen ? "translate-x-0" : "-translate-x-full"
+          }`}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <SidebarContent />
+        </aside>
+      </div>
+    </>
   );
 }

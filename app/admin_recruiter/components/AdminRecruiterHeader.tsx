@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ChevronDown, ChevronLeft } from "lucide-react";
+import { ChevronDown, ChevronLeft, Menu } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
@@ -44,7 +44,11 @@ type HeaderDataResponse = {
   unreadMessages: number;
 };
 
-export function AdminRecruiterHeader() {
+type AdminRecruiterHeaderProps = {
+  onMenuClick?: () => void;
+};
+
+export function AdminRecruiterHeader({ onMenuClick }: AdminRecruiterHeaderProps) {
   const router = useRouter();
   const pathname = usePathname();
   const [loading, setLoading] = useState(true);
@@ -69,7 +73,7 @@ export function AdminRecruiterHeader() {
       const response = await fetch("/api/admin/header-data", { cache: "no-store" });
       if (!response.ok) {
         const errPayload = await response.json().catch(() => ({}));
-        console.error("[AdminRecruiterHeader] Supabase error", errPayload);
+        // console.error("[AdminRecruiterHeader] Supabase error", errPayload);
         if (!cancelled) {
           setCurrentUserId(null);
           setProfile(null);
@@ -141,14 +145,24 @@ export function AdminRecruiterHeader() {
   return (
     <header className="sticky top-0 z-40 w-full bg-white border-b border-[#E2E8F0]">
       <div className="flex h-[68px] w-full items-center justify-between px-5 py-4 lg:px-8">
-        <button
-          type="button"
-          onClick={() => router.back()}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-[#E2E8F0] text-[#64748B] transition hover:bg-[#CBD5E1]"
-          aria-label="Go back"
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onMenuClick}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-[#E2E8F0] text-[#64748B] transition hover:bg-[#CBD5E1] lg:hidden"
+            aria-label="Open navigation menu"
+          >
+            <Menu className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => router.back()}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-[#E2E8F0] text-[#64748B] transition hover:bg-[#CBD5E1]"
+            aria-label="Go back"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+        </div>
 
         <div className="flex items-center gap-4 relative">
           <div className="flex items-center gap-2">
