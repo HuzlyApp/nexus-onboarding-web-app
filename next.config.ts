@@ -8,6 +8,10 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_SUPABASE_ANON_KEY:
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "",
   },
+  // Prevent Turbopack from inferring C:\Users\carli as the workspace root when multiple lockfiles exist.
+  turbopack: {
+    root: process.cwd(),
+  },
 };
 
 export default nextConfig;
