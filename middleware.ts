@@ -3,9 +3,11 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/supabase-env";
 
 /**
- * Refreshes Supabase Auth cookies and optionally blocks unauthenticated access to recruiter admin UI.
+ * Refreshes Supabase Auth cookies and blocks unauthenticated access to recruiter admin UI.
  *
- * Enable strict checks with `ADMIN_RBAC_ENFORCE=true` (or automatically in production when env is set).
+ * Behavior:
+ * - Production: enforce by default unless explicitly disabled with either flag set to "false".
+ * - Non-production: opt-in with either flag set to "true".
  */
 export async function middleware(request: NextRequest) {
   const url = getSupabaseUrl();
@@ -34,9 +36,13 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  /** UI guard is opt-in so production deploys are not locked out before Supabase Auth is wired. */
-  const enforceUi =
-    process.env.ADMIN_RBAC_ENFORCE === "true" || process.env.NEXT_PUBLIC_ADMIN_AUTH_REQUIRED === "true";
+  const forceOn =
+    process.env.ADMIN_RBAC_ENFORCE === "true" ||
+    process.env.NEXT_PUBLIC_ADMIN_AUTH_REQUIRED === "true";
+  const forceOff =
+    process.env.ADMIN_RBAC_ENFORCE === "false" ||
+    process.env.NEXT_PUBLIC_ADMIN_AUTH_REQUIRED === "false";
+  const enforceUi = process.env.NODE_ENV === "production" ? !forceOff : forceOn;
 
   if (enforceUi && !user && request.nextUrl.pathname.startsWith("/admin_recruiter")) {
     const login = new URL("/login", request.url);

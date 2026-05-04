@@ -73,6 +73,12 @@ export function AdminRecruiterHeader({ onMenuClick }: AdminRecruiterHeaderProps)
       const response = await fetch("/api/admin/header-data", { cache: "no-store" });
       if (!response.ok) {
         const errPayload = await response.json().catch(() => ({}));
+        const isAuthError = response.status === 401 || response.status === 403;
+        if (isAuthError) {
+          const next = `${pathname || "/admin_recruiter"}${window.location.search}`;
+          router.replace(`/login?next=${encodeURIComponent(next)}`);
+          return;
+        }
         // console.error("[AdminRecruiterHeader] Supabase error", errPayload);
         if (!cancelled) {
           setCurrentUserId(null);
