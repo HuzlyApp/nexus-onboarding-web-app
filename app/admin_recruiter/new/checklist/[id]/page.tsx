@@ -41,6 +41,15 @@ type ChecklistSection = {
   rows: ChecklistRow[];
 };
 
+type ChecklistActivityEntry = {
+  id: string | null;
+  action: string;
+  entity_type: string;
+  entity_id: string | null;
+  details: unknown;
+  created_at: string | null;
+};
+
 type ChecklistPayload = {
   worker: {
     id: string;
@@ -50,8 +59,10 @@ type ChecklistPayload = {
     city: string | null;
     state: string | null;
     created_at: string | null;
+    updated_at?: string | null;
     status_label: string;
   };
+  activity_history?: ChecklistActivityEntry[];
   meta: {
     daysInStage: number;
     progressPercent: number;
@@ -81,6 +92,89 @@ function badgeClasses(state: ItemState): string {
     default:
       return "bg-white text-[#374151] border-[#D1D5DB]";
   }
+}
+
+function formatRelative(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  const diff = Date.now() - d.getTime();
+  const sec = Math.floor(diff / 1000);
+  if (sec < 60) return "Just now";
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m ago`;
+  const hrs = Math.floor(min / 60);
+  if (hrs < 24) return hrs === 1 ? "1 hour ago" : `${hrs} hours ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 14) return days === 1 ? "1 day ago" : `${days} days ago`;
+  const weeks = Math.floor(days / 7);
+  if (weeks < 8) return weeks === 1 ? "1 week ago" : `${weeks} weeks ago`;
+  const months = Math.floor(days / 30);
+  return months <= 1 ? "1 month ago" : `${months} months ago`;
+}
+
+function formatDateTimeParts(iso: string): { dateLine: string; timeLine: string } {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) {
+    return { dateLine: "—", timeLine: "—" };
+  }
+  const dateLine = d.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const timeLine = d.toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  return { dateLine, timeLine };
+}
+
+type RecentHistoryRow = {
+  key: string;
+  title: string;
+  metaLine: string;
+};
+
+function buildRecentHistoryRows(data: ChecklistPayload | null): RecentHistoryRow[] {
+  if (!data) return [];
+
+  const logs = data.activity_history ?? [];
+  const withTime = logs.filter((e) => e.created_at?.trim());
+  if (withTime.length > 0) {
+    return withTime.map((entry, index) => {
+      const at = entry.created_at!.trim();
+      const { dateLine, timeLine } = formatDateTimeParts(at);
+      return {
+        key: entry.id ?? `activity-${index}`,
+        title: entry.action?.trim() || "Activity",
+        metaLine: `${formatRelative(at)} • ${dateLine} • ${timeLine}`,
+      };
+    });
+  }
+
+  const w = data.worker;
+  const created = w.created_at?.trim() ?? "";
+  const updatedRaw = w.updated_at?.trim() ?? "";
+  const updated = updatedRaw && updatedRaw !== created ? updatedRaw : "";
+
+  type Row = { key: string; title: string; at: string };
+  const rows: Row[] = [];
+  if (created) {
+    rows.push({ key: "created", title: "Applicant record created", at: created });
+  }
+  if (updated) {
+    rows.push({ key: "updated", title: "Applicant profile updated", at: updated });
+  }
+  rows.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+
+  return rows.map((r) => {
+    const { dateLine, timeLine } = formatDateTimeParts(r.at);
+    return {
+      key: r.key,
+      title: r.title,
+      metaLine: `${formatRelative(r.at)} • ${dateLine} • ${timeLine}`,
+    };
+  });
 }
 
 function RowBadge({ text, state }: { text: string; state: ItemState }) {
@@ -137,13 +231,8 @@ export default function NewApplicantChecklistPage() {
     const parts = [data?.worker?.city ?? "", data?.worker?.state ?? ""].filter(Boolean);
     return parts.length ? parts.join(", ") : "—";
   }, [data?.worker?.city, data?.worker?.state]);
-  const recentHistoryRows = [
-    "Nexus Med Pro Added Activity Test",
-    "Nexus Med Pro Added Activity Test",
-    "Nexus Med Pro Added Activity Test",
-    "Nexus Med Pro Added Activity Test",
-    "Nexus Med Pro Added Activity Test",
-  ];
+
+  const recentHistoryRows = useMemo(() => buildRecentHistoryRows(data), [data]);
 
   return (
     <div className="flex min-h-screen bg-zinc-50 overflow-hidden">
@@ -578,22 +667,30 @@ export default function NewApplicantChecklistPage() {
                   <section className="mt-4 rounded-lg border border-[#E5E7EB] bg-white p-5">
                     <h3 className="text-[28px] font-semibold leading-7 text-[#111827]">Recent History</h3>
                     <div className="mt-4">
-                      {recentHistoryRows.map((entry, index) => (
-                        <div
-                          key={`${entry}-${index}`}
-                          className="flex items-start gap-3 border-b border-[#E5E7EB] py-3 last:border-b-0"
-                        >
-                          <img
-                            src="/icons/admin-recruiter/history-icon.svg"
-                            alt=""
-                            className="mt-0.5 h-[30px] w-[30px] shrink-0"
-                          />
-                          <div className="min-w-0">
-                            <div className="text-sm font-medium leading-5 text-[#0D9488]">{entry}</div>
-                            <div className="text-xs leading-4 text-[#6B7280]">1 week ago • 02/3/2026 • 3:30PM</div>
-                          </div>
+                      {loading ? (
+                        <div className="py-4 text-sm text-[#6B7280]">Loading history…</div>
+                      ) : recentHistoryRows.length === 0 ? (
+                        <div className="rounded-md border border-dashed border-[#E5E7EB] px-4 py-8 text-center text-sm text-[#6B7280]">
+                          No history yet.
                         </div>
-                      ))}
+                      ) : (
+                        recentHistoryRows.map((entry) => (
+                          <div
+                            key={entry.key}
+                            className="flex items-start gap-3 border-b border-[#E5E7EB] py-3 last:border-b-0"
+                          >
+                            <img
+                              src="/icons/admin-recruiter/history-icon.svg"
+                              alt=""
+                              className="mt-0.5 h-[30px] w-[30px] shrink-0"
+                            />
+                            <div className="min-w-0">
+                              <div className="text-sm font-medium leading-5 text-[#0D9488]">{entry.title}</div>
+                              <div className="text-xs leading-4 text-[#6B7280]">{entry.metaLine}</div>
+                            </div>
+                          </div>
+                        ))
+                      )}
                     </div>
                   </section>
                 </main>

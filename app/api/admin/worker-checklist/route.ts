@@ -33,6 +33,11 @@ function hasUrl(v: unknown): boolean {
   return typeof v === "string" && v.trim().length > 0
 }
 
+function asTrimmedString(v: unknown): string {
+  if (v == null) return ""
+  return String(v).trim()
+}
+
 function stateBadge(state: ItemState, fallback: string): string {
   switch (state) {
     case "complete":
@@ -75,7 +80,7 @@ export async function GET(req: NextRequest) {
 
     const { data: worker, error: wErr } = await supabase
       .from("worker")
-      .select("id, user_id, first_name, last_name, job_role, created_at, city, state, status")
+      .select("id, user_id, first_name, last_name, job_role, created_at, updated_at, city, state, status")
       .eq("id", workerId)
       .maybeSingle()
 
@@ -425,6 +430,21 @@ export async function GET(req: NextRequest) {
       false,
     ]
 
+    const { data: activityRows } = await supabase
+      .from("activity_logs")
+      .select("*")
+      .eq("entity_id", workerId)
+      .order("created_at", { ascending: false })
+      .limit(10)
+    const activityHistory = ((activityRows ?? []) as Record<string, unknown>[]).map((row) => ({
+      id: row.id != null ? String(row.id) : null,
+      action: asTrimmedString(row.action),
+      entity_type: asTrimmedString(row.entity_type),
+      entity_id: row.entity_id != null ? String(row.entity_id) : null,
+      details: row.details ?? null,
+      created_at: asTrimmedString(row.created_at) || null,
+    }))
+
     return NextResponse.json({
       worker: {
         id: String(worker.id),
@@ -434,6 +454,7 @@ export async function GET(req: NextRequest) {
         city: worker.city,
         state: worker.state,
         created_at: worker.created_at,
+        updated_at: worker.updated_at ?? worker.created_at,
         status: statusNorm,
         status_label:
           statusNorm === "new"
@@ -453,6 +474,7 @@ export async function GET(req: NextRequest) {
         done: trackDone,
       },
       sections,
+      activity_history: activityHistory,
     })
   } catch (err: unknown) {
     console.error("[admin/worker-checklist]", err)
