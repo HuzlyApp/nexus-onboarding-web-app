@@ -1,7 +1,15 @@
+import type { User } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { isStaffRole, parseAppRole, type AppRole } from "@/lib/auth/app-role";
 import { resolveAppRoleForUser } from "@/lib/auth/resolve-role";
+import {
+  getUserPlatform,
+  isNexusPlatformUser,
+  isPlatformEnforcementEnabled,
+  jsonUnauthorized,
+  logAuthDebug,
+} from "@/lib/auth/platform";
 
 const DEV_BYPASS_USER = "00000000-0000-0000-0000-000000000001";
 
@@ -43,7 +51,44 @@ function devBypassAuth(): ApiAuthContext | null {
 }
 
 /**
- * Authenticated Supabase user for Route Handlers. Returns 401 JSON if unauthenticated.
+ * Cookie session user with Nexus platform (no RBAC). Use in onboarding APIs that only need identity + platform.
+ */
+export async function requireNexusSessionUser(): Promise<User | NextResponse> {
+  const bypass = devBypassAuth();
+  if (bypass) {
+    console.warn("[auth] DEV_ADMIN_AUTH_BYPASS active — not for production");
+    return jsonUnauthorized(401);
+  }
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
+    if (error || !user?.id) {
+      logAuthDebug("requireNexusSessionUser:no-user", {});
+      return jsonUnauthorized(401);
+    }
+    if (isPlatformEnforcementEnabled() && !isNexusPlatformUser(user)) {
+      logAuthDebug("requireNexusSessionUser:wrong-platform", {
+        userId: user.id,
+        platform: getUserPlatform(user),
+      });
+      return jsonUnauthorized(403);
+    }
+    logAuthDebug("requireNexusSessionUser:ok", {
+      userId: user.id,
+      platform: getUserPlatform(user),
+    });
+    return user;
+  } catch (e) {
+    console.error("[auth] requireNexusSessionUser", e);
+    return jsonUnauthorized(401);
+  }
+}
+
+/**
+ * Authenticated Supabase user for Route Handlers. Returns 401/403 JSON if unauthenticated or wrong platform.
  * In development, optional `DEV_ADMIN_AUTH_BYPASS=true` yields a synthetic admin (see `.env.example`).
  */
 export async function requireApiSession(): Promise<ApiAuthContext | NextResponse> {
@@ -60,9 +105,22 @@ export async function requireApiSession(): Promise<ApiAuthContext | NextResponse
       error,
     } = await supabase.auth.getUser();
     if (error || !user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      logAuthDebug("requireApiSession:no-user", {});
+      return jsonUnauthorized(401);
+    }
+    if (isPlatformEnforcementEnabled() && !isNexusPlatformUser(user)) {
+      logAuthDebug("requireApiSession:wrong-platform", {
+        userId: user.id,
+        platform: getUserPlatform(user),
+      });
+      return jsonUnauthorized(403);
     }
     const role = await resolveAppRoleForUser(user);
+    logAuthDebug("requireApiSession:ok", {
+      userId: user.id,
+      platform: getUserPlatform(user),
+      role,
+    });
     return {
       userId: user.id,
       email: typeof user.email === "string" ? user.email : null,
@@ -71,7 +129,7 @@ export async function requireApiSession(): Promise<ApiAuthContext | NextResponse
     };
   } catch (e) {
     console.error("[auth] requireApiSession", e);
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return jsonUnauthorized(401);
   }
 }
 

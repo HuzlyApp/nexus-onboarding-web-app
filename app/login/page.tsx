@@ -1,13 +1,17 @@
 // app/login/page.tsx
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/cn";
 import OnboardingLayout from "@/app/components/OnboardingLayout";
 import OnboardingCheckbox from "@/app/components/OnboardingCheckbox";
 import { supabase } from "@/lib/supabase/client";
+import {
+  isNexusPlatformUser,
+  isPlatformEnforcementEnabled,
+} from "@/lib/auth/platform-shared";
 
 function AdminRecruiterLoginContent() {
   const router = useRouter();
@@ -20,6 +24,13 @@ function AdminRecruiterLoginContent() {
     password: "",
     agree: false,
   });
+
+  useEffect(() => {
+    const q = searchParams.get("error");
+    if (q === "platform") {
+      setError("This account is not authorized for Nexus MedPro.");
+    }
+  }, [searchParams]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
@@ -42,6 +53,17 @@ function AdminRecruiterLoginContent() {
 
     if (signInError) {
       setError(signInError.message || "Login failed");
+      setSubmitting(false);
+      return;
+    }
+
+    const { data: userData } = await supabase.auth.getUser();
+    if (
+      isPlatformEnforcementEnabled() &&
+      (!userData.user || !isNexusPlatformUser(userData.user))
+    ) {
+      await supabase.auth.signOut();
+      setError("This account is not authorized for Nexus MedPro.");
       setSubmitting(false);
       return;
     }

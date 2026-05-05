@@ -1,18 +1,29 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/supabase-env";
+import {
+  getUserPlatform,
+  isNexusPlatformUser,
+  isPlatformEnforcementEnabled,
+  logAuthDebug,
+} from "@/lib/auth/platform-shared";
+
+function isPublicUiPath(pathname: string): boolean {
+  if (pathname === "/login" || pathname.startsWith("/login/")) return true;
+  if (pathname.startsWith("/_next")) return true;
+  if (pathname.startsWith("/favicon")) return true;
+  if (pathname.startsWith("/icons/") || pathname.startsWith("/images/")) return true;
+  return false;
+}
 
 /**
- * Refreshes Supabase Auth cookies and blocks unauthenticated access to recruiter admin UI.
- *
- * Behavior:
- * - Production: enforce by default unless explicitly disabled with either flag set to "false".
- * - Non-production: opt-in with either flag set to "true".
+ * Refreshes Supabase Auth cookies; enforces login + `app_metadata.platform === nexus` for protected UI/APIs.
  */
 export async function middleware(request: NextRequest) {
   const url = getSupabaseUrl();
   const anon = getSupabaseAnonKey();
   const response = NextResponse.next({ request });
+  const pathname = request.nextUrl.pathname;
 
   if (!url || !anon) {
     return response;
@@ -44,15 +55,72 @@ export async function middleware(request: NextRequest) {
     process.env.NEXT_PUBLIC_ADMIN_AUTH_REQUIRED === "false";
   const enforceUi = process.env.NODE_ENV === "production" ? !forceOff : forceOn;
 
-  if (enforceUi && !user && request.nextUrl.pathname.startsWith("/admin_recruiter")) {
-    const login = new URL("/login", request.url);
-    login.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);
-    return NextResponse.redirect(login);
+  const platformOn = isPlatformEnforcementEnabled();
+  const isApi = pathname.startsWith("/api/");
+  /** In development, rely on route handlers (incl. dev bypass); in production, gate APIs here so session always matches UI. */
+  const gateApiInMiddleware = process.env.NODE_ENV === "production";
+
+  logAuthDebug("middleware", {
+    userId: user?.id ?? null,
+    platform: user ? getUserPlatform(user) : null,
+  });
+
+  if (isApi && gateApiInMiddleware) {
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    if (platformOn && !isNexusPlatformUser(user)) {
+      await supabase.auth.signOut();
+      logAuthDebug("middleware:api:block-platform", {
+        userId: user.id,
+        platform: getUserPlatform(user),
+      });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    }
+    return response;
+  }
+
+  if (isPublicUiPath(pathname)) {
+    return response;
+  }
+
+  if (enforceUi && pathname.startsWith("/admin_recruiter")) {
+    if (!user) {
+      const login = new URL("/login", request.url);
+      login.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);
+      return NextResponse.redirect(login);
+    }
+    if (platformOn && !isNexusPlatformUser(user)) {
+      await supabase.auth.signOut();
+      const login = new URL("/login", request.url);
+      login.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);
+      login.searchParams.set("error", "platform");
+      return NextResponse.redirect(login);
+    }
+  }
+
+  /** Onboarding may be anonymous; enforce platform only when a session exists. */
+  if (pathname.startsWith("/application")) {
+    if (user && platformOn && !isNexusPlatformUser(user)) {
+      await supabase.auth.signOut();
+      const login = new URL("/login", request.url);
+      login.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);
+      login.searchParams.set("error", "platform");
+      return NextResponse.redirect(login);
+    }
   }
 
   return response;
 }
 
 export const config = {
-  matcher: ["/admin_recruiter/:path*"],
+  matcher: [
+    "/admin_recruiter/:path*",
+    "/application/:path*",
+    "/api/workers",
+    "/api/workers/:path*",
+    "/api/search-workers",
+    "/api/search-workers/:path*",
+    "/api/admin/:path*",
+  ],
 };

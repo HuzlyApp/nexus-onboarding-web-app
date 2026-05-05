@@ -76,7 +76,12 @@ export function AdminRecruiterHeader({ onMenuClick }: AdminRecruiterHeaderProps)
         const isAuthError = response.status === 401 || response.status === 403;
         if (isAuthError) {
           const next = `${pathname || "/admin_recruiter"}${window.location.search}`;
-          router.replace(`/login?next=${encodeURIComponent(next)}`);
+          const nextParam = encodeURIComponent(next);
+          router.replace(
+            response.status === 403
+              ? `/login?next=${nextParam}&error=platform`
+              : `/login?next=${nextParam}`
+          );
           return;
         }
         // console.error("[AdminRecruiterHeader] Supabase error", errPayload);
