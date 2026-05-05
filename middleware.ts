@@ -10,8 +10,10 @@ import {
 
 function isPublicUiPath(pathname: string): boolean {
   if (pathname === "/login" || pathname.startsWith("/login/")) return true;
+  if (pathname === "/auth/callback" || pathname.startsWith("/auth/callback/")) return true;
   if (pathname.startsWith("/_next")) return true;
   if (pathname.startsWith("/favicon")) return true;
+  if (pathname.startsWith("/auth/v1/")) return true;
   if (pathname.startsWith("/icons/") || pathname.startsWith("/images/")) return true;
   return false;
 }

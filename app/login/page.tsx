@@ -7,7 +7,7 @@ import { Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/cn";
 import OnboardingLayout from "@/app/components/OnboardingLayout";
 import OnboardingCheckbox from "@/app/components/OnboardingCheckbox";
-import { supabase } from "@/lib/supabase/client";
+import { supabaseBrowser } from "@/lib/supabase-browser";
 import {
   isNexusPlatformUser,
   isPlatformEnforcementEnabled,
@@ -46,7 +46,7 @@ function AdminRecruiterLoginContent() {
     setSubmitting(true);
     setError(null);
 
-    const { error: signInError } = await supabase.auth.signInWithPassword({
+    const { error: signInError } = await supabaseBrowser.auth.signInWithPassword({
       email: form.username.trim(),
       password: form.password,
     });
@@ -57,20 +57,27 @@ function AdminRecruiterLoginContent() {
       return;
     }
 
-    const { data: userData } = await supabase.auth.getUser();
+    const { data: userData } = await supabaseBrowser.auth.getUser();
     if (
       isPlatformEnforcementEnabled() &&
       (!userData.user || !isNexusPlatformUser(userData.user))
     ) {
-      await supabase.auth.signOut();
+      await supabaseBrowser.auth.signOut();
       setError("This account is not authorized for Nexus MedPro.");
       setSubmitting(false);
       return;
     }
 
     const nextPath = searchParams.get("next");
-    if (nextPath && nextPath.startsWith("/")) {
-      router.push(nextPath);
+    const safeNext =
+      typeof nextPath === "string" &&
+      nextPath.startsWith("/") &&
+      !nextPath.startsWith("//") &&
+      !nextPath.startsWith("/login")
+        ? nextPath
+        : "/admin_recruiter/dashboard";
+    if (safeNext) {
+      router.push(safeNext);
     } else {
       router.push("/admin_recruiter/dashboard");
     }
