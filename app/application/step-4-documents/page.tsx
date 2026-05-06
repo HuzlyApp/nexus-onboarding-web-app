@@ -18,6 +18,7 @@ import {
   subscribeToZohoSignStatus,
   type ZohoSignDbStatus,
 } from "@/lib/zoho-sign-status"
+import { resolveZohoSignEmbedHostForClient } from "@/lib/zoho-sign-embed-host"
 
 type IdentityPaths = {
   ssnFront: string | null
@@ -252,10 +253,12 @@ export default function DocumentsPage() {
     setSigningCompleteManual(false)
 
     try {
-      // Use the production HTTPS URL as the embedtoken host so it works on localhost too.
-      // NEXT_PUBLIC_APP_URL should be your deployed HTTPS origin (e.g. https://nexusmedpro.com).
-      const embedHost =
-        (process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/$/, "") || window.location.origin
+      // Zoho requires an https `host`; bare domains in NEXT_PUBLIC_APP_URL are normalized.
+      // On http://localhost, use env or ZOHO_SIGN_EMBED_HOST (Edge secret) for the embed host.
+      const embedHost = resolveZohoSignEmbedHostForClient(
+        process.env.NEXT_PUBLIC_APP_URL || "",
+        window.location.origin,
+      )
 
       const data = await sendAgreement({
         name: signerName,
@@ -294,11 +297,10 @@ export default function DocumentsPage() {
         setSigningUrl(null)
         setSigningPopupOpened(false)
         setSigningCompleteManual(true)
-        setError(
-          "Could not generate embedded signing URL. " +
-          "Set NEXT_PUBLIC_APP_URL=https://yourdomain.com in .env.local " +
-          "or set ZOHO_SIGN_EMBED_HOST in Supabase secrets."
-        )
+        const hint =
+          (data.signing_url_error && String(data.signing_url_error).trim()) ||
+          "Could not generate embedded signing URL. Set NEXT_PUBLIC_APP_URL=https://your-domain.com in .env.local (restart dev) or set ZOHO_SIGN_EMBED_HOST in Supabase Edge Function secrets."
+        setError(hint)
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Signing setup failed"

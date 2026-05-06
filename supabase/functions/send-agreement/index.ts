@@ -2,6 +2,7 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 // @ts-expect-error - Deno URL imports are resolved at Edge runtime.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { normalizeZohoEmbedHostCandidate } from "../_shared/embed-host.ts";
 declare const Deno: { env: { get: (name: string) => string | undefined } };
 
 type SendAgreementInput = {
@@ -96,14 +97,14 @@ function normalizeEmail(email: string): string {
 }
 
 /**
- * Resolve the HTTPS host used for the Zoho embedtoken call.
- * Priority: client-supplied HTTPS host → ZOHO_SIGN_EMBED_HOST secret → empty (skip embedtoken).
+ * Resolve the HTTPS origin used for the Zoho embedtoken `host` param.
+ * Priority: normalized client-supplied URL → ZOHO_SIGN_EMBED_HOST secret → empty (skip embedtoken).
+ * Accepts bare hostnames (e.g. hr.example.com → https://hr.example.com). HTTP localhost → skip.
  */
 function getEffectiveEmbedHost(requestedHost: string): string {
-  if (/^https:\/\//i.test(requestedHost)) return requestedHost.replace(/\/$/, "");
-  const secret = (Deno.env.get("ZOHO_SIGN_EMBED_HOST") || "").trim().replace(/\/$/, "");
-  if (/^https:\/\//i.test(secret)) return secret;
-  return "";
+  const fromClient = normalizeZohoEmbedHostCandidate(requestedHost || "");
+  if (fromClient) return fromClient;
+  return normalizeZohoEmbedHostCandidate(Deno.env.get("ZOHO_SIGN_EMBED_HOST") || "");
 }
 
 function isValidEmail(email: string): boolean {
@@ -239,6 +240,45 @@ async function zohoRequest(base: string, path: string, accessToken: string, init
   });
 }
 
+type ZohoGetRequestDetailResponse = {
+  status?: string;
+  message?: string;
+  requests?: {
+    actions?: Array<{ action_id?: string; action_type?: string }>;
+  };
+};
+
+/** Template quicksend often omits actions[].action_id; GET fills it for embedtoken. */
+async function fetchSignerActionIdFromRequest(
+  base: string,
+  requestId: string,
+  accessToken: string,
+): Promise<string> {
+  try {
+    const getRes = await zohoRequest(base, `/api/v1/requests/${encodeURIComponent(requestId)}`, accessToken);
+    const text = await getRes.text();
+    let getJson: ZohoGetRequestDetailResponse = {};
+    try {
+      getJson = JSON.parse(text) as ZohoGetRequestDetailResponse;
+    } catch {
+      return "";
+    }
+    if (!getRes.ok || getJson.status !== "success") {
+      console.warn("[send-agreement] GET /requests/{id} for action_id failed", getRes.status, text.slice(0, 280));
+      return "";
+    }
+    const reqActions = getJson.requests?.actions || [];
+    const signer =
+      reqActions.find((a) => (a.action_type || "").trim().toUpperCase() === "SIGN") || reqActions[0];
+    const id = (typeof signer?.action_id === "string" && signer.action_id.trim()) || "";
+    if (id) console.log("[send-agreement] resolved signer action_id via GET /requests/:id");
+    return id;
+  } catch (e) {
+    console.warn("[send-agreement] fetchSignerActionIdFromRequest exception", e);
+    return "";
+  }
+}
+
 serve(async (req) => {
   console.log("[send-agreement] request method", req.method);
 
@@ -293,9 +333,35 @@ serve(async (req) => {
 
   const supabase = createClient(getEnv("SUPABASE_URL"), getEnv("SUPABASE_SERVICE_ROLE_KEY"));
 
+  if (!userId) {
+    return fail("request_validation", "user_id (onboarding applicant UUID) is required", 400);
+  }
+
+  const { data: workerForTenant, error: workerTenantErr } = await supabase
+    .from("worker")
+    .select("tenant_id")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (workerTenantErr) {
+    console.error("[send-agreement] worker tenant lookup", workerTenantErr);
+    return fail("request_validation", "Could not resolve tenant for applicant", 500, {
+      message: workerTenantErr.message,
+    });
+  }
+  if (workerForTenant?.tenant_id == null) {
+    return fail(
+      "request_validation",
+      "Worker profile is missing tenant_id. Save Step 1 (profile) before requesting the agreement.",
+      400,
+    );
+  }
+  const tenantId = String(workerForTenant.tenant_id);
+
   const { data: existingRows, error: dupLookupError } = await supabase
     .from("zoho_sign_requests")
     .select("request_id,status,recipient_name,created_at")
+    .eq("tenant_id", tenantId)
     .eq("source", "onboarding")
     .eq("email", email)
     .neq("status", "declined");
@@ -363,6 +429,12 @@ serve(async (req) => {
 
     console.log("[send-agreement] returning existing request, signing_url:", embeddedSigningUrl ? "set" : "null");
 
+    const existingSigningError = embeddedSigningUrl
+      ? null
+      : !effectiveHostExisting
+        ? "No HTTPS embed host. Set NEXT_PUBLIC_APP_URL=https://your-domain.com (restart dev server) or set Supabase Edge secret ZOHO_SIGN_EMBED_HOST."
+        : "Could not refresh an embedded signing URL from Zoho. Check Zoho Sign allowed domains or try again.";
+
     return jsonResponse({
       success: true,
       request_id: existingRequestId,
@@ -370,6 +442,7 @@ serve(async (req) => {
       email,
       name,
       signing_url: embeddedSigningUrl,
+      signing_url_error: existingSigningError,
     });
   }
 
@@ -584,7 +657,20 @@ serve(async (req) => {
   const actions = Array.isArray(reqBlock.actions) ? reqBlock.actions : [];
   const signerAction =
     actions.find((a) => (a.action_type || "").toUpperCase() === "SIGN") || actions[0] || {};
-  const signerActionIdFromResponse = (typeof signerAction.action_id === "string" && signerAction.action_id.trim()) || "";
+  let signerActionIdFromResponse =
+    (typeof signerAction.action_id === "string" && signerAction.action_id.trim()) || "";
+
+  if (!signerActionIdFromResponse && requestId) {
+    signerActionIdFromResponse = await fetchSignerActionIdFromRequest(
+      activeZohoBase,
+      requestId,
+      accessToken,
+    );
+  }
+  if (!signerActionIdFromResponse && signerActionId) {
+    signerActionIdFromResponse = signerActionId;
+    console.log("[send-agreement] using template action_id fallback for embedtoken");
+  }
 
   // Attempt embedded signing URL via embedtoken
   let signingUrl: string | null =
@@ -593,7 +679,13 @@ serve(async (req) => {
     null;
 
   const effectiveHost = getEffectiveEmbedHost(host);
-  console.log("[send-agreement] new request embed host", { raw: host, effective: effectiveHost, hasActionId: Boolean(signerActionIdFromResponse) });
+  let embedHttpStatus: number | undefined;
+  let embedZohoMsg: string | undefined;
+  console.log("[send-agreement] new request embed host", {
+    raw: host,
+    effective: effectiveHost,
+    hasActionId: Boolean(signerActionIdFromResponse),
+  });
 
   if (effectiveHost && signerActionIdFromResponse) {
     try {
@@ -607,14 +699,21 @@ serve(async (req) => {
           body: new URLSearchParams({ host: effectiveHost }).toString(),
         },
       );
+      embedHttpStatus = embedRes.status;
       const embedText = await embedRes.text();
-      let embedJson: { status?: string; sign_url?: string } = {};
-      try { embedJson = JSON.parse(embedText); } catch { /* ignore */ }
+      let embedJson: { status?: string; sign_url?: string; message?: string } = {};
+      try {
+        embedJson = JSON.parse(embedText);
+      } catch {
+        embedZohoMsg = embedText.trim().slice(0, 300) || undefined;
+      }
+      if (embedJson.message) embedZohoMsg = embedJson.message;
       console.log("[send-agreement] new request embedtoken", { status: embedRes.status, body: embedText.slice(0, 300) });
       if (embedJson.status === "success" && embedJson.sign_url?.trim()) {
         signingUrl = embedJson.sign_url.trim();
       } else {
         console.warn("[send-agreement] embedtoken failed", { status: embedRes.status, body: embedText.slice(0, 200) });
+        if (!embedZohoMsg) embedZohoMsg = embedText.trim().slice(0, 300) || undefined;
       }
     } catch (embedErr) {
       console.warn("[send-agreement] embedtoken exception", embedErr);
@@ -623,10 +722,23 @@ serve(async (req) => {
 
   console.log("[send-agreement] signing_url:", signingUrl ? "set" : "null");
 
+  const signingUrlError = signingUrl
+    ? null
+    : !effectiveHost
+      ? "No HTTPS embed host. Set NEXT_PUBLIC_APP_URL=https://your-domain.com (restart npm run dev) or set Supabase Edge secret ZOHO_SIGN_EMBED_HOST."
+      : !signerActionIdFromResponse
+        ? "Zoho did not return a signer action_id; check the Sign template/recipient mapping."
+        : embedZohoMsg
+          ? `Zoho Sign embedtoken: ${embedZohoMsg}`
+          : embedHttpStatus && embedHttpStatus >= 400
+            ? `Zoho Sign embedtoken failed (HTTP ${embedHttpStatus}). Register ${effectiveHost} as an embedded-signing host in Zoho Sign and retry.`
+            : `Zoho Sign did not return a signing URL. Confirm ${effectiveHost} is allowed for embedded signing in your Zoho Sign organization.`;
+
   try {
     const nowIso = new Date().toISOString();
     const { error: insertError } = await supabase.from("zoho_sign_requests").upsert(
       {
+        tenant_id: tenantId,
         request_id: requestId,
         email,
         recipient_name: name,
@@ -674,5 +786,6 @@ serve(async (req) => {
     name,
     signing_url: signingUrl,
     zoho_document_id: zohoDocumentId,
+    signing_url_error: signingUrlError,
   });
 });

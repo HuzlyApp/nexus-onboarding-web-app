@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { getSupabaseUrl } from "@/lib/supabase-env"
+import { resolveDefaultTenantId } from "@/lib/tenant/resolve-default-tenant-id"
 
 export const runtime = "nodejs"
 
@@ -32,9 +33,14 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = createClient(url, key)
+    const tenantRes = await resolveDefaultTenantId(supabase)
+    if (!tenantRes.ok) {
+      return NextResponse.json({ error: tenantRes.error }, { status: 503 })
+    }
     const { data: dupRows, error: dupErr } = await supabase
       .from("worker")
       .select("id")
+      .eq("tenant_id", tenantRes.tenantId)
       .eq("email", emailNorm)
       .neq("user_id", applicantId)
       .limit(1)

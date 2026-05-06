@@ -1,5 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
-import { getSkillAssessmentWorkerKey, getWorkerPrimaryKey } from "@/lib/onboarding-worker-pk"
+import {
+  getSkillAssessmentWorkerKey,
+  getWorkerPrimaryKey,
+  getWorkerSessionContext,
+} from "@/lib/onboarding-worker-pk"
 
 export type SkillAnswerRow = {
   skill_id: string
@@ -42,8 +46,8 @@ export async function upsertSkillAnswerRow(
     answerValue: number
   }
 ): Promise<{ ok: boolean; error?: string }> {
-  const applicantId = await getWorkerPrimaryKey(supabase)
-  if (!applicantId) {
+  const ctx = await getWorkerSessionContext(supabase)
+  if (!ctx) {
     return { ok: false, error: "no_worker_row" }
   }
   if (params.answerValue < 1 || params.answerValue > 4) {
@@ -52,7 +56,8 @@ export async function upsertSkillAnswerRow(
 
   const { error } = await supabase.from("applicant_skill_assessment_answers").upsert(
     {
-      applicant_id: applicantId,
+      applicant_id: ctx.id,
+      tenant_id: ctx.tenantId,
       category_id: params.categoryId,
       skill_id: params.skillId,
       answer_value: params.answerValue,
@@ -72,7 +77,8 @@ export async function syncSkillAssessmentJson(
   answers: Record<string, number>,
   completed: boolean
 ): Promise<void> {
-  const workerKey = await getSkillAssessmentWorkerKey(supabase)
+  const ctx = await getWorkerSessionContext(supabase)
+  const workerKey = ctx?.id ?? (await getSkillAssessmentWorkerKey(supabase))
   if (!workerKey) return
 
   const cleanAnswers = JSON.parse(JSON.stringify(answers)) as Record<string, number>
@@ -89,7 +95,10 @@ export async function syncSkillAssessmentJson(
       .update({ answers: cleanAnswers, completed })
       .eq("id", existing.id)
   } else {
+    const tenantId = ctx?.tenantId
+    if (!tenantId) return
     await supabase.from("skill_assessments").insert({
+      tenant_id: tenantId,
       worker_id: workerKey,
       category: categorySlug,
       answers: cleanAnswers,
