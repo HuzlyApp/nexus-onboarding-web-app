@@ -64,17 +64,31 @@ export async function POST(req: NextRequest) {
     if (supabaseUrl && serviceKey) {
       try {
         const supabase = createClient(supabaseUrl, serviceKey)
-        await supabase
-          .from("agreements")
-          .upsert(
-            {
-              request_id: requestId,
-              applicant_id: applicantId,
-              status: "sent",
-              updated_at: new Date().toISOString(),
-            },
-            { onConflict: "request_id", ignoreDuplicates: false }
+        const { data: workerRow } = await supabase
+          .from("worker")
+          .select("tenant_id")
+          .eq("user_id", applicantId)
+          .maybeSingle()
+        const tenantId = workerRow?.tenant_id != null ? String(workerRow.tenant_id) : null
+        if (tenantId) {
+          await supabase
+            .from("agreements")
+            .upsert(
+              {
+                tenant_id: tenantId,
+                request_id: requestId,
+                applicant_id: applicantId,
+                status: "sent",
+                updated_at: new Date().toISOString(),
+              },
+              { onConflict: "request_id", ignoreDuplicates: false }
+            )
+        } else {
+          console.warn(
+            "[zoho-sign/create-embedded-sign] skip agreements upsert: worker has no tenant_id for applicant",
+            applicantId,
           )
+        }
       } catch (e) {
         console.warn("[zoho-sign/create-embedded-sign] could not upsert agreements row", e)
       }

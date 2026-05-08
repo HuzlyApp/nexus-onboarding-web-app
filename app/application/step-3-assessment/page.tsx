@@ -157,6 +157,20 @@ export default function AssessmentPage() {
           </div>
           <p className="text-[13px] text-slate-500 mb-6">Identify Strengths. Verify Readiness.</p>
 
+          {loadError ? (
+            <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[13px] text-amber-900">
+              Could not load skill categories: {loadError}
+            </div>
+          ) : null}
+          {!loadError && categories.length === 0 ? (
+            <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[13px] text-slate-700">
+              No skill categories returned from the server. Confirm your Supabase URL and anon key match
+              the project where <code className="rounded bg-white/70 px-1">skill_categories</code> rows
+              exist, RLS policies allow <code className="rounded bg-white/70 px-1">anon</code> SELECT, then
+              refresh.
+            </div>
+          ) : null}
+
           {/* Category list */}
           <div className="space-y-3">
             {categories.map((cat, index) => {

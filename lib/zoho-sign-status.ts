@@ -34,6 +34,7 @@ export type SendAgreementResult = {
   email: string;
   name: string;
   signing_url?: string | null;
+  signing_url_error?: string | null;
   zoho_document_id?: string | null;
 };
 

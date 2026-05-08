@@ -15,6 +15,7 @@ import {
   step1ZipInlineMessage,
 } from "@/lib/onboardingStep1Validation"
 import AutosaveStatus from "@/app/components/AutosaveStatus"
+import { getConfiguredDefaultTenantId } from "@/lib/tenant/resolve-default-tenant-id"
 
 type ContactConflictKind = "email" | "phone"
 
@@ -235,15 +236,8 @@ function Step1ReviewContent() {
 
   // Load parsed resume data from PDF
   useEffect(() => {
-    // Ensure we always have an applicant id for saving.
-    const existingApplicantId = localStorage.getItem("applicantId")
-    if (!existingApplicantId) {
-      const newId =
-        typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
-          ? crypto.randomUUID()
-          : `app_${Date.now()}_${Math.random().toString(16).slice(2)}`
-      localStorage.setItem("applicantId", newId)
-    }
+    // `applicantId` is set by `app/application/layout.tsx` to match `auth.users.id` (anon sign-in).
+    // Do not mint random UUIDs here — `worker.user_id` has a foreign key to Auth.
 
     const saved = localStorage.getItem("parsedResume")
     if (!saved) return
@@ -439,7 +433,9 @@ function Step1ReviewContent() {
         jobRole: form.jobRole,
       }
 
+      const clientTenantId = getConfiguredDefaultTenantId()
       const workerRow = {
+        ...(clientTenantId ? { tenant_id: clientTenantId } : {}),
         user_id: applicantId,
         first_name: form.firstName.trim(),
         last_name: form.lastName.trim(),
@@ -474,8 +470,14 @@ function Step1ReviewContent() {
 
       if (
         saveRes.status === 503 &&
-        (saveJson.error === "MISSING_SERVICE_ROLE_KEY" || saveJson.error === "MISSING_SUPABASE_URL")
+        (saveJson.error === "MISSING_SERVICE_ROLE_KEY" ||
+          saveJson.error === "MISSING_SUPABASE_URL")
       ) {
+        if (!clientTenantId) {
+          throw new Error(
+            'Multi-tenant database requires tenant_id on worker rows. Add NEXT_PUBLIC_DEFAULT_TENANT_ID to .env.local (your platform tenant UUID), or set SUPABASE_SERVICE_ROLE_KEY so the server can resolve the default tenant from public.tenants.',
+          )
+        }
         const emailCheck = await fetch("/api/onboarding/check-email-free", {
           method: "POST",
           headers: { "Content-Type": "application/json" },

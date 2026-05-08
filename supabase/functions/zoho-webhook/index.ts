@@ -429,6 +429,17 @@ serve(async (req) => {
         };
         if (recipientEmail) insertPayload.email = recipientEmail;
 
+        const { data: trow } = await supabase
+          .from("tenants")
+          .select("id")
+          .eq("is_active", true)
+          .order("created_at", { ascending: true })
+          .limit(1)
+          .maybeSingle();
+        if (trow?.id != null) {
+          insertPayload.tenant_id = String(trow.id);
+        }
+
         const { error: insertError } = await supabase
           .from("zoho_sign_requests")
           .upsert(insertPayload, { onConflict: "request_id", ignoreDuplicates: false });

@@ -55,12 +55,12 @@ export async function POST(req: NextRequest) {
 
     const { data: worker, error: wErr } = await supabase
       .from("worker")
-      .select("id")
+      .select("id, tenant_id")
       .eq("user_id", applicantId)
       .maybeSingle()
 
     if (wErr) throw wErr
-    if (!worker?.id) {
+    if (!worker?.id || worker.tenant_id == null) {
       return NextResponse.json(
         {
           error: "Worker profile not found for this session. Complete “Review resume details” and earlier steps first.",
@@ -70,6 +70,7 @@ export async function POST(req: NextRequest) {
     }
 
     const workerId = worker.id as string
+    const tenantId = String(worker.tenant_id)
 
     const { error: delErr } = await supabase.from("worker_references").delete().eq("worker_id", workerId)
     if (delErr) {
@@ -78,6 +79,7 @@ export async function POST(req: NextRequest) {
     }
 
     const rows = completeOnly.map((r) => ({
+      tenant_id: tenantId,
       worker_id: workerId,
       reference_first_name: String(r.first ?? "").trim(),
       reference_last_name: String(r.last ?? "").trim(),

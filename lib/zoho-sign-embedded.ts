@@ -8,6 +8,8 @@
  * - generate embedtoken URL (sign_url)
  */
 
+import { normalizeZohoEmbedHostCandidate } from "@/lib/zoho-sign-embed-host"
+
 function requireEnv(name: string): string {
   const v = process.env[name]
   if (!v) throw new Error(`Missing ${name}`)
@@ -132,18 +134,21 @@ async function generateEmbedSigningUrl(params: {
   const accessToken = await getAccessToken()
   const base = signApiBase()
 
-  const explicitHost = (process.env.ZOHO_SIGN_EMBED_HOST || "").trim().replace(/\/$/, "")
-  const appUrl =
-    params.publicOrigin?.replace(/\/$/, "") ||
-    process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ||
-    ""
-  const host = explicitHost || appUrl || new URL(params.returnUrl).origin
+  const explicitHost = normalizeZohoEmbedHostCandidate(process.env.ZOHO_SIGN_EMBED_HOST || "")
+  const fromPublic =
+    normalizeZohoEmbedHostCandidate(params.publicOrigin || "") ||
+    normalizeZohoEmbedHostCandidate(process.env.NEXT_PUBLIC_APP_URL || "")
+  let fromReturn = ""
+  try {
+    fromReturn = normalizeZohoEmbedHostCandidate(new URL(params.returnUrl).origin)
+  } catch {
+    /* ignore */
+  }
+  const host = explicitHost || fromPublic || fromReturn
 
-  // Zoho Sign requires an https host for embedded signing.
-  // Localhost http URLs will be rejected with "Url has invalid scheme".
-  if (!/^https:\/\//i.test(host)) {
+  if (!host) {
     throw new Error(
-      `Zoho Sign embedded signing requires an https host. Set ZOHO_SIGN_EMBED_HOST or NEXT_PUBLIC_APP_URL to your public https domain (e.g. https://hr.nexusmedpro.com), not "${host}".`
+      "Zoho Sign embedded signing requires an https host. Set ZOHO_SIGN_EMBED_HOST or NEXT_PUBLIC_APP_URL to your public https domain (e.g. https://hr.nexusmedpro.com)."
     )
   }
 

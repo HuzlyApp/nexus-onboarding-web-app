@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { getSupabaseUrl } from "@/lib/supabase-env"
 import { validateStep1Form } from "@/lib/onboardingStep1Validation"
+import { resolveDefaultTenantId } from "@/lib/tenant/resolve-default-tenant-id"
 
 export const runtime = "nodejs"
 
@@ -45,6 +46,15 @@ export async function POST(req: NextRequest) {
 
     const supabase = createClient(url, key)
 
+    const tenantRes = await resolveDefaultTenantId(supabase)
+    if (!tenantRes.ok) {
+      return NextResponse.json(
+        { error: tenantRes.error, code: "MISSING_TENANT" },
+        { status: 503 },
+      )
+    }
+    const tenantId = tenantRes.tenantId
+
     // `user_id` is the stable onboarding key (matches localStorage applicantId, must be a UUID).
     const emailRaw = String(body.email ?? "").trim()
     const emailNorm = emailRaw.toLowerCase()
@@ -69,6 +79,7 @@ export async function POST(req: NextRequest) {
     }
 
     const baseRow = {
+      tenant_id: tenantId,
       user_id: applicantId,
       first_name: step1Fields.firstName.trim(),
       last_name: step1Fields.lastName.trim(),
@@ -87,6 +98,7 @@ export async function POST(req: NextRequest) {
       const { data: dupRows, error: dupErr } = await supabase
         .from("worker")
         .select("id")
+        .eq("tenant_id", tenantId)
         .eq("email", emailNorm)
         .neq("user_id", applicantId)
         .limit(1)

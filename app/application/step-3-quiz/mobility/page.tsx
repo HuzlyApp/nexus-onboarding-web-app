@@ -8,6 +8,7 @@ import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
 import OnboardingLoader from "@/app/components/OnboardingLoader"
 import { ChevronRight } from "lucide-react"
+import { getWorkerSessionContext } from "@/lib/onboarding-worker-pk"
 import { fetchApplicantSkillAnswers } from "@/lib/skill-assessment-answer-rows"
 import { useQuizAutosave } from "@/lib/useQuizAutosave"
 import AutosaveStatus from "@/app/components/AutosaveStatus"
@@ -214,17 +215,12 @@ export default function MobilityQuiz() {
       if (completed) localStorage.setItem("mobility_done", "true")
       return true
     }
-    const { data: worker, error: wErr } = await supabase
-      .from("worker")
-      .select("id")
-      .eq("user_id", uid)
-      .maybeSingle()
-
-    if (wErr) {
+    const ctx = await getWorkerSessionContext(supabase)
+    if (!ctx) {
       alert("Could not load worker profile.")
       return false
     }
-    const workerId = worker?.id ? String(worker.id) : uid
+    const workerId = ctx.id
     const cleanAnswers = JSON.parse(JSON.stringify(answers)) as Record<string, number>
 
     const { data: existing, error: findErr } = await supabase
@@ -256,6 +252,7 @@ export default function MobilityQuiz() {
       }
     } else {
       const { error: insErr } = await supabase.from("skill_assessments").insert({
+        tenant_id: ctx.tenantId,
         worker_id: workerId,
         category: CATEGORY_SLUG,
         answers: cleanAnswers,

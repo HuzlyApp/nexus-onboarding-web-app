@@ -109,17 +109,18 @@ export async function POST(req: NextRequest) {
 
     const { data: worker, error: wErr } = await supabase
       .from("worker")
-      .select("id")
+      .select("id, tenant_id")
       .eq("user_id", applicantId)
       .maybeSingle()
 
     if (wErr) throw wErr
-    if (!worker?.id) {
+    if (!worker?.id || worker.tenant_id == null) {
       return NextResponse.json(
         { error: "Worker not found; complete Step 1 (profile) before uploading documents." },
         { status: 400 }
       )
     }
+    const workerTenantId = String(worker.tenant_id)
     console.info("[debug-doc-upload] worker-documents:start", {
       route: "/api/onboarding/worker-documents",
       applicantId,
@@ -147,6 +148,7 @@ export async function POST(req: NextRequest) {
     const ex = (existing || {}) as Record<string, string | null | undefined>
 
     const merged: Record<string, unknown> = {
+      tenant_id: workerTenantId,
       worker_id: worker.id,
       updated_at: new Date().toISOString(),
     }

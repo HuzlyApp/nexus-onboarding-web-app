@@ -42,11 +42,19 @@ webhook_url:`${process.env.NEXT_PUBLIC_APP_URL}/api/signeasy/webhook`
 
 const data = await response.json()
 
-await supabase.from("worker_documents").insert({
-worker_id:workerId,
-document_name:"Authorization_agreement.pdf",
-document_id:data.id
-})
+const { data: workerRow } = await supabase
+  .from("worker")
+  .select("tenant_id")
+  .eq("id", workerId)
+  .maybeSingle()
+if (workerRow?.tenant_id != null) {
+  await supabase.from("worker_documents").insert({
+    tenant_id: String(workerRow.tenant_id),
+    worker_id: workerId,
+    document_name: "Authorization_agreement.pdf",
+    document_id: data.id,
+  })
+}
 
 return NextResponse.json(data)
 
