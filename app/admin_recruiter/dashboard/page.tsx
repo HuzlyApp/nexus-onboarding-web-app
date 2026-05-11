@@ -8,6 +8,7 @@ import {
   MapPin,
   Sparkles,
 } from "lucide-react";
+import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 
 type WorkerRow = {
   id: string;
@@ -27,6 +28,7 @@ function formatDate(iso: string | null) {
 }
 
 export default function RecruiterDashboard() {
+  const branding = useTenantBranding();
   const [loading, setLoading] = useState(true);
   const [workers, setWorkers] = useState<WorkerRow[]>([]);
   const [query, setQuery] = useState("");
@@ -125,7 +127,8 @@ export default function RecruiterDashboard() {
               </div>
               <Link
                 href="/admin_recruiter/advanced-search"
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-[#0c918a] px-4 text-sm font-semibold text-white transition hover:bg-[#0a7b75]"
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold text-white transition hover:brightness-95"
+                style={{ backgroundColor: "var(--brand-primary)" }}
               >
                 <MapPin className="h-4 w-4" />
                 Advanced search
@@ -139,10 +142,10 @@ export default function RecruiterDashboard() {
             >
               <div className="flex items-center justify-between">
                 <p className="text-sm text-[#6b7280]">Total workers</p>
-                <Sparkles className="h-4 w-4 text-[#0C9A92]" />
+                <Sparkles className="h-4 w-4" style={{ color: "var(--brand-primary)" }} />
               </div>
               <p className="mt-2 text-[38px] font-semibold leading-10 text-[#1f2937]">{loading ? "—" : workers.length}</p>
-              <span className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-[#0C9A92]">
+              <span className="mt-2 inline-flex items-center gap-1 text-sm font-medium" style={{ color: "var(--brand-primary)" }}>
                 View workers
                 <ArrowRight className="h-3.5 w-3.5" />
               </span>
@@ -164,7 +167,7 @@ export default function RecruiterDashboard() {
                   <span className={`inline-flex rounded-md px-2 py-0.5 text-[10px] font-semibold ${c.chipClass}`}>{c.chip}</span>
                 </div>
                 <p className="mt-2 text-[38px] font-semibold leading-10 text-[#1f2937]">{loading ? "—" : counts[c.key]}</p>
-                <span className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-[#0C9A92]">
+                <span className="mt-2 inline-flex items-center gap-1 text-sm font-medium" style={{ color: "var(--brand-primary)" }}>
                   Open list
                   <ArrowRight className="h-3.5 w-3.5" />
                 </span>
@@ -182,7 +185,8 @@ export default function RecruiterDashboard() {
               </div>
               <Link
                 href="/admin_recruiter/workers"
-                className="inline-flex items-center gap-1 text-sm font-medium text-[#0C9A92] hover:underline"
+                className="inline-flex items-center gap-1 text-sm font-medium hover:underline"
+                style={{ color: branding.primaryHex }}
               >
                 View all
                 <ArrowRight className="h-3.5 w-3.5" />

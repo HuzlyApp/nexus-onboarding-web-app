@@ -11,6 +11,7 @@ const RANK: Record<AppRole, number> = {
 export function parseAppRole(v: unknown): AppRole | null {
   if (typeof v !== "string") return null;
   const s = v.trim().toLowerCase();
+  if (s === "god_admin") return "admin";
   if (s === "worker" || s === "recruiter" || s === "support" || s === "admin") return s;
   return null;
 }

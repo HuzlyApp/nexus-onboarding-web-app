@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
 const CANDIDATE_SUB = [
@@ -26,7 +27,11 @@ type AdminRecruiterSidebarProps = {
   onMobileClose?: () => void;
 };
 
+const DEFAULT_TENANT_LOGO = "/images/new-logo-nexus.svg";
+
 export function AdminRecruiterSidebar({ isMobileOpen = false, onMobileClose }: AdminRecruiterSidebarProps) {
+  const branding = useTenantBranding();
+  const [logoSrc, setLogoSrc] = useState(branding.logoUrl || DEFAULT_TENANT_LOGO);
   const pathname = usePathname() ?? "";
   const router = useRouter();
   const inDashboard = pathname.startsWith("/admin_recruiter/dashboard");
@@ -73,6 +78,10 @@ export function AdminRecruiterSidebar({ isMobileOpen = false, onMobileClose }: A
     console.log("[AdminRecruiterSidebar] current route", pathname);
   }, [pathname]);
 
+  useEffect(() => {
+    setLogoSrc(branding.logoUrl?.trim() || DEFAULT_TENANT_LOGO);
+  }, [branding.logoUrl]);
+
   const handleLogout = async () => {
     console.log("[AdminRecruiterSidebar] clicked sidebar item", { label: "Logout", currentRoute: pathname });
     const { error } = await supabaseBrowser.auth.signOut();
@@ -86,22 +95,32 @@ export function AdminRecruiterSidebar({ isMobileOpen = false, onMobileClose }: A
 
   const SidebarContent = () => (
     <div className="relative h-full">
-      <div className="absolute inset-y-0 left-0 w-20 bg-[#033c3a] text-[#d4efea] flex flex-col items-center py-3 pb-5">
-        <div className="mt-1 mb-6">
-          <Image
-            src="/icons/admin-recruiter/nexus-main-logo.svg"
-            alt="Nexus logo"
+      <div
+        className="absolute inset-y-0 left-0 w-20 text-[#d4efea] flex flex-col items-center py-3 pb-5"
+        style={{ backgroundColor: "var(--brand-secondary)" }}
+      >
+        <div className="mt-1 mb-6 flex h-[46px] w-[46px] items-center justify-center overflow-hidden">
+          <img
+            src={logoSrc}
+            alt={branding.companyName}
+            className="max-h-[46px] max-w-[46px] object-contain"
             width={46}
             height={46}
-            className="w-[46px] h-[46px]"
+            onError={() => setLogoSrc(DEFAULT_TENANT_LOGO)}
           />
+        </div>
+        <div className="mb-4 px-1 text-center text-[10px] leading-3 text-white/90">
+          {branding.companyName}
         </div>
 
         <div className="flex flex-col items-center">
           {railIcons.map((icon) => {
             const cls = `h-[72px] w-20 flex items-center justify-center cursor-pointer transition ${
-              icon.active ? "bg-[#0b5551] shadow-[inset_3px_0_0_0_#14d3c2]" : "hover:bg-[#044543]"
+              icon.active ? "shadow-[inset_3px_0_0_0_var(--brand-accent)]" : ""
             }`;
+            const iconStyle = icon.active
+              ? ({ backgroundColor: "var(--brand-primary)" } as const)
+              : ({ backgroundColor: "transparent" } as const);
 
             if (icon.href) {
               return (
@@ -109,6 +128,7 @@ export function AdminRecruiterSidebar({ isMobileOpen = false, onMobileClose }: A
                   key={icon.src}
                   href={icon.href}
                   className={cls}
+                  style={iconStyle}
                   aria-label={icon.alt}
                   onClick={() => handleNavClick(icon.alt, icon.href ?? "")}
                 >
@@ -118,7 +138,7 @@ export function AdminRecruiterSidebar({ isMobileOpen = false, onMobileClose }: A
             }
 
             return (
-              <div key={icon.src} className={cls}>
+              <div key={icon.src} className={cls} style={iconStyle}>
                 <Image src={icon.src} alt={icon.alt} width={32} height={32} />
               </div>
             );
@@ -128,7 +148,7 @@ export function AdminRecruiterSidebar({ isMobileOpen = false, onMobileClose }: A
         <button
           type="button"
           onClick={handleLogout}
-          className="mt-auto h-[72px] w-20 flex items-center justify-center cursor-pointer transition hover:bg-[#044543]"
+          className="mt-auto h-[72px] w-20 flex items-center justify-center cursor-pointer transition hover:opacity-90"
           aria-label="Logout"
         >
           <Image src="/icons/admin-recruiter/logout.svg" alt="Logout" width={32} height={32} />
@@ -137,12 +157,14 @@ export function AdminRecruiterSidebar({ isMobileOpen = false, onMobileClose }: A
 
       <div className="ml-20 h-full w-[264px] flex flex-col">
         <div className="px-5 pt-10 pb-5">
-          <p className="text-xs font-semibold leading-[18px] uppercase tracking-normal text-[#587573]">TEAM MANAGEMENT</p>
+          <p className="text-xs font-semibold leading-[18px] uppercase tracking-normal text-[#587573]">
+            {branding.companyName}
+          </p>
         </div>
 
         <nav className="flex-1 overflow-y-auto px-5 pb-5">
           <div className="w-56 rounded-xl bg-transparent">
-            <div className="flex w-full items-center justify-between px-2 py-2 text-sm font-semibold text-[#1b5f5b]">
+            <div className="flex w-full items-center justify-between px-2 py-2 text-sm font-semibold text-[var(--brand-secondary)]">
               <span className="flex items-center gap-2">
                 <Image src="/icons/admin-recruiter/Member.svg" alt="" width={18} height={18} className="shrink-0" />
                 Candidates
@@ -157,8 +179,17 @@ export function AdminRecruiterSidebar({ isMobileOpen = false, onMobileClose }: A
                     href={item.href}
                     onClick={() => handleNavClick(`Candidates/${item.label}`, item.href)}
                     className={`box-border flex h-8 w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs transition ${
-                      active ? "border border-[#0c918a] bg-[#f5fbfa] text-[#0f514e]" : "text-[#3e5d5a] hover:bg-[#f2f8f7]"
+                      active ? "text-[#0f514e]" : "text-[#3e5d5a] hover:bg-[#f2f8f7]"
                     }`}
+                    style={
+                      active
+                        ? {
+                            borderColor: "var(--brand-primary)",
+                            borderWidth: "1px",
+                            backgroundColor: "color-mix(in srgb, var(--brand-accent) 16%, white)",
+                          }
+                        : undefined
+                    }
                   >
                     {item.label}
                   </Link>
@@ -168,7 +199,7 @@ export function AdminRecruiterSidebar({ isMobileOpen = false, onMobileClose }: A
           </div>
 
           <div className="mt-6 w-56 border-t border-[#d6e2df] pt-6">
-            <div className="flex w-full items-center justify-between px-2 py-2 text-sm font-semibold text-[#1b5f5b]">
+            <div className="flex w-full items-center justify-between px-2 py-2 text-sm font-semibold text-[var(--brand-secondary)]">
               <span className="flex items-center gap-2">
                 <Image src="/icons/admin-recruiter/Member.svg" alt="" width={18} height={18} className="shrink-0" />
                 Workers
@@ -184,8 +215,17 @@ export function AdminRecruiterSidebar({ isMobileOpen = false, onMobileClose }: A
                     href={item.href}
                     onClick={() => handleNavClick(`Workers/${item.label}`, item.href)}
                     className={`box-border flex h-8 w-full items-center rounded-md px-2 py-1.5 text-xs transition ${
-                      active ? "border border-[#0c918a] bg-[#f5fbfa] text-[#0f514e]" : "text-[#3e5d5a] hover:bg-[#f2f8f7]"
+                      active ? "text-[#0f514e]" : "text-[#3e5d5a] hover:bg-[#f2f8f7]"
                     }`}
+                    style={
+                      active
+                        ? {
+                            borderColor: "var(--brand-primary)",
+                            borderWidth: "1px",
+                            backgroundColor: "color-mix(in srgb, var(--brand-accent) 16%, white)",
+                          }
+                        : undefined
+                    }
                   >
                     {item.label}
                   </Link>
@@ -207,10 +247,17 @@ export function AdminRecruiterSidebar({ isMobileOpen = false, onMobileClose }: A
                 href={item.href}
                 onClick={() => handleNavClick(item.label, item.href)}
                 className={`box-border flex h-8 w-full items-center rounded-md px-2 py-1.5 text-xs transition ${
-                  item.active
-                    ? "border border-[#0c918a] bg-[#f5fbfa] text-[#0f514e]"
-                    : "text-[#3e5d5a] hover:bg-[#f2f8f7]"
+                  item.active ? "text-[#0f514e]" : "text-[#3e5d5a] hover:bg-[#f2f8f7]"
                 }`}
+                style={
+                  item.active
+                    ? {
+                        borderColor: "var(--brand-primary)",
+                        borderWidth: "1px",
+                        backgroundColor: "color-mix(in srgb, var(--brand-accent) 16%, white)",
+                      }
+                    : undefined
+                }
               >
                 {item.label}
               </Link>
@@ -230,7 +277,10 @@ export function AdminRecruiterSidebar({ isMobileOpen = false, onMobileClose }: A
 
   return (
     <>
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[344px] max-w-[344px] min-w-[80px] border-r border-[#d7e4e1] bg-[#e9f2f0] lg:block">
+      <aside
+        className="fixed inset-y-0 left-0 z-40 hidden w-[344px] max-w-[344px] min-w-[80px] border-r border-[#d7e4e1] lg:block"
+        style={{ backgroundColor: "color-mix(in srgb, var(--brand-accent) 22%, #e9f2f0)" }}
+      >
         <SidebarContent />
       </aside>
 
@@ -242,9 +292,10 @@ export function AdminRecruiterSidebar({ isMobileOpen = false, onMobileClose }: A
         aria-hidden={!isMobileOpen}
       >
         <aside
-          className={`h-full w-[344px] max-w-[90vw] min-w-[80px] border-r border-[#d7e4e1] bg-[#e9f2f0] transition-transform ${
+          className={`h-full w-[344px] max-w-[90vw] min-w-[80px] border-r border-[#d7e4e1] transition-transform ${
             isMobileOpen ? "translate-x-0" : "-translate-x-full"
           }`}
+          style={{ backgroundColor: "color-mix(in srgb, var(--brand-accent) 22%, #e9f2f0)" }}
           onClick={(event) => event.stopPropagation()}
         >
           <SidebarContent />

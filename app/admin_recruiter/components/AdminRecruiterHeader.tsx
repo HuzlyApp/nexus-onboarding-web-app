@@ -5,7 +5,9 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { ChevronDown, ChevronLeft, Menu } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import GodAdminTenantSwitcher from "./GodAdminTenantSwitcher";
 import { supabaseBrowser } from "@/lib/supabase-browser";
+import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 
 type HeaderProfile = {
   id: string;
@@ -48,7 +50,10 @@ type AdminRecruiterHeaderProps = {
   onMenuClick?: () => void;
 };
 
+const DEFAULT_TENANT_LOGO = "/images/new-logo-nexus.svg";
+
 export function AdminRecruiterHeader({ onMenuClick }: AdminRecruiterHeaderProps) {
+  const branding = useTenantBranding();
   const router = useRouter();
   const pathname = usePathname();
   const [loading, setLoading] = useState(true);
@@ -59,10 +64,15 @@ export function AdminRecruiterHeader({ onMenuClick }: AdminRecruiterHeaderProps)
   const [showNotifications, setShowNotifications] = useState(false);
   const [showMessages, setShowMessages] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [tenantLogoSrc, setTenantLogoSrc] = useState(branding.logoUrl || DEFAULT_TENANT_LOGO);
 
   useEffect(() => {
     console.log("[AdminRecruiterHeader] current route", pathname);
   }, [pathname]);
+
+  useEffect(() => {
+    setTenantLogoSrc(branding.logoUrl?.trim() || DEFAULT_TENANT_LOGO);
+  }, [branding.logoUrl]);
 
   useEffect(() => {
     let cancelled = false;
@@ -154,13 +164,17 @@ export function AdminRecruiterHeader({ onMenuClick }: AdminRecruiterHeaderProps)
   const displayRole = profile?.role ?? "User";
 
   return (
-    <header className="sticky top-0 z-40 w-full bg-white border-b border-[#E2E8F0]">
+    <header
+      className="sticky top-0 z-40 w-full bg-white border-b border-[#E2E8F0]"
+      style={{ borderColor: "color-mix(in srgb, var(--brand-accent) 35%, #E2E8F0)" }}
+    >
       <div className="flex h-[68px] w-full items-center justify-between px-5 py-4 lg:px-8">
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={onMenuClick}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-[#E2E8F0] text-[#64748B] transition hover:bg-[#CBD5E1] lg:hidden"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#64748B] transition hover:brightness-95 lg:hidden"
+            style={{ backgroundColor: "color-mix(in srgb, var(--brand-accent) 30%, #E2E8F0)" }}
             aria-label="Open navigation menu"
           >
             <Menu className="h-4 w-4" />
@@ -168,7 +182,8 @@ export function AdminRecruiterHeader({ onMenuClick }: AdminRecruiterHeaderProps)
           <button
             type="button"
             onClick={() => router.back()}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-[#E2E8F0] text-[#64748B] transition hover:bg-[#CBD5E1]"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#64748B] transition hover:brightness-95"
+            style={{ backgroundColor: "color-mix(in srgb, var(--brand-accent) 30%, #E2E8F0)" }}
             aria-label="Go back"
           >
             <ChevronLeft className="h-4 w-4" />
@@ -176,6 +191,8 @@ export function AdminRecruiterHeader({ onMenuClick }: AdminRecruiterHeaderProps)
         </div>
 
         <div className="flex items-center gap-4 relative">
+          <GodAdminTenantSwitcher />
+
           <div className="flex items-center gap-2">
             <img
               src={profile?.profile_photo || "https://i.pravatar.cc/128?u=fallback-user"}
@@ -210,7 +227,10 @@ export function AdminRecruiterHeader({ onMenuClick }: AdminRecruiterHeaderProps)
             >
               <Image src="/icons/admin-recruiter/chat.svg" alt="" width={26} height={26} className="h-[26px] w-[26px]" />
               {unreadMessages > 0 ? (
-                <span className="absolute -mt-6 ml-6 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[#0b5551] px-1 text-[10px] text-white">
+                <span
+                  className="absolute -mt-6 ml-6 inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] text-white"
+                  style={{ backgroundColor: "var(--brand-primary)" }}
+                >
                   {unreadMessages > 99 ? "99+" : unreadMessages}
                 </span>
               ) : null}
@@ -223,7 +243,10 @@ export function AdminRecruiterHeader({ onMenuClick }: AdminRecruiterHeaderProps)
             >
               <Image src="/icons/admin-recruiter/bell-02.svg" alt="" width={26} height={26} className="h-[26px] w-[26px]" />
               {unreadNotifications > 0 ? (
-                <span className="absolute -mt-6 ml-6 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[#0b5551] px-1 text-[10px] text-white">
+                <span
+                  className="absolute -mt-6 ml-6 inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] text-white"
+                  style={{ backgroundColor: "var(--brand-primary)" }}
+                >
                   {unreadNotifications > 99 ? "99+" : unreadNotifications}
                 </span>
               ) : null}
@@ -279,6 +302,15 @@ export function AdminRecruiterHeader({ onMenuClick }: AdminRecruiterHeaderProps)
 
           {showProfileMenu ? (
             <div className="absolute right-[112px] top-12 w-[220px] rounded-lg border border-[#d7e4e1] bg-white p-2 shadow-xl">
+              <div className="mb-1 flex items-center gap-2 px-2">
+                <img
+                  src={tenantLogoSrc}
+                  alt={branding.companyName}
+                  className="h-4 w-4 object-contain"
+                  onError={() => setTenantLogoSrc(DEFAULT_TENANT_LOGO)}
+                />
+                <span className="truncate text-[11px] text-[#64748B]">{branding.companyName}</span>
+              </div>
               <p className="px-2 py-1 text-xs font-semibold text-[#0F172A]">{displayName}</p>
               <p className="px-2 pb-2 text-[11px] text-[#64748B]">{displayRole}</p>
               <Link href="/admin_recruiter/settings" className="block rounded-md px-2 py-1 text-xs text-[#0F172A] hover:bg-[#f2f8f7]">

@@ -1,7 +1,9 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
+import { resolveStaffTenantScope } from "@/lib/auth/staff-tenant-scope";
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/supabase-env";
+import { narrowWorkerRowsByTenant } from "@/lib/workers/tenant-query";
 
 type WorkerStatus =
   | "new"
@@ -59,6 +61,7 @@ export async function GET(req: Request) {
   try {
     const auth = await requireStaffApiSession();
     if (auth instanceof NextResponse) return auth;
+    const tenantScope = await resolveStaffTenantScope(auth.authUser);
 
     const urlObj = new URL(req.url);
     const status = parseStatus(
@@ -94,10 +97,16 @@ export async function GET(req: Request) {
 
     for (const key of keys) {
       const supabase = createClient(url, key);
-      const baseColsOptions = [
-        "id, user_id, first_name, last_name, job_role, email, phone, address1, city, state, zip, created_at",
-        "id, user_id, first_name, last_name, job_role, email, phone, address1, city, state, created_at",
-      ] as const;
+      const baseColsOptions =
+        tenantScope.mode === "scoped"
+          ? ([
+              "id, user_id, first_name, last_name, job_role, email, phone, address1, city, state, zip, created_at, tenant_id",
+              "id, user_id, first_name, last_name, job_role, email, phone, address1, city, state, created_at, tenant_id",
+            ] as const)
+          : ([
+              "id, user_id, first_name, last_name, job_role, email, phone, address1, city, state, zip, created_at",
+              "id, user_id, first_name, last_name, job_role, email, phone, address1, city, state, created_at",
+            ] as const);
 
       // `worker_status_chk` is the CHECK name; the column is `worker_status` (or legacy `status`).
       // Prefer `worker_status` first: when both columns exist, Studio / CHECK usually reflect `worker_status`;
@@ -214,9 +223,15 @@ export async function GET(req: Request) {
           return { ...r, status: s };
         });
 
+        const narrowed = await narrowWorkerRowsByTenant(
+          supabase,
+          tenantScope,
+          normalized as Record<string, unknown>[]
+        );
+
         const withContacts = async () => {
           if (headOnly) return [];
-          const rows = normalized as Array<Record<string, unknown>>;
+          const rows = narrowed as Array<Record<string, unknown>>;
           if (rows.length === 0) return [];
 
           const userIds = Array.from(
@@ -284,8 +299,14 @@ export async function GET(req: Request) {
         };
 
         const enriched = await withContacts();
+        const total =
+          tenantScope.mode === "scoped"
+            ? headOnly
+              ? narrowed.length
+              : enriched.length
+            : (count ?? enriched.length ?? 0);
         return Response.json({
-          total: count ?? 0,
+          total,
           workers: headOnly ? [] : enriched,
         });
       }

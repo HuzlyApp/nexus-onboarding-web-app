@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/supabase-env";
+import { isGodAdminUser } from "@/lib/auth/god-admin";
 import {
   getUserPlatform,
   isNexusPlatformUser,
@@ -71,7 +72,7 @@ export async function middleware(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    if (platformOn && !isNexusPlatformUser(user)) {
+    if (platformOn && !isNexusPlatformUser(user) && !isGodAdminUser(user)) {
       await supabase.auth.signOut();
       logAuthDebug("middleware:api:block-platform", {
         userId: user.id,
@@ -92,7 +93,7 @@ export async function middleware(request: NextRequest) {
       login.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);
       return NextResponse.redirect(login);
     }
-    if (platformOn && !isNexusPlatformUser(user)) {
+    if (platformOn && !isNexusPlatformUser(user) && !isGodAdminUser(user)) {
       await supabase.auth.signOut();
       const login = new URL("/login", request.url);
       login.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);
@@ -103,7 +104,7 @@ export async function middleware(request: NextRequest) {
 
   /** Onboarding may be anonymous; enforce platform only when a session exists. */
   if (pathname.startsWith("/application")) {
-    if (user && platformOn && !isNexusPlatformUser(user)) {
+    if (user && platformOn && !isNexusPlatformUser(user) && !isGodAdminUser(user)) {
       await supabase.auth.signOut();
       const login = new URL("/login", request.url);
       login.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);

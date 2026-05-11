@@ -1,8 +1,10 @@
-
 "use client"
 
+import type { CSSProperties } from "react"
 import Image from "next/image"
 import { cn } from "@/lib/cn"
+import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
+import { brandingToCssVars } from "@/lib/tenant/tenant-branding"
 
 type Props = {
   children: React.ReactNode
@@ -31,8 +33,18 @@ export default function OnboardingLayout({
   rightPanelImageClassName,
   rightPanelOverlayClassName
 }: Props) {
+  const branding = useTenantBranding()
+  const panelSrc = rightPanelImageSrc ?? branding.loginBackgroundSrc
+  const shellStyle: CSSProperties = {
+    ...brandingToCssVars(branding),
+    background: `linear-gradient(135deg, var(--brand-gradient-from) 0%, var(--brand-gradient-to) 100%)`,
+  }
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[linear-gradient(135deg,#27c8c0_0%,#16a79a_100%)] p-4 sm:p-6 lg:p-8">
+    <div
+      style={shellStyle}
+      className="flex min-h-screen items-center justify-center p-4 sm:p-6 lg:p-8"
+    >
       <div
         className={cn(
           "w-full overflow-hidden rounded-2xl bg-white shadow-[0_24px_70px_rgba(0,0,0,0.18)] md:grid md:min-h-[650px] md:min-w-[1060px] md:max-w-[1060px] md:grid-cols-[730px_330px] h-full",
@@ -45,8 +57,8 @@ export default function OnboardingLayout({
 
         <div className={cn("relative hidden md:block", rightPanelClassName)}>
           <Image
-            src={rightPanelImageSrc ?? "/images/nurse.jpg"}
-            alt={rightPanelImageAlt ?? "Nexus MedPro nurse"}
+            src={panelSrc}
+            alt={rightPanelImageAlt ?? "Applicant onboarding"}
             fill
             sizes="(max-width: 767px) 0px, 330px"
             className={cn("object-cover grayscale opacity-60", rightPanelImageClassName)}
@@ -73,17 +85,16 @@ export default function OnboardingLayout({
             >
               <div
                 className={cn(
-                  "relative h-[60px] w-[204px] max-w-full ",
+                  "relative flex h-[60px] min-h-[60px] w-[204px] max-w-full items-center justify-center ",
                   logoClassName
                 )}
               >
-                <Image
-                  src="/images/new-logo-nexus.svg"
-                  alt="Nexus MedPro Logo"
-                  fill
-                  sizes="204px"
-                  className="object-contain "
-                  priority
+                <img
+                  src={branding.logoUrl}
+                  alt=""
+                  width={204}
+                  height={60}
+                  className="max-h-[60px] max-w-full object-contain"
                 />
               </div>
 
@@ -105,8 +116,7 @@ export default function OnboardingLayout({
                   taglineClassName
                 )}
               >
-                Nexus MedPro Staffing {"\u2013"} Connecting Healthcare
-                professionals with service providers
+                {branding.tagline}
               </p>
             </div>
           </div>

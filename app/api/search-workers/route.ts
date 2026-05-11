@@ -1,7 +1,9 @@
 import { createClient } from "@supabase/supabase-js"
 import { NextResponse } from "next/server"
 import { requireStaffApiSession } from "@/lib/auth/api-session"
+import { resolveStaffTenantScope } from "@/lib/auth/staff-tenant-scope"
 import { getSupabaseUrl } from "@/lib/supabase-env"
+import { narrowWorkerRowsByTenant } from "@/lib/workers/tenant-query"
 
 type RpcRow = Record<string, unknown>
 type ContactLookupRow = { id: string | null; email: string | null; phone: string | null }
@@ -126,6 +128,8 @@ export async function POST(req: Request) {
   const auth = await requireStaffApiSession()
   if (auth instanceof NextResponse) return auth
 
+  const tenantScope = await resolveStaffTenantScope(auth.authUser)
+
   const url = getSupabaseUrl()
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!url || !key) {
@@ -243,5 +247,10 @@ export async function POST(req: Request) {
       applicant_phone: applicantContact?.phone ?? null,
     }
   })
-  return Response.json(enriched)
+  const narrowed = await narrowWorkerRowsByTenant(
+    supabase,
+    tenantScope,
+    enriched as Record<string, unknown>[]
+  )
+  return Response.json(narrowed)
 }

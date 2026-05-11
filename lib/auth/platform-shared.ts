@@ -37,7 +37,12 @@ const AUTH_DEBUG = process.env.AUTH_DEBUG === "true";
 
 export function logAuthDebug(
   phase: string,
-  info: { userId?: string | null; platform?: string | null; role?: string | null }
+  info: {
+    userId?: string | null;
+    platform?: string | null;
+    role?: string | null;
+    godAdmin?: boolean | null;
+  }
 ): void {
   if (!AUTH_DEBUG) return;
   // eslint-disable-next-line no-console

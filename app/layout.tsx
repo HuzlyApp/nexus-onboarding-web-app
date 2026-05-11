@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import TenantBrandingRoot from "@/app/components/tenant/TenantBrandingRoot";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -13,8 +14,11 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Nexus MedPro",
-  description: "Nexus MedPro Onboarding",
+  title: {
+    default: "Onboarding",
+    template: "%s | Onboarding",
+  },
+  description: "Configurable applicant and recruiter onboarding for healthcare staffing teams.",
   icons: {
     icon: "/icon.svg",
     shortcut: "/icon.svg",
@@ -39,7 +43,7 @@ export default function RootLayout({
           min-h-screen
         `}
       >
-        {children}
+        <TenantBrandingRoot>{children}</TenantBrandingRoot>
       </body>
     </html>
   );

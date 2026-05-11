@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
+import { AdminTenantBrandingProvider } from "@/app/components/tenant/AdminTenantBrandingProvider";
 import { AdminRecruiterSidebar } from "./components/AdminRecruiterSidebar";
 import { AdminRecruiterHeader } from "./components/AdminRecruiterHeader";
 import "./layout.css";
@@ -20,12 +21,17 @@ export default function AdminRecruiterLayout({ children }: { children: ReactNode
   }, [pathname]);
 
   return (
-    <div className="admin-recruiter-shell min-h-screen bg-[#f3f5f5] text-gray-600">
-      <AdminRecruiterSidebar isMobileOpen={mobileSidebarOpen} onMobileClose={() => setMobileSidebarOpen(false)} />
-      <div className="admin-recruiter-content lg:pl-[344px]">
-        <AdminRecruiterHeader onMenuClick={() => setMobileSidebarOpen(true)} />
-        {children}
+    <AdminTenantBrandingProvider>
+      <div
+        className="admin-recruiter-shell min-h-screen text-gray-600"
+        style={{ backgroundColor: "color-mix(in srgb, var(--brand-accent) 12%, #f3f5f5)" }}
+      >
+        <AdminRecruiterSidebar isMobileOpen={mobileSidebarOpen} onMobileClose={() => setMobileSidebarOpen(false)} />
+        <div className="admin-recruiter-content lg:pl-[344px]">
+          <AdminRecruiterHeader onMenuClick={() => setMobileSidebarOpen(true)} />
+          {children}
+        </div>
       </div>
-    </div>
+    </AdminTenantBrandingProvider>
   );
 }
