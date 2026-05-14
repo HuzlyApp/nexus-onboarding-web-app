@@ -49,6 +49,12 @@ export default function DocumentsPage() {
     dlFront: null,
     dlBack: null,
   })
+  const [identityPreviewUrls, setIdentityPreviewUrls] = useState<IdentityPaths>({
+    ssnFront: null,
+    ssnBack: null,
+    dlFront: null,
+    dlBack: null,
+  })
   const [error, setError] = useState<string | null>(null)
   const [zohoNote, setZohoNote] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -224,6 +230,35 @@ export default function DocumentsPage() {
   useEffect(() => {
     void refreshIdentityDocsStatus()
   }, [refreshIdentityDocsStatus])
+
+  useEffect(() => {
+    if (!applicantId) return
+    let cancelled = false
+
+    const loadPreviewUrl = async (path: string | null) => {
+      if (!path) return null
+      const params = new URLSearchParams({ applicantId, path })
+      const res = await fetch(`/api/onboarding/file-preview?${params.toString()}`)
+      const json = (await res.json().catch(() => ({}))) as { signedUrl?: string }
+      if (!res.ok || !json.signedUrl) return null
+      return json.signedUrl
+    }
+
+    void (async () => {
+      const [ssnFront, ssnBack, dlFront, dlBack] = await Promise.all([
+        loadPreviewUrl(identityPaths.ssnFront),
+        loadPreviewUrl(identityPaths.ssnBack),
+        loadPreviewUrl(identityPaths.dlFront),
+        loadPreviewUrl(identityPaths.dlBack),
+      ])
+      if (cancelled) return
+      setIdentityPreviewUrls({ ssnFront, ssnBack, dlFront, dlBack })
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [applicantId, identityPaths])
 
   useEffect(() => {
     const onVis = () => {
@@ -563,9 +598,11 @@ export default function DocumentsPage() {
 
   function IdentityFileCard({
     path,
+    previewUrl,
     subtitle,
   }: {
     path: string | null
+    previewUrl: string | null
     subtitle: string
   }) {
     if (!path) {
@@ -575,7 +612,7 @@ export default function DocumentsPage() {
         </div>
       )
     }
-    const url = resolveStoragePublicUrl(path, publicUrl)
+    const url = previewUrl || resolveStoragePublicUrl(path, publicUrl)
     if (!url) {
       return (
         <div className="rounded-xl border-2 border-dashed border-gray-200 bg-gray-50/80 p-6 text-center text-sm text-gray-500">
@@ -828,7 +865,11 @@ export default function DocumentsPage() {
               <div>
                 <p className="text-[13px] font-semibold text-slate-900 mb-3">SSN Card</p>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <IdentityFileCard path={identityPaths.ssnFront} subtitle="Front" />
+                  <IdentityFileCard
+                    path={identityPaths.ssnFront}
+                    previewUrl={identityPreviewUrls.ssnFront}
+                    subtitle="Front"
+                  />
                 </div>
               </div>
 
@@ -838,7 +879,11 @@ export default function DocumentsPage() {
                   <p className="text-[11px] text-slate-500">front only</p>
                 </div>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <IdentityFileCard path={identityPaths.dlFront} subtitle="Front" />
+                  <IdentityFileCard
+                    path={identityPaths.dlFront}
+                    previewUrl={identityPreviewUrls.dlFront}
+                    subtitle="Front"
+                  />
                 </div>
               </div>
             </div>
