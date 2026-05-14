@@ -33,6 +33,14 @@ export function isNexusPlatformUser(
   return getUserPlatform(user) === NEXUS_PLATFORM;
 }
 
+export function isAnonymousAuthUser(user: unknown): boolean {
+  return (
+    Boolean(user) &&
+    typeof user === "object" &&
+    (user as { is_anonymous?: unknown }).is_anonymous === true
+  );
+}
+
 const AUTH_DEBUG = process.env.AUTH_DEBUG === "true";
 
 export function logAuthDebug(
@@ -40,6 +48,5 @@ export function logAuthDebug(
   info: { userId?: string | null; platform?: string | null; role?: string | null }
 ): void {
   if (!AUTH_DEBUG) return;
-  // eslint-disable-next-line no-console
   console.info(`[auth-debug] ${phase}`, info);
 }

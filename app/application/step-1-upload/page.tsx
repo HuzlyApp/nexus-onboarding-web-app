@@ -195,18 +195,6 @@ export default function Step1Upload() {
         const text = uploadJson?.text
         if (uploadJson.storagePath) {
           localStorage.setItem("resumeStoragePath", uploadJson.storagePath)
-          if (applicantId) {
-            await fetch("/api/onboarding/worker-requirements", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                applicantId,
-                resume_path: uploadJson.storagePath,
-              }),
-            }).catch(() => {
-              // Non-blocking: continue onboarding even if this sync fails.
-            })
-          }
         }
         if (!text || typeof text !== "string" || !text.trim()) {
           throw new Error("Could not extract text from the resume file")

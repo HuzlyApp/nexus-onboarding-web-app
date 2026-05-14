@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/supabase-env";
 import {
   getUserPlatform,
+  isAnonymousAuthUser,
   isNexusPlatformUser,
   isPlatformEnforcementEnabled,
   logAuthDebug,
@@ -101,14 +102,23 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  /** Onboarding may be anonymous; enforce platform only when a session exists. */
+  /**
+   * Onboarding creates anonymous applicant sessions. If a stale non-Nexus session exists,
+   * clear it and let the anonymous bootstrap continue instead of sending applicants to admin login.
+   */
   if (pathname.startsWith("/application")) {
-    if (user && platformOn && !isNexusPlatformUser(user)) {
+    if (
+      user &&
+      platformOn &&
+      !isAnonymousAuthUser(user) &&
+      !isNexusPlatformUser(user)
+    ) {
       await supabase.auth.signOut();
-      const login = new URL("/login", request.url);
-      login.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);
-      login.searchParams.set("error", "platform");
-      return NextResponse.redirect(login);
+      logAuthDebug("middleware:application:clear-wrong-platform", {
+        userId: user.id,
+        platform: getUserPlatform(user),
+      });
+      return response;
     }
   }
 

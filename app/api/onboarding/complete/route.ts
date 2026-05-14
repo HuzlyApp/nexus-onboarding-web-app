@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient as createSbAdmin } from "@supabase/supabase-js"
-import { requireNexusSessionUser } from "@/lib/auth/api-session"
+import { requireOnboardingSessionUser } from "@/lib/auth/api-session"
 import { getSupabaseUrl } from "@/lib/supabase-env"
 
 export const runtime = "nodejs"
@@ -15,8 +15,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing applicantId" }, { status: 400 })
     }
 
-    // Verify the caller is the same authenticated Nexus user (prevents arbitrary role escalation).
-    const sessionUser = await requireNexusSessionUser()
+    // Verify the caller is the same authenticated applicant (prevents arbitrary role escalation).
+    const sessionUser = await requireOnboardingSessionUser()
     if (sessionUser instanceof NextResponse) return sessionUser
     if (sessionUser.id !== applicantId) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })

@@ -5,6 +5,7 @@ import { isStaffRole, parseAppRole, type AppRole } from "@/lib/auth/app-role";
 import { resolveAppRoleForUser } from "@/lib/auth/resolve-role";
 import {
   getUserPlatform,
+  isAnonymousAuthUser,
   isNexusPlatformUser,
   isPlatformEnforcementEnabled,
   jsonUnauthorized,
@@ -83,6 +84,43 @@ export async function requireNexusSessionUser(): Promise<User | NextResponse> {
     return user;
   } catch (e) {
     console.error("[auth] requireNexusSessionUser", e);
+    return jsonUnauthorized(401);
+  }
+}
+
+/**
+ * Authenticated applicant session. Anonymous onboarding users are allowed here; staff/admin
+ * APIs should continue to use `requireApiSession` / `requireStaffApiSession`.
+ */
+export async function requireOnboardingSessionUser(): Promise<User | NextResponse> {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
+    if (error || !user?.id) {
+      logAuthDebug("requireOnboardingSessionUser:no-user", {});
+      return jsonUnauthorized(401);
+    }
+    if (
+      isPlatformEnforcementEnabled() &&
+      !isAnonymousAuthUser(user) &&
+      !isNexusPlatformUser(user)
+    ) {
+      logAuthDebug("requireOnboardingSessionUser:wrong-platform", {
+        userId: user.id,
+        platform: getUserPlatform(user),
+      });
+      return jsonUnauthorized(403);
+    }
+    logAuthDebug("requireOnboardingSessionUser:ok", {
+      userId: user.id,
+      platform: getUserPlatform(user),
+    });
+    return user;
+  } catch (e) {
+    console.error("[auth] requireOnboardingSessionUser", e);
     return jsonUnauthorized(401);
   }
 }
