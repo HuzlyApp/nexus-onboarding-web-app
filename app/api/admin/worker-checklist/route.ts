@@ -80,7 +80,9 @@ export async function GET(req: NextRequest) {
 
     const { data: worker, error: wErr } = await supabase
       .from("worker")
-      .select("id, user_id, first_name, last_name, job_role, created_at, updated_at, city, state, status")
+      .select(
+        "id, user_id, tenant_id, first_name, last_name, job_role, created_at, updated_at, city, state, status",
+      )
       .eq("id", workerId)
       .maybeSingle()
 
@@ -89,16 +91,19 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Worker not found" }, { status: 404 })
     }
 
-    const wr = worker as { id: string; user_id?: unknown }
+    const wr = worker as { id: string; user_id?: unknown; tenant_id?: unknown }
     if (!canAccessWorkerRecord(auth, { id: String(wr.id), user_id: wr.user_id })) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
+    const tenantIdForLog =
+      wr.tenant_id != null && String(wr.tenant_id).trim() !== "" ? String(wr.tenant_id).trim() : null
     void writeActivityLog({
       actorUserId: auth.devBypass ? null : auth.userId,
       action: isStaffRole(auth.role) ? "worker.checklist.view" : "worker.checklist.self_view",
       entityType: "worker",
       entityId: workerId,
+      tenantId: tenantIdForLog,
       metadata: { route: "GET /api/admin/worker-checklist", staff: isStaffRole(auth.role) },
       request: req,
     })

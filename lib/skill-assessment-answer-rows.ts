@@ -1,9 +1,46 @@
-import type { SupabaseClient } from "@supabase/supabase-js"
+import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js"
 import {
   getSkillAssessmentWorkerKey,
   getWorkerPrimaryKey,
   getWorkerSessionContext,
 } from "@/lib/onboarding-worker-pk"
+
+/**
+ * Intended uniqueness: (worker_id, category). If duplicates exist, PostgREST
+ * `maybeSingle()` still returns PGRST116 — order by newest row and limit to 1.
+ * (Schema-less `SupabaseClient` needs casts on `data`.)
+ */
+export async function latestSkillAssessmentIdRow(
+  supabase: SupabaseClient,
+  workerKey: string,
+  categorySlug: string
+): Promise<{ data: { id: string } | null; error: PostgrestError | null }> {
+  const { data, error } = await supabase
+    .from("skill_assessments")
+    .select("id")
+    .eq("worker_id", workerKey)
+    .eq("category", categorySlug)
+    .order("created_at", { ascending: false, nullsFirst: false })
+    .limit(1)
+    .maybeSingle()
+  return { data: data as { id: string } | null, error }
+}
+
+export async function latestSkillAssessmentAnswersRow(
+  supabase: SupabaseClient,
+  workerKey: string,
+  categorySlug: string
+): Promise<{ data: { answers: unknown } | null; error: PostgrestError | null }> {
+  const { data, error } = await supabase
+    .from("skill_assessments")
+    .select("answers")
+    .eq("worker_id", workerKey)
+    .eq("category", categorySlug)
+    .order("created_at", { ascending: false, nullsFirst: false })
+    .limit(1)
+    .maybeSingle()
+  return { data: data as { answers: unknown } | null, error }
+}
 
 export type SkillAnswerRow = {
   skill_id: string
@@ -82,12 +119,14 @@ export async function syncSkillAssessmentJson(
   if (!workerKey) return
 
   const cleanAnswers = JSON.parse(JSON.stringify(answers)) as Record<string, number>
-  const { data: existing } = await supabase
-    .from("skill_assessments")
-    .select("id")
-    .eq("worker_id", workerKey)
-    .eq("category", categorySlug)
-    .maybeSingle()
+  const { data: existing, error: findErr } = await latestSkillAssessmentIdRow(
+    supabase,
+    workerKey,
+    categorySlug
+  )
+  if (findErr) {
+    console.warn("[syncSkillAssessmentJson] skill_assessments lookup", categorySlug, findErr)
+  }
 
   if (existing?.id) {
     await supabase

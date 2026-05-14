@@ -478,11 +478,14 @@ export async function GET(req: NextRequest) {
       },
     })
 
+    const tenantIdForLog =
+      w.tenant_id != null && String(w.tenant_id).trim() !== "" ? String(w.tenant_id).trim() : null
     void writeActivityLog({
       actorUserId: auth.devBypass ? null : auth.userId,
       action: isStaffRole(auth.role) ? "worker.profile.view" : "worker.profile.self_view",
       entityType: "worker",
       entityId: workerId,
+      tenantId: tenantIdForLog,
       metadata: { route: "GET /api/admin/worker-profile", staff: isStaffRole(auth.role) },
       request: req,
     })

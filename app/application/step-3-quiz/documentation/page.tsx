@@ -13,7 +13,11 @@ import {
   remapLegacySyntheticAnswerKeys,
 } from "@/lib/merge-skill-quiz-catalog"
 import { getWorkerSessionContext } from "@/lib/onboarding-worker-pk"
-import { fetchApplicantSkillAnswers } from "@/lib/skill-assessment-answer-rows"
+import {
+  fetchApplicantSkillAnswers,
+  latestSkillAssessmentAnswersRow,
+  latestSkillAssessmentIdRow,
+} from "@/lib/skill-assessment-answer-rows"
 import { useQuizAutosave } from "@/lib/useQuizAutosave"
 import AutosaveStatus from "@/app/components/AutosaveStatus"
 
@@ -228,12 +232,7 @@ export default function DocumentationQuiz() {
         .maybeSingle()
       const workerId = worker?.id ? String(worker.id) : uid
 
-      const { data: row } = await supabase
-        .from("skill_assessments")
-        .select("answers")
-        .eq("worker_id", workerId)
-        .eq("category", CATEGORY_SLUG)
-        .maybeSingle()
+      const { data: row } = await latestSkillAssessmentAnswersRow(supabase, workerId, CATEGORY_SLUG)
 
       let legacy = normalizeAnswers(row?.answers ?? null, displayQuestions)
       legacy = remapLegacySyntheticAnswerKeys(legacy, displayQuestions, "documentation")
@@ -294,12 +293,11 @@ export default function DocumentationQuiz() {
     const workerId = ctx.id
     const cleanAnswers = JSON.parse(JSON.stringify(answers)) as Record<string, number>
 
-    const { data: existing, error: findErr } = await supabase
-      .from("skill_assessments")
-      .select("id")
-      .eq("worker_id", workerId)
-      .eq("category", CATEGORY_SLUG)
-      .maybeSingle()
+    const { data: existing, error: findErr } = await latestSkillAssessmentIdRow(
+      supabase,
+      workerId,
+      CATEGORY_SLUG
+    )
 
     if (findErr) {
       console.error(findErr)

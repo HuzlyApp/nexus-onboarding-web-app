@@ -17,7 +17,11 @@ import {
   remapLegacySyntheticAnswerKeys,
 } from "@/lib/merge-skill-quiz-catalog"
 import { getWorkerSessionContext } from "@/lib/onboarding-worker-pk"
-import { fetchApplicantSkillAnswers } from "@/lib/skill-assessment-answer-rows"
+import {
+  fetchApplicantSkillAnswers,
+  latestSkillAssessmentAnswersRow,
+  latestSkillAssessmentIdRow,
+} from "@/lib/skill-assessment-answer-rows"
 import { useQuizAutosave } from "@/lib/useQuizAutosave"
 import AutosaveStatus from "@/app/components/AutosaveStatus"
 
@@ -215,21 +219,19 @@ export default function BasicCareQuiz() {
       const workerId = worker?.id ? String(worker.id) : uid
 
       let raw: unknown = null
-      const { data: rowNew } = await supabase
-        .from("skill_assessments")
-        .select("answers")
-        .eq("worker_id", workerId)
-        .eq("category", CATEGORY_SLUG)
-        .maybeSingle()
+      const { data: rowNew } = await latestSkillAssessmentAnswersRow(
+        supabase,
+        workerId,
+        CATEGORY_SLUG
+      )
 
       if (rowNew?.answers) raw = rowNew.answers
       else {
-        const { data: rowLegacy } = await supabase
-          .from("skill_assessments")
-          .select("answers")
-          .eq("worker_id", workerId)
-          .eq("category", "basic_care")
-          .maybeSingle()
+        const { data: rowLegacy } = await latestSkillAssessmentAnswersRow(
+          supabase,
+          workerId,
+          "basic_care"
+        )
         if (rowLegacy?.answers) raw = rowLegacy.answers
       }
 
@@ -312,12 +314,11 @@ export default function BasicCareQuiz() {
     const workerId = ctx.id
     const cleanAnswers = JSON.parse(JSON.stringify(answers)) as Record<string, number>
 
-    const { data: existing, error: findErr } = await supabase
-      .from("skill_assessments")
-      .select("id")
-      .eq("worker_id", workerId)
-      .eq("category", CATEGORY_SLUG)
-      .maybeSingle()
+    const { data: existing, error: findErr } = await latestSkillAssessmentIdRow(
+      supabase,
+      workerId,
+      CATEGORY_SLUG
+    )
 
     if (findErr) {
       console.error(findErr)

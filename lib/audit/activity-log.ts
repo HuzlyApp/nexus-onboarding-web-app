@@ -5,6 +5,8 @@ export type ActivityLogInput = {
   action: string;
   entityType: string;
   entityId?: string | null;
+  /** Required when the DB uses `activity_logs` with a NOT NULL `tenant_id` (multi-tenant). */
+  tenantId?: string | null;
   metadata?: Record<string, unknown>;
   request?: Request;
 };
@@ -56,8 +58,19 @@ export async function writeActivityLog(input: ActivityLogInput): Promise<void> {
     )
       ? input.entityId.trim()
       : null;
+  const tenantId =
+    typeof input.tenantId === "string" && input.tenantId.trim().length > 0
+      ? input.tenantId.trim()
+      : null;
+  if (!tenantId) {
+    console.warn(
+      "[activity_log] activity_logs insert skipped: missing tenantId (multi-tenant activity_logs requires tenant_id)",
+    );
+    return;
+  }
   const payloadV0 = {
     user_id: input.actorUserId,
+    tenant_id: tenantId,
     action: input.action,
     entity_type: input.entityType,
     entity_id: entityId,

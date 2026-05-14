@@ -6,13 +6,16 @@ import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import AutosaveStatus from "@/app/components/AutosaveStatus"
 import { useDropzone } from "react-dropzone"
-import { ChevronRight, FileText, Trash2 } from "lucide-react"
+import { ChevronRight, FileText } from "lucide-react"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
+import { supabaseBrowser as supabase } from "@/lib/supabase-browser"
 
 type UploadFile = {
+  file: File | null
   name: string
   size: string
+  url?: string
 }
 
 type UploadType = "license" | "tb" | "cpr"
@@ -27,17 +30,56 @@ export default function Step2License() {
     const stored = localStorage.getItem("step2_files")
     if (!stored) return { license: null, tb: null, cpr: null }
     try {
-      return JSON.parse(stored)
+      const parsed = JSON.parse(stored) as Partial<Record<UploadType, Partial<UploadFile> | null>>
+      return {
+        license: parsed.license?.name
+          ? {
+              file: null,
+              name: parsed.license.name,
+              size: parsed.license.size ?? "",
+              url: parsed.license.url,
+            }
+          : null,
+        tb: parsed.tb?.name
+          ? {
+              file: null,
+              name: parsed.tb.name,
+              size: parsed.tb.size ?? "",
+              url: parsed.tb.url,
+            }
+          : null,
+        cpr: parsed.cpr?.name
+          ? {
+              file: null,
+              name: parsed.cpr.name,
+              size: parsed.cpr.size ?? "",
+              url: parsed.cpr.url,
+            }
+          : null,
+      }
     } catch {
       return { license: null, tb: null, cpr: null }
     }
   })
   const [error, setError] = useState<string | null>(null)
   const [fileAutosave, setFileAutosave] = useState<"idle" | "saved">("idle")
+  const [saving, setSaving] = useState(false)
   const hasAnyUpload = Boolean(files.license || files.tb || files.cpr)
 
   useEffect(() => {
-    localStorage.setItem("step2_files", JSON.stringify(files))
+    const serializable = Object.fromEntries(
+      (Object.entries(files) as Array<[UploadType, UploadFile | null]>).map(([type, value]) => [
+        type,
+        value
+          ? {
+              name: value.name,
+              size: value.size,
+              url: value.url,
+            }
+          : null,
+      ])
+    )
+    localStorage.setItem("step2_files", JSON.stringify(serializable))
     setFileAutosave("saved")
     const t = window.setTimeout(() => setFileAutosave("idle"), 1200)
     return () => window.clearTimeout(t)
@@ -48,10 +90,38 @@ export default function Step2License() {
     setFiles((prev) => ({
       ...prev,
       [type]: {
+        file,
         name: file.name,
         size: `${(file.size / 1024 / 1024).toFixed(1)} MB`
       }
     }))
+  }
+
+  const uploadFile = async (
+    file: File,
+    folder: UploadType,
+    applicantId: string
+  ): Promise<string> => {
+    const fd = new FormData()
+    fd.append("file", file)
+    fd.append("folder", folder)
+    fd.append("applicantId", applicantId)
+
+    const res = await fetch("/api/onboarding/upload-required-file", {
+      method: "POST",
+      body: fd,
+    })
+    const json = (await res.json().catch(() => ({}))) as {
+      error?: string
+      publicUrl?: string
+    }
+    if (!res.ok) {
+      throw new Error(json.error || `Could not upload ${folder} file`)
+    }
+    if (!json.publicUrl) {
+      throw new Error(`Could not generate ${folder} file URL`)
+    }
+    return json.publicUrl
   }
 
   const UploadBox = ({
@@ -170,13 +240,73 @@ export default function Step2License() {
   }
 
 
-  const goNext = () => {
+  const goNext = async () => {
     if (!hasAnyUpload) {
       setError("Please upload at least one required document before continuing.")
       return
     }
-    localStorage.setItem("step2_files", JSON.stringify(files))
-    router.push("/application/step-3-skills")
+    setSaving(true)
+    setError(null)
+    try {
+      let applicantId = localStorage.getItem("applicantId")?.trim() || ""
+      if (!applicantId) {
+        const { data: userData } = await supabase.auth.getUser()
+        applicantId = userData?.user?.id?.trim() || ""
+      }
+      if (!applicantId) {
+        throw new Error("Missing applicant ID — complete Step 1 (review profile) first.")
+      }
+      localStorage.setItem("applicantId", applicantId)
+
+      const nextFiles: Record<UploadType, UploadFile | null> = { ...files }
+      const payload: {
+        applicantId: string
+        nursing_license_url?: string
+        tb_test_url?: string
+        cpr_certification_url?: string
+      } = { applicantId }
+
+      const mapping: Array<[UploadType, keyof Omit<typeof payload, "applicantId">]> = [
+        ["license", "nursing_license_url"],
+        ["tb", "tb_test_url"],
+        ["cpr", "cpr_certification_url"],
+      ]
+
+      for (const [type, field] of mapping) {
+        const slot = nextFiles[type]
+        if (!slot) continue
+        const url = slot.file ? await uploadFile(slot.file, type, applicantId) : slot.url
+        if (url) {
+          payload[field] = url
+          nextFiles[type] = { ...slot, file: null, url }
+        }
+      }
+
+      if (
+        !payload.nursing_license_url &&
+        !payload.tb_test_url &&
+        !payload.cpr_certification_url
+      ) {
+        throw new Error("Select the document files again so they can be uploaded.")
+      }
+
+      const docRes = await fetch("/api/onboarding/worker-documents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+      const docJson = (await docRes.json().catch(() => ({}))) as { error?: string }
+      if (!docRes.ok) {
+        throw new Error(docJson.error || `Could not save document URLs (${docRes.status})`)
+      }
+
+      setFiles(nextFiles)
+      router.push("/application/step-3-skills")
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Something went wrong")
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -236,10 +366,10 @@ export default function Step2License() {
             <button
               type="button"
               onClick={goNext}
-              disabled={!hasAnyUpload}
+              disabled={!hasAnyUpload || saving}
               className="group inline-flex cursor-pointer items-center gap-2 rounded-md bg-[#1db4a3] px-6 py-2 text-[12px] font-medium leading-5 text-white transition hover:bg-[#189d8e] disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Save & Continue
+              {saving ? "Saving..." : "Save & Continue"}
               <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
             </button>
           </div>
