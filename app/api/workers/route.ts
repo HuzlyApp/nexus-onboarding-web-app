@@ -92,6 +92,20 @@ export async function GET(req: Request) {
       return typeof err.message === "string" && err.message.includes(" does not exist");
     };
 
+    const isInvalidEnumValueErr = (e: unknown) => {
+      const err = e as { code?: string; message?: string } | null;
+      if (!err) return false;
+      // Postgres invalid_text_representation, e.g. invalid input value for enum worker_status.
+      if (err.code === "22P02") return true;
+      return (
+        typeof err.message === "string" &&
+        err.message.toLowerCase().includes("invalid input value for enum")
+      );
+    };
+
+    const canTryNextStatusColumn = (e: unknown) =>
+      isMissingColumnErr(e) || isInvalidEnumValueErr(e);
+
     for (const key of keys) {
       const supabase = createClient(url, key);
       const baseColsOptions = [
@@ -154,7 +168,7 @@ export async function GET(req: Request) {
               };
               data = null;
               count = null;
-              if (!isMissingColumnErr(error)) break outer;
+              if (!canTryNextStatusColumn(error)) break outer;
               continue;
             }
 
@@ -199,7 +213,7 @@ export async function GET(req: Request) {
           }
 
           if (!error) break outer;
-          if (!isMissingColumnErr(error)) break outer;
+          if (!canTryNextStatusColumn(error)) break outer;
         }
       }
 

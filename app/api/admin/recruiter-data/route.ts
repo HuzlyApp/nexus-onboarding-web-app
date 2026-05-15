@@ -210,13 +210,13 @@ export async function GET(req: NextRequest) {
 
   const activitiesData = await queryFirstAvailableRows(supabase, runtimeId, [
     {
-      table: "activity_log",
+      table: "activity_logs",
       idColumns: ["entity_id", "worker_id", "candidate_id", "recruiter_id"],
       orderBy: "created_at",
       ascending: false,
     },
     {
-      table: "activity_logs",
+      table: "activity_log",
       idColumns: ["entity_id", "worker_id", "candidate_id", "recruiter_id"],
       orderBy: "created_at",
       ascending: false,
@@ -243,13 +243,13 @@ export async function GET(req: NextRequest) {
 
   const historyData = await queryFirstAvailableRows(supabase, runtimeId, [
     {
-      table: "activity_log",
+      table: "activity_logs",
       idColumns: ["entity_id", "worker_id", "candidate_id", "recruiter_id"],
       orderBy: "created_at",
       ascending: false,
     },
     {
-      table: "activity_logs",
+      table: "activity_log",
       idColumns: ["entity_id", "worker_id", "candidate_id", "recruiter_id"],
       orderBy: "created_at",
       ascending: false,

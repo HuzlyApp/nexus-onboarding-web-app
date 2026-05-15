@@ -28,29 +28,10 @@ export async function writeActivityLog(input: ActivityLogInput): Promise<void> {
     null;
   const userAgent = headers?.get("user-agent") || null;
 
-  const payloadV1 = {
-    actor_user_id: input.actorUserId,
-    action: input.action,
-    entity_type: input.entityType,
-    entity_id: input.entityId ?? null,
-    metadata: input.metadata ?? {},
-    ip,
-    user_agent: userAgent,
-  };
+  const isMissingTableOrColumn = (message: string) =>
+    /not find|does not exist|schema cache|column/i.test(message);
 
-  const { error } = await supabase.from("activity_log").insert(payloadV1);
-  if (!error) return;
-
-  const isMissingActivityLogTable =
-    /activity_log/i.test(error.message) &&
-    /not find|does not exist|schema cache/i.test(error.message);
-
-  if (!isMissingActivityLogTable) {
-    console.error("[activity_log] insert failed:", error.message);
-    return;
-  }
-
-  // Backward compatibility: some environments use `activity_logs` schema.
+  // Live environments use `activity_logs`; older migrations used singular `activity_log`.
   const entityId =
     typeof input.entityId === "string" &&
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
@@ -62,15 +43,8 @@ export async function writeActivityLog(input: ActivityLogInput): Promise<void> {
     typeof input.tenantId === "string" && input.tenantId.trim().length > 0
       ? input.tenantId.trim()
       : null;
-  if (!tenantId) {
-    console.warn(
-      "[activity_log] activity_logs insert skipped: missing tenantId (multi-tenant activity_logs requires tenant_id)",
-    );
-    return;
-  }
-  const payloadV0 = {
+  const payloadV0: Record<string, unknown> = {
     user_id: input.actorUserId,
-    tenant_id: tenantId,
     action: input.action,
     entity_type: input.entityType,
     entity_id: entityId,
@@ -80,9 +54,37 @@ export async function writeActivityLog(input: ActivityLogInput): Promise<void> {
       user_agent: userAgent,
     },
   };
+  if (tenantId) payloadV0.tenant_id = tenantId;
 
-  const { error: fallbackError } = await supabase.from("activity_logs").insert(payloadV0);
-  if (fallbackError) {
+  let { error: fallbackError } = await supabase.from("activity_logs").insert(payloadV0);
+  if (
+    fallbackError &&
+    tenantId &&
+    /tenant_id/i.test(fallbackError.message) &&
+    isMissingTableOrColumn(fallbackError.message)
+  ) {
+    const { tenant_id: _tenantId, ...withoutTenantId } = payloadV0;
+    ;({ error: fallbackError } = await supabase.from("activity_logs").insert(withoutTenantId));
+  }
+  if (!fallbackError) return;
+
+  if (!isMissingTableOrColumn(fallbackError.message)) {
     console.error("[activity_log] insert failed:", fallbackError.message);
+    return;
+  }
+
+  const payloadV1 = {
+    actor_user_id: input.actorUserId,
+    action: input.action,
+    entity_type: input.entityType,
+    entity_id: input.entityId ?? null,
+    metadata: input.metadata ?? {},
+    ip,
+    user_agent: userAgent,
+  };
+
+  const { error } = await supabase.from("activity_log").insert(payloadV1);
+  if (error) {
+    console.error("[activity_log] insert failed:", error.message);
   }
 }

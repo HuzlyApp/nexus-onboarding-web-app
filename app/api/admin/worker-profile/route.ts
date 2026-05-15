@@ -26,7 +26,11 @@ function titleCaseStatus(s: string | null | undefined): string {
   const v = (s || "").trim().toLowerCase()
   if (!v) return "New Applicant"
   if (v === "new") return "New Applicant"
-  return v.charAt(0).toUpperCase() + v.slice(1)
+  return v
+    .split(/[_\s-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ")
 }
 
 type ZohoSignRow = {
@@ -406,6 +410,25 @@ export async function GET(req: NextRequest) {
       details: row.details ?? null,
       created_at: asTrimmedString(row.created_at),
     }))
+    const notes = activityLogs
+      .filter((row) => row.action === "worker.note.created")
+      .map((row) => {
+        const details = row.details
+        const body =
+          details && typeof details === "object" && "body" in details
+            ? String((details as { body?: unknown }).body ?? "").trim()
+            : ""
+        return {
+          id: row.id,
+          body,
+          created_at: row.created_at,
+          actor_user_id:
+            details && typeof details === "object" && "actor_user_id" in details
+              ? String((details as { actor_user_id?: unknown }).actor_user_id ?? "")
+              : null,
+        }
+      })
+      .filter((row) => row.body.length > 0)
 
     let zohoSign: ZohoSignRow | null = null
     if (workerEmail) {
@@ -444,8 +467,15 @@ export async function GET(req: NextRequest) {
     const createdAt = w.created_at != null ? String(w.created_at) : null
     const updatedAt = w.updated_at != null ? String(w.updated_at) : createdAt
 
-    const statusRaw = (w.status ?? w.worker_status) as string | undefined
+    const statusRaw = (w.worker_status ?? w.candidate_status ?? w.application_status ?? w.status) as
+      | string
+      | undefined
     const statusLabel = titleCaseStatus(statusRaw)
+    const workStatusRaw = w.status as string | undefined
+    const workStatusLabel =
+      typeof workStatusRaw === "string" && workStatusRaw.trim()
+        ? titleCaseStatus(workStatusRaw)
+        : null
 
     const zohoAuthUrl =
       zohoSign?.request_id && zohoSign.request_id.trim().length > 0
@@ -507,6 +537,8 @@ export async function GET(req: NextRequest) {
         updated_at: updatedAt,
         status: statusRaw ?? "new",
         status_label: statusLabel,
+        work_status: workStatusRaw ?? null,
+        work_status_label: workStatusLabel,
         date_of_birth: w.date_of_birth != null ? String(w.date_of_birth) : null,
         years_experience:
           experienceYears,
@@ -582,7 +614,7 @@ export async function GET(req: NextRequest) {
         })),
       },
       facilities_assigned: facilityAssignments,
-      notes: [] as Array<Record<string, unknown>>,
+      notes,
       attachment_files: attachmentFiles,
       activity_logs: activityLogs,
       activity_history: activityLogs,

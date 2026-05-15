@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams, usePathname } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader";
 import DetailedTabs from "../../../components/DetailedTabs";
@@ -43,6 +43,8 @@ type ProfilePayload = {
     updated_at: string | null;
     status: string;
     status_label: string;
+    work_status: string | null;
+    work_status_label: string | null;
     date_of_birth: string | null;
     years_experience: number | null;
     hourly_rate: string | null;
@@ -178,6 +180,7 @@ function isUuid(value: string) {
 }
 
 export default function NewApplicantProfilePage() {
+  const router = useRouter();
   const pathname = usePathname();
   const params = useParams<{ id: string }>();
   const applicantId = params?.id;
@@ -189,6 +192,9 @@ export default function NewApplicantProfilePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<ProfilePayload | null>(null);
+  const [approving, setApproving] = useState(false);
+  const [approvalMessage, setApprovalMessage] = useState<string | null>(null);
+  const [approvalError, setApprovalError] = useState<string | null>(null);
 
   useEffect(() => {
     async function run() {
@@ -234,6 +240,7 @@ export default function NewApplicantProfilePage() {
   }, [w?.first_name, w?.last_name]);
 
   const candidateRole = w?.job_role || "N/A";
+  const isApproved = (w?.status ?? "").trim().toLowerCase() === "approved";
   const candidateLocation = useMemo(() => {
     const parts = [w?.city ?? "", w?.state ?? "", w?.zip ?? ""].filter(Boolean);
     return parts.length ? parts.join(", ") : "—";
@@ -262,6 +269,46 @@ export default function NewApplicantProfilePage() {
     () => (data?.onboardingSteps ?? []).length > 0 && (data?.onboardingSteps ?? []).every((s) => s.state === "complete"),
     [data?.onboardingSteps]
   );
+
+  async function handleApproveForWork() {
+    if (!applicantId || approving || isApproved) return;
+    setApproving(true);
+    setApprovalError(null);
+    setApprovalMessage(null);
+    try {
+      const res = await fetch("/api/admin/worker-profile/approve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workerId: applicantId }),
+      });
+      const json = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        worker?: { status?: string; status_label?: string; work_status?: string | null };
+      };
+      if (!res.ok) throw new Error(json.error || "Could not approve candidate");
+
+      setData((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          worker: {
+            ...prev.worker,
+            status: json.worker?.status ?? "approved",
+            status_label: json.worker?.status_label ?? "Approved",
+            updated_at: new Date().toISOString(),
+          },
+        };
+      });
+      setApprovalMessage("Candidate approved for work.");
+      window.setTimeout(() => {
+        router.push("/admin_recruiter/approved");
+      }, 700);
+    } catch (e) {
+      setApprovalError(e instanceof Error ? e.message : "Could not approve candidate");
+    } finally {
+      setApproving(false);
+    }
+  }
 
   return (
     <div className="flex min-h-screen bg-zinc-50 overflow-hidden">
@@ -471,7 +518,7 @@ export default function NewApplicantProfilePage() {
                           ["Zip Code", w?.zip ?? "—"],
                           ["Phone Number", w?.phone ?? "—"],
                           ["Last Four Digits of SSN", w?.ssn_last_four ?? "—"],
-                          ["Work Status", w?.status_label ?? "—"],
+                          ["Work Status", w?.work_status_label ?? "—"],
                           ["Hourly Rate", w?.hourly_rate ? `$ ${w.hourly_rate} / hr` : "—"],
                           ["Reference 1 (Name, Email, Phone, Relationship)", data?.references?.[0]?.name ?? "—"],
                           [
@@ -816,12 +863,24 @@ export default function NewApplicantProfilePage() {
                     </div>
                     <div className="p-5">
                     <div className="mb-4 text-xs text-[#6B7280]">For job recommendation</div>
+                    {approvalMessage ? (
+                      <div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700">
+                        {approvalMessage}
+                      </div>
+                    ) : null}
+                    {approvalError ? (
+                      <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
+                        {approvalError}
+                      </div>
+                    ) : null}
                     <div className="flex flex-wrap gap-2">
                       <button
                         type="button"
-                        className="inline-flex h-9 items-center justify-center rounded-lg bg-[#0D9488] px-4 text-xs font-semibold text-white"
+                        onClick={() => void handleApproveForWork()}
+                        disabled={approving || isApproved}
+                        className="inline-flex h-9 items-center justify-center rounded-lg bg-[#0D9488] px-4 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
                       >
-                        Approved for work
+                        {approving ? "Approving..." : isApproved ? "Approved" : "Approved for work"}
                       </button>
                       <button
                         type="button"
