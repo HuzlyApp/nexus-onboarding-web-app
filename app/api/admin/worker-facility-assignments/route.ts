@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { writeActivityLog } from "@/lib/audit/activity-log"
 import {
+  type AdminSupabaseClient,
   loadFacilities,
   loadWorkerFacilityAssignments,
 } from "@/lib/admin/worker-facility-assignments"
@@ -19,7 +20,7 @@ function asTrimmedString(v: unknown): string | null {
   return s.length > 0 ? s : null
 }
 
-async function loadWorkerRow(supabase: ReturnType<typeof createClient>, workerId: string) {
+async function loadWorkerRow(supabase: AdminSupabaseClient, workerId: string) {
   const { data, error } = await supabase.from("worker").select("*").eq("id", workerId).maybeSingle()
   if (error) return { worker: null, error }
   return { worker: (data as Record<string, unknown> | null) ?? null, error: null }
@@ -42,7 +43,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Supabase service role not configured" }, { status: 503 })
   }
 
-  const supabase = createClient(url, key)
+  const supabase = createClient(url, key) as AdminSupabaseClient
   const { worker, error: workerError } = await loadWorkerRow(supabase, workerId)
   if (workerError) {
     return NextResponse.json({ error: workerError.message }, { status: 500 })
@@ -113,7 +114,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Supabase service role not configured" }, { status: 503 })
   }
 
-  const supabase = createClient(url, key)
+  const supabase = createClient(url, key) as AdminSupabaseClient
   const { worker, error: workerError } = await loadWorkerRow(supabase, workerId)
   if (workerError) {
     return NextResponse.json({ error: workerError.message }, { status: 500 })

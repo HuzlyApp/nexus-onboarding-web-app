@@ -1,5 +1,8 @@
 import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js"
 
+/** Matches service-role clients from `createClient(url, key)` in API routes. */
+export type AdminSupabaseClient = SupabaseClient<any, "public", "public">
+
 export type WorkerFacilityAssignment = {
   assignment_id: string | null
   assigned_at: string | null
@@ -21,7 +24,7 @@ const EMPTY_UUID = "00000000-0000-0000-0000-000000000000"
 
 /** Resolve facility rows via worker_shift_assignments → shifts → facility. */
 export async function loadWorkerFacilityAssignments(
-  supabase: SupabaseClient,
+  supabase: AdminSupabaseClient,
   params: { workerTableId: string; workerAuthId: string | null }
 ): Promise<{ assignments: WorkerFacilityAssignment[]; error: PostgrestError | null }> {
   const workerKeys = Array.from(
@@ -119,7 +122,7 @@ export type FacilityListItem = {
 }
 
 export async function loadFacilities(
-  supabase: SupabaseClient,
+  supabase: AdminSupabaseClient,
   tenantId?: string | null
 ): Promise<{ facilities: FacilityListItem[]; error: PostgrestError | null }> {
   let query = supabase.from("facility").select("id,name,address,phone").order("name", { ascending: true })
