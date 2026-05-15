@@ -19,6 +19,24 @@ type ContactLookupRow = {
   phone: string | null;
 };
 
+const PIPELINE_STATUSES = new Set(["new", "pending", "approved", "disapproved"]);
+
+function normalizedStatusValue(v: unknown): string | null {
+  if (typeof v !== "string") return null;
+  const s = v.trim().toLowerCase();
+  return s || null;
+}
+
+function effectivePipelineStatus(row: Record<string, unknown>): string {
+  const textStatus = normalizedStatusValue(row.status);
+  if (textStatus && PIPELINE_STATUSES.has(textStatus)) return textStatus;
+
+  const workerStatus = normalizedStatusValue(row.worker_status);
+  if (workerStatus && PIPELINE_STATUSES.has(workerStatus)) return workerStatus;
+
+  return textStatus ?? workerStatus ?? "new";
+}
+
 function parseStatus(v: string | null): WorkerStatus | null {
   if (!v) return null;
   const s = v.trim().toLowerCase();
@@ -131,77 +149,44 @@ export async function GET(req: Request) {
       let error: SbErr | null = null;
       let count: number | null = null;
 
-      outer: for (const baseCols of baseColsOptions) {
-        for (const a of attempts) {
-          const select = `${baseCols}, ${a.extra}`;
+      if (status && PIPELINE_STATUSES.has(status)) {
+        effectiveStatus: for (const baseCols of baseColsOptions) {
+          const selectOptions = [
+            `${baseCols}, status, worker_status`,
+            `${baseCols}, status`,
+            `${baseCols}, worker_status`,
+          ];
+          for (const select of selectOptions) {
+            const res = await supabase
+              .from("worker")
+              .select(select)
+              .order("created_at", { ascending: false });
 
-          if (status === "new") {
-            const variants = statusFilterValues(status, a.col);
-            const [rIn, rNull] = await Promise.all([
-              headOnly
-                ? supabase
-                    .from("worker")
-                    .select(select, { count: "exact", head: true })
-                    .in(a.col, variants)
-                : supabase
-                    .from("worker")
-                    .select(select)
-                    .in(a.col, variants)
-                    .order("created_at", { ascending: false }),
-              headOnly
-                ? supabase
-                    .from("worker")
-                    .select(select, { count: "exact", head: true })
-                    .is(a.col, null)
-                : supabase
-                    .from("worker")
-                    .select(select)
-                    .is(a.col, null)
-                    .order("created_at", { ascending: false }),
-            ]);
-
-            if (rIn.error || rNull.error) {
-              const e = rIn.error ?? rNull.error!;
+            if (res.error) {
               error = {
-                message: e.message || "Supabase query failed",
-                code: (e as { code?: string }).code,
+                message: res.error.message || "Supabase query failed",
+                code: (res.error as { code?: string }).code,
               };
               data = null;
               count = null;
-              if (!canTryNextStatusColumn(error)) break outer;
+              if (!canTryNextStatusColumn(error)) break effectiveStatus;
               continue;
             }
 
-            if (headOnly) {
-              data = [];
-              count = (rIn.count ?? 0) + (rNull.count ?? 0);
-              error = null;
-            } else {
-              const map = new Map<string, unknown>();
-              const combined = [
-                ...((rIn.data as unknown[] | null) ?? []),
-                ...((rNull.data as unknown[] | null) ?? []),
-              ];
-              for (const row of combined) {
-                const rec = row as Record<string, unknown>;
-                const id = rec.id != null ? String(rec.id) : "";
-                if (!id) continue;
-                if (!map.has(id)) map.set(id, row);
-              }
-              const merged = [...map.values()].sort((x, y) => {
-                const ax = new Date(
-                  String((x as { created_at?: string }).created_at ?? 0)
-                ).getTime();
-                const ay = new Date(
-                  String((y as { created_at?: string }).created_at ?? 0)
-                ).getTime();
-                return ay - ax;
-              });
-              data = merged;
-              count = merged.length;
-              error = null;
-            }
-          } else {
+            const filtered = ((res.data as unknown[] | null) ?? []).filter(
+              (row) => effectivePipelineStatus(row as Record<string, unknown>) === status
+            );
+            data = headOnly ? [] : filtered;
+            count = filtered.length;
+            error = null;
+            break effectiveStatus;
+          }
+        }
+      } else {
+        outer: for (const baseCols of baseColsOptions) {
+          for (const a of attempts) {
+            const select = `${baseCols}, ${a.extra}`;
+
             let q = supabase.from("worker").select(select, { count: "exact", head: headOnly });
             if (status) q = q.in(a.col, statusFilterValues(status, a.col));
             const res = await q.order("created_at", { ascending: false });
@@ -210,22 +195,17 @@ export async function GET(req: Request) {
               ? { message: res.error.message, code: (res.error as { code?: string }).code }
               : null;
             count = typeof res.count === "number" ? res.count : null;
-          }
 
-          if (!error) break outer;
-          if (!canTryNextStatusColumn(error)) break outer;
+            if (!error) break outer;
+            if (!canTryNextStatusColumn(error)) break outer;
+          }
         }
       }
 
       if (!error) {
         const normalized = (data ?? []).map((row) => {
           const r = row as Record<string, unknown>;
-          const statusVal = (r.status ?? r.worker_status) as unknown;
-          const s =
-            typeof statusVal === "string" && statusVal.trim()
-              ? statusVal.trim().toLowerCase()
-              : statusVal;
-          return { ...r, status: s };
+          return { ...r, status: effectivePipelineStatus(r) };
         });
 
         const withContacts = async () => {
