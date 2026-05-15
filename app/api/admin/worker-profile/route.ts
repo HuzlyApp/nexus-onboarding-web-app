@@ -8,6 +8,7 @@ import { canAccessWorkerRecord } from "@/lib/auth/worker-record-access"
 import { normalizeResumeStorageObjectPath } from "@/lib/onboarding/normalize-resume-storage-path"
 import { getSupabaseUrl } from "@/lib/supabase-env"
 import { WORKER_RESUMES_BUCKET } from "@/lib/supabase-storage-buckets"
+import { loadWorkerFacilityAssignments } from "@/lib/admin/worker-facility-assignments"
 import { parseRequiredUuid } from "@/lib/validation/uuid"
 
 export const runtime = "nodejs"
@@ -347,54 +348,10 @@ export async function GET(req: NextRequest) {
       }
     })
 
-    const workerAuthId = asTrimmedString(w.user_id)
-    const facilityAssignments: Array<Record<string, unknown>> = []
-    if (workerAuthId) {
-      const { data: assignmentRows } = await supabase
-        .from("worker_shift_assignments")
-        .select("*")
-        .eq("worker_id", workerAuthId)
-      const assignments = (assignmentRows ?? []) as Record<string, unknown>[]
-      if (assignments.length > 0) {
-        const shiftIds = assignments
-          .map((row) => String(row.shift_id ?? "").trim())
-          .filter((id) => id.length > 0)
-        const { data: shiftRows } = await supabase
-          .from("shifts")
-          .select("*")
-          .in("id", shiftIds.length > 0 ? shiftIds : ["00000000-0000-0000-0000-000000000000"])
-        const shiftById = new Map<string, Record<string, unknown>>(
-          ((shiftRows ?? []) as Record<string, unknown>[]).map((row) => [String(row.id ?? ""), row])
-        )
-        const facilityIds = ((shiftRows ?? []) as Record<string, unknown>[])
-          .map((row) => String(row.facility_id ?? "").trim())
-          .filter((id) => id.length > 0)
-        const { data: facilityRows } = await supabase
-          .from("facility")
-          .select("*")
-          .in(
-            "id",
-            facilityIds.length > 0 ? facilityIds : ["00000000-0000-0000-0000-000000000000"]
-          )
-        const facilityById = new Map<string, Record<string, unknown>>(
-          ((facilityRows ?? []) as Record<string, unknown>[]).map((row) => [String(row.id ?? ""), row])
-        )
-        for (const assignment of assignments) {
-          const shift = shiftById.get(String(assignment.shift_id ?? ""))
-          const facility = shift ? facilityById.get(String(shift.facility_id ?? "")) : null
-          facilityAssignments.push({
-            assignment_id: assignment.id ?? null,
-            assigned_at: asTrimmedString(assignment.assigned_at),
-            status: asTrimmedString(assignment.status),
-            shift_id: assignment.shift_id ?? null,
-            shift_title: asTrimmedString(shift?.title),
-            facility_id: shift?.facility_id ?? null,
-            facility_name: asTrimmedString(facility?.name),
-            facility_address: asTrimmedString(facility?.address),
-          })
-        }
-      }
-    }
+    const { assignments: facilityAssignments } = await loadWorkerFacilityAssignments(supabase, {
+      workerTableId: workerId,
+      workerAuthId: asTrimmedString(w.user_id),
+    })
 
     const { data: activityRows } = await supabase
       .from("activity_logs")

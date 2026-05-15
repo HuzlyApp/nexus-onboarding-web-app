@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient, type PostgrestError, type SupabaseClient } from "@supabase/supabase-js"
 import { requireApiSession } from "@/lib/auth/api-session"
 import { canAccessWorkerRecord } from "@/lib/auth/worker-record-access"
+import { loadWorkerFacilityAssignments } from "@/lib/admin/worker-facility-assignments"
 import { getSupabaseUrl } from "@/lib/supabase-env"
 
 export const runtime = "nodejs"
@@ -225,14 +226,18 @@ export async function GET(req: NextRequest) {
   if (activitiesData.error) sectionErrors.activities = toSectionError(activitiesData.error)
   response.activities = activitiesData.rows
 
-  const facilityAssignmentsData = await queryFirstAvailableRows(supabase, runtimeId, [
-    { table: "facility_assignments", idColumns: ["worker_id", "candidate_id", "recruiter_id"] },
-    { table: "worker_facility_assignments", idColumns: ["worker_id", "candidate_id", "recruiter_id"] },
-  ])
-  if (facilityAssignmentsData.error) {
-    sectionErrors.facility_assignments = toSectionError(facilityAssignmentsData.error)
+  const profileWorkerId = String(response.profile.id ?? runtimeId).trim()
+  const profileAuthId =
+    response.profile.user_id != null ? String(response.profile.user_id).trim() : ""
+  const { assignments: facilityAssignments, error: facilityAssignmentsError } =
+    await loadWorkerFacilityAssignments(supabase, {
+      workerTableId: profileWorkerId || runtimeId,
+      workerAuthId: profileAuthId || null,
+    })
+  if (facilityAssignmentsError) {
+    sectionErrors.facility_assignments = toSectionError(facilityAssignmentsError)
   }
-  response.facility_assignments = facilityAssignmentsData.rows
+  response.facility_assignments = facilityAssignments as unknown as Record<string, unknown>[]
 
   const agreementData = await queryFirstAvailableRows(supabase, runtimeId, [
     { table: "agreements", idColumns: ["worker_id", "candidate_id", "recruiter_id"], limit: 1 },

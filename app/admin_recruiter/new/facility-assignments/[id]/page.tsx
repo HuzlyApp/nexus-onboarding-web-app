@@ -33,58 +33,28 @@ type WorkerProfileResponse = {
 
 type FacilityTab = "active" | "potential" | "recent";
 
-type PotentialFacility = {
-  id: string;
-  name: string;
-  primaryAddress: string;
-  secondaryAddress: string;
-  distance: string;
+type FacilityAssignment = {
+  assignment_id: string | null;
+  facility_id: string | null;
+  facility_name: string | null;
+  facility_address: string | null;
+  shift_title: string | null;
+  status: string | null;
+  assigned_at: string | null;
 };
 
-const potentialFacilities: PotentialFacility[] = [
-  {
-    id: "hca-healthcare",
-    name: "HCA Healthcare",
-    primaryAddress: "213 Pine Road Troy, Michigan",
-    secondaryAddress: "PO Box 1244, Hanalei, Hawaii, 96714",
-    distance: "2 Miles Away",
-  },
-  {
-    id: "universal-health-services",
-    name: "Universal Health Services",
-    primaryAddress: "112 West Road Troy, Michigan",
-    secondaryAddress: "11820 Edgewater Dr, Lakewood, Ohio, 44107",
-    distance: "2.5 Miles Away",
-  },
-  {
-    id: "kaiser-permanente",
-    name: "Kaiser Permanente",
-    primaryAddress: "63 Mark Street, Michigan",
-    secondaryAddress: "7515 Forrester Ln, Manassas, Virginia, 20109",
-    distance: "1.5 Miles Away",
-  },
-  {
-    id: "providence-st-joseph-health",
-    name: "Providence St Joseph Health",
-    primaryAddress: "21 Ripple Ave, Michigan",
-    secondaryAddress: "19 Johnson Dr, Dickson, North Dakota, 58601",
-    distance: "3.5 Miles Away",
-  },
-  {
-    id: "trinity-health",
-    name: "Trinity Health",
-    primaryAddress: "133 Rump Street, Michigan",
-    secondaryAddress: "PO Box 1134, Hanalei, Hawaii, 96714",
-    distance: "1.5 Miles Away",
-  },
-  {
-    id: "ascension-health",
-    name: "Ascension Health",
-    primaryAddress: "95 Gandhi Street, Michigan",
-    secondaryAddress: "13 Winter Ter, Mahwah, New Jersey, 07430",
-    distance: "1.5 Miles Away",
-  },
-];
+type FacilityOption = {
+  id: string;
+  name: string;
+  address: string | null;
+  phone: string | null;
+};
+
+type FacilityAssignmentsResponse = {
+  assignments: FacilityAssignment[];
+  facilities: FacilityOption[];
+  error?: string;
+};
 
 function initials(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -103,28 +73,42 @@ export default function NewApplicantFacilityAssignmentsPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [profile, setProfile] = useState<WorkerProfileResponse | null>(null);
-  const [activeFacilityTab, setActiveFacilityTab] = useState<FacilityTab>("potential");
+  const [assignments, setAssignments] = useState<FacilityAssignment[]>([]);
+  const [facilityOptions, setFacilityOptions] = useState<FacilityOption[]>([]);
+  const [activeFacilityTab, setActiveFacilityTab] = useState<FacilityTab>("active");
   const [showAssignFacilityModal, setShowAssignFacilityModal] = useState(false);
+  const [assigningFacilityId, setAssigningFacilityId] = useState<string | null>(null);
+  const [assignError, setAssignError] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchApplicant() {
       if (!applicantId) return;
       setLoading(true);
       setLoadError(null);
+      setAssignError(null);
       try {
-        const res = await fetch(
-          `/api/admin/worker-profile?workerId=${encodeURIComponent(applicantId)}`
-        );
-        const json = (await res.json()) as WorkerProfileResponse & { error?: string };
-        if (!res.ok) {
-          throw new Error(json.error || `Failed to load profile (${res.status})`);
+        const [profileRes, assignmentsRes] = await Promise.all([
+          fetch(`/api/admin/worker-profile?workerId=${encodeURIComponent(applicantId)}`),
+          fetch(`/api/admin/worker-facility-assignments?workerId=${encodeURIComponent(applicantId)}`),
+        ]);
+        const profileJson = (await profileRes.json()) as WorkerProfileResponse & { error?: string };
+        const assignmentsJson = (await assignmentsRes.json()) as FacilityAssignmentsResponse;
+        if (!profileRes.ok) {
+          throw new Error(profileJson.error || `Failed to load profile (${profileRes.status})`);
         }
-        setProfile(json);
+        if (!assignmentsRes.ok) {
+          throw new Error(assignmentsJson.error || `Failed to load facilities (${assignmentsRes.status})`);
+        }
+        setProfile(profileJson);
+        setAssignments(assignmentsJson.assignments ?? []);
+        setFacilityOptions(assignmentsJson.facilities ?? []);
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         console.error("Failed to fetch applicant for facility assignments:", msg, e);
         setLoadError(msg);
         setProfile(null);
+        setAssignments([]);
+        setFacilityOptions([]);
       } finally {
         setLoading(false);
       }
@@ -132,6 +116,31 @@ export default function NewApplicantFacilityAssignmentsPage() {
 
     fetchApplicant();
   }, [applicantId]);
+
+  async function assignToFacility(facilityId: string) {
+    if (!applicantId) return;
+    setAssigningFacilityId(facilityId);
+    setAssignError(null);
+    try {
+      const res = await fetch("/api/admin/worker-facility-assignments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workerId: applicantId, facilityId }),
+      });
+      const json = (await res.json()) as FacilityAssignmentsResponse & { error?: string };
+      if (!res.ok) {
+        throw new Error(json.error || `Failed to assign facility (${res.status})`);
+      }
+      setAssignments(json.assignments ?? []);
+      setShowAssignFacilityModal(false);
+      setActiveFacilityTab("active");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setAssignError(msg);
+    } finally {
+      setAssigningFacilityId(null);
+    }
+  }
 
   const applicant = profile?.worker ?? null;
 
@@ -142,8 +151,40 @@ export default function NewApplicantFacilityAssignmentsPage() {
 
   const candidateRole = applicant?.job_role || "N/A";
   const statusLabel = applicant?.status_label?.trim() || "New Applicant";
+  const assignedFacilityIds = new Set(
+    assignments.map((row) => row.facility_id).filter((id): id is string => Boolean(id))
+  );
+
+  const activeFacilities = assignments
+    .filter((row) => row.facility_id && row.facility_name)
+    .map((row) => ({
+      id: row.facility_id as string,
+      name: row.facility_name as string,
+      primaryAddress: row.facility_address ?? row.shift_title ?? "—",
+      secondaryAddress: row.status ? `Status: ${row.status}` : "",
+      distance: row.assigned_at ? new Date(row.assigned_at).toLocaleDateString() : "",
+    }));
+
+  const potentialFacilities = facilityOptions
+    .filter((facility) => !assignedFacilityIds.has(facility.id))
+    .map((facility) => ({
+      id: facility.id,
+      name: facility.name,
+      primaryAddress: facility.address ?? "—",
+      secondaryAddress: facility.phone ? `Phone: ${facility.phone}` : "",
+      distance: "",
+    }));
+
+  const recentFacilities = [...activeFacilities].sort((a, b) =>
+    (b.distance || "").localeCompare(a.distance || "")
+  );
+
   const visibleFacilities =
-    activeFacilityTab === "potential" || activeFacilityTab === "recent" ? potentialFacilities : [];
+    activeFacilityTab === "active"
+      ? activeFacilities
+      : activeFacilityTab === "recent"
+        ? recentFacilities
+        : potentialFacilities;
 
   return (
     <div className="flex min-h-screen bg-zinc-50 overflow-hidden">
@@ -268,6 +309,11 @@ export default function NewApplicantFacilityAssignmentsPage() {
                 {loadError}
               </div>
             ) : null}
+            {assignError ? (
+              <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                {assignError}
+              </div>
+            ) : null}
 
             <DetailedCandidateHeader
               name={candidateName}
@@ -359,11 +405,7 @@ export default function NewApplicantFacilityAssignmentsPage() {
 
                     <button
                       type="button"
-                      onClick={() => {
-                        if (activeFacilityTab === "active") {
-                          setShowAssignFacilityModal(true);
-                        }
-                      }}
+                      onClick={() => setShowAssignFacilityModal(true)}
                       className="mt-6 inline-flex h-10 w-[237px] items-center justify-center gap-2 rounded-[8px] bg-[#0D9488] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#0B7F77]"
                     >
                       <Plus className="w-4 h-4" />
@@ -474,7 +516,9 @@ export default function NewApplicantFacilityAssignmentsPage() {
 
                     <button
                       type="button"
-                      className="inline-flex items-center gap-5 px-2 py-1 text-[#0D9488]"
+                      disabled={assigningFacilityId === facility.id}
+                      onClick={() => assignToFacility(facility.id)}
+                      className="inline-flex items-center gap-5 px-2 py-1 text-[#0D9488] disabled:opacity-50"
                       aria-label={`Add ${facility.name}`}
                     >
                       <Circle className="h-5 w-5 fill-current stroke-current" />

@@ -793,12 +793,12 @@ export default function NewApplicantProfilePage() {
                                 .join(", ")
                             : "No facility assignments found"}
                         </div>
-                        <button
-                          type="button"
+                        <Link
+                          href={`${base}/facility-assignments/${applicantId}`}
                           className="inline-flex h-9 w-[78px] items-center justify-center gap-1.5 rounded-lg bg-[#0D9488] px-4 py-2 text-sm font-semibold text-white"
                         >
                           + Add
-                        </button>
+                        </Link>
                       </div>
                     </div>
 

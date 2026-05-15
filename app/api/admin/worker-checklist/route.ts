@@ -4,6 +4,7 @@ import { writeActivityLog } from "@/lib/audit/activity-log"
 import { requireApiSession } from "@/lib/auth/api-session"
 import { isStaffRole } from "@/lib/auth/app-role"
 import { canAccessWorkerRecord } from "@/lib/auth/worker-record-access"
+import { loadWorkerFacilityAssignments } from "@/lib/admin/worker-facility-assignments"
 import { getSupabaseUrl } from "@/lib/supabase-env"
 import { parseRequiredUuid } from "@/lib/validation/uuid"
 
@@ -133,6 +134,13 @@ export async function GET(req: NextRequest) {
     const verifiedDone = documentChecks.filter((d) => d.ok).length
     const verifiedTotal = documentChecks.length
 
+    const { assignments: facilityAssignments } = await loadWorkerFacilityAssignments(supabase, {
+      workerTableId: workerId,
+      workerAuthId: wr.user_id != null ? String(wr.user_id).trim() : null,
+    })
+    const primaryFacility = facilityAssignments.find((row) => row.facility_name)?.facility_name
+    const hasFacilityAssignment = facilityAssignments.length > 0
+
     let completedAssessments = 0
     let totalAssessments = 0
     const { data: saRows, error: saErr } = await supabase
@@ -235,10 +243,12 @@ export async function GET(req: NextRequest) {
           {
             id: "facility_assigned",
             title: "Facility Assigned",
-            subtitle: "No facility assigned",
-            state: "pending",
-            checked: false,
-            badge: stateBadge("pending", "Pending"),
+            subtitle: hasFacilityAssignment
+              ? primaryFacility ?? `${facilityAssignments.length} assignment(s)`
+              : "No facility assigned",
+            state: hasFacilityAssignment ? "complete" : "pending",
+            checked: hasFacilityAssignment,
+            badge: stateBadge(hasFacilityAssignment ? "complete" : "pending", hasFacilityAssignment ? "Complete" : "Pending"),
           },
           {
             id: "assign_rate",
